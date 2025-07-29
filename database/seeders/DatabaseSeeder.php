@@ -2,206 +2,208 @@
 
 namespace Database\Seeders;
 
-use App\Models\Employee;
-use App\Models\Organization;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Carbon\Carbon;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Buat Organizations
+        // Clear existing data
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('employees')->truncate();
+        DB::table('organizations')->truncate();
+        DB::table('users')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        // Seed Organizations
         $organizations = [
             [
-                'name' => 'Terminal 1',
-                'code' => 'T1',
-                'description' => 'Terminal 1 Bandara Internasional',
-                'location' => 'Terminal 1',
-                'status' => 'active'
+                'id' => 1,
+                'name' => 'Divisi IT',
+                'code' => 'IT',
+                'description' => 'Divisi Teknologi Informasi',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Terminal 2',
-                'code' => 'T2', 
-                'description' => 'Terminal 2 Bandara Internasional',
-                'location' => 'Terminal 2',
-                'status' => 'active'
+                'id' => 2,
+                'name' => 'Divisi Operations',
+                'code' => 'OPS',
+                'description' => 'Divisi Operasional Bandara',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Terminal 3',
-                'code' => 'T3',
-                'description' => 'Terminal 3 Bandara Internasional', 
-                'location' => 'Terminal 3',
-                'status' => 'active'
-            ],
-            [
-                'name' => 'Ground Handling',
-                'code' => 'GH',
-                'description' => 'Layanan Ground Handling',
-                'location' => 'Area Apron',
-                'status' => 'active'
-            ],
-            [
-                'name' => 'Security',
+                'id' => 3,
+                'name' => 'Divisi Security',
                 'code' => 'SEC',
                 'description' => 'Divisi Keamanan Bandara',
-                'location' => 'Seluruh Area',
-                'status' => 'active'
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Air Traffic Control',
-                'code' => 'ATC',
-                'description' => 'Kontrol Lalu Lintas Udara',
-                'location' => 'Control Tower',
-                'status' => 'active'
+                'id' => 4,
+                'name' => 'Divisi Customer Service',
+                'code' => 'CS',
+                'description' => 'Divisi Layanan Pelanggan',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Maintenance',
-                'code' => 'MTN',
-                'description' => 'Pemeliharaan Fasilitas',
-                'location' => 'Workshop',
-                'status' => 'active'
+                'id' => 5,
+                'name' => 'Divisi Ground Handling',
+                'code' => 'GH',
+                'description' => 'Divisi Penanganan Darat',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Administration',
-                'code' => 'ADM',
-                'description' => 'Administrasi dan HR',
-                'location' => 'Kantor Pusat',
-                'status' => 'active'
-            ]
+                'id' => 6,
+                'name' => 'Divisi Finance',
+                'code' => 'FIN',
+                'description' => 'Divisi Keuangan',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 7,
+                'name' => 'Divisi HR',
+                'code' => 'HR',
+                'description' => 'Divisi Sumber Daya Manusia',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 8,
+                'name' => 'Divisi Cargo',
+                'code' => 'CGO',
+                'description' => 'Divisi Kargo',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
+
+        DB::table('organizations')->insert($organizations);
+
+        // Generate realistic employee names
+        $firstNames = [
+            'Ahmad', 'Budi', 'Sari', 'Dewi', 'Eka', 'Fajar', 'Gita', 'Hadi',
+            'Indra', 'Joko', 'Kartika', 'Liana', 'Maya', 'Nanda', 'Omar', 'Putri',
+            'Qori', 'Rina', 'Sinta', 'Tono', 'Udin', 'Vera', 'Wati', 'Yudi', 'Zara',
+            'Agus', 'Bambang', 'Citra', 'Dian', 'Eri', 'Fitri', 'Gunawan', 'Heru',
+            'Ika', 'Juki', 'Kiki', 'Linda', 'Mira', 'Nina', 'Oki', 'Prita',
+            'Rizki', 'Sandi', 'Tari', 'Umi', 'Vina', 'Wawan', 'Yani', 'Zaki'
+        ];
+
+        $lastNames = [
+            'Pratama', 'Sari', 'Wijaya', 'Lestari', 'Putra', 'Dewi', 'Santoso', 'Wati',
+            'Kusuma', 'Indah', 'Nugroho', 'Sinta', 'Handoko', 'Rahayu', 'Setiawan', 'Fitri',
+            'Kurniawan', 'Maharani', 'Susanto', 'Anggraini', 'Permana', 'Safitri', 'Gunawan', 'Novita',
+            'Firmansyah', 'Puspita', 'Hermawan', 'Lestari', 'Wirawan', 'Kartini', 'Hakim', 'Savitri',
+            'Darmawan', 'Permatasari', 'Nugraha', 'Ratnasari', 'Wibowo', 'Melati', 'Surya', 'Ningrum'
+        ];
+
+        $positions = [
+            'Staff IT', 'Supervisor IT', 'Manager IT', 'System Administrator', 'Network Engineer',
+            'Ground Handling Officer', 'Supervisor Operations', 'Manager Operations', 'Flight Coordinator',
+            'Security Officer', 'Security Supervisor', 'Chief Security', 'CCTV Operator',
+            'Customer Service Agent', 'Supervisor CS', 'Manager CS', 'Information Desk Officer',
+            'Finance Staff', 'Accounting Officer', 'Finance Manager', 'Budget Analyst',
+            'HR Staff', 'HR Specialist', 'HR Manager', 'Recruitment Officer',
+            'Cargo Handler', 'Cargo Supervisor', 'Cargo Manager', 'Warehouse Officer'
+        ];
+
+        // Generate employees
+        $employees = [];
+        $employeeCounter = 1;
 
         foreach ($organizations as $org) {
-            Organization::create($org);
+            // Generate 20-30 employees per organization
+            $employeeCount = rand(20, 30);
+            
+            for ($i = 0; $i < $employeeCount; $i++) {
+                $firstName = $firstNames[array_rand($firstNames)];
+                $lastName = $lastNames[array_rand($lastNames)];
+                $fullName = $firstName . ' ' . $lastName;
+                
+                // Generate employee ID with organization code
+                $employeeId = $org['code'] . str_pad($employeeCounter, 3, '0', STR_PAD_LEFT);
+                
+                // Random hire date within last 5 years
+                $hireDate = Carbon::now()->subDays(rand(30, 1825));
+                
+                // 98% active employees (as shown in dashboard)
+                $status = (rand(1, 100) <= 98) ? 'active' : 'inactive';
+                
+                $employees[] = [
+                    'employee_id' => $employeeId,
+                    'name' => $fullName,
+                    'email' => strtolower(str_replace(' ', '.', $fullName)) . '@gapura.com',
+                    'phone' => '08' . rand(1000000000, 9999999999),
+                    'position' => $positions[array_rand($positions)],
+                    'organization_id' => $org['id'],
+                    'hire_date' => $hireDate,
+                    'salary' => rand(3000000, 15000000),
+                    'status' => $status,
+                    'address' => 'Jl. Bandara No. ' . rand(1, 999) . ', Jakarta',
+                    'birth_date' => Carbon::now()->subYears(rand(22, 55))->subDays(rand(1, 365)),
+                    'gender' => (rand(0, 1) ? 'male' : 'female'),
+                    'created_at' => $hireDate,
+                    'updated_at' => now(),
+                ];
+                
+                $employeeCounter++;
+            }
         }
 
-        // Buat Employees
-        $employees = [
-            // Super Admin
+        // Insert employees in chunks for better performance
+        $chunks = array_chunk($employees, 50);
+        foreach ($chunks as $chunk) {
+            DB::table('employees')->insert($chunk);
+        }
+
+        // Create users for authentication (Super Admin, Admin, Staff)
+        $users = [
             [
-                'employee_id' => 'GA001',
                 'name' => 'GusDek',
                 'email' => 'admin@gapura.com',
-                'phone' => '081234567890',
-                'position' => 'System Administrator',
-                'department' => 'IT',
-                'hire_date' => '2020-01-15',
-                'status' => 'active',
+                'email_verified_at' => now(),
+                'password' => Hash::make('password'),
                 'role' => 'super_admin',
-                'organization_id' => 8 // Administration
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
-            // Admin T1
             [
-                'employee_id' => 'GA002',
-                'name' => 'Ahmad Santoso',
-                'email' => 'ahmad@gapura.com',
-                'phone' => '081234567891',
-                'position' => 'Terminal Manager',
-                'department' => 'Operations',
-                'hire_date' => '2020-03-01',
-                'status' => 'active',
+                'name' => 'Manager IT',
+                'email' => 'manager.it@gapura.com',
+                'email_verified_at' => now(),
+                'password' => Hash::make('password'),
                 'role' => 'admin',
-                'organization_id' => 1 // Terminal 1
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
-            // Admin T2
             [
-                'employee_id' => 'GA003',
-                'name' => 'Siti Rahayu',
-                'email' => 'siti@gapura.com',
-                'phone' => '081234567892',
-                'position' => 'Terminal Manager',
-                'department' => 'Operations',
-                'hire_date' => '2020-03-15',
-                'status' => 'active',
-                'role' => 'admin',
-                'organization_id' => 2 // Terminal 2
-            ],
-            // Staff Terminal 1
-            [
-                'employee_id' => 'GA004',
-                'name' => 'Budi Prasetyo',
-                'email' => 'budi@gapura.com',
-                'phone' => '081234567893',
-                'position' => 'Customer Service',
-                'department' => 'Customer Relations',
-                'hire_date' => '2021-01-10',
-                'status' => 'active',
+                'name' => 'Staff Operations',
+                'email' => 'staff.ops@gapura.com',
+                'email_verified_at' => now(),
+                'password' => Hash::make('password'),
                 'role' => 'staff',
-                'organization_id' => 1
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
-            [
-                'employee_id' => 'GA005',
-                'name' => 'Dewi Lestari',
-                'email' => 'dewi@gapura.com',
-                'phone' => '081234567894',
-                'position' => 'Check-in Agent',
-                'department' => 'Ground Services',
-                'hire_date' => '2021-02-15',
-                'status' => 'active',
-                'role' => 'staff',
-                'organization_id' => 1
-            ],
-            // Staff Terminal 2
-            [
-                'employee_id' => 'GA006',
-                'name' => 'Eko Nugroho',
-                'email' => 'eko@gapura.com',
-                'phone' => '081234567895',
-                'position' => 'Baggage Handler',
-                'department' => 'Ground Handling',
-                'hire_date' => '2021-03-01',
-                'status' => 'active',
-                'role' => 'staff',
-                'organization_id' => 2
-            ],
-            [
-                'employee_id' => 'GA007',
-                'name' => 'Rina Sari',
-                'email' => 'rina@gapura.com',
-                'phone' => '081234567896',
-                'position' => 'Information Desk',
-                'department' => 'Customer Relations',
-                'hire_date' => '2021-04-10',
-                'status' => 'active',
-                'role' => 'staff',
-                'organization_id' => 2
-            ],
-            // Staff Terminal 3
-            [
-                'employee_id' => 'GA008',
-                'name' => 'Agus Wijaya',
-                'email' => 'agus@gapura.com',
-                'phone' => '081234567897',
-                'position' => 'Security Officer',
-                'department' => 'Security',
-                'hire_date' => '2021-05-15',
-                'status' => 'active',
-                'role' => 'staff',
-                'organization_id' => 5
-            ],
-            // Tambahan staff untuk mencapai 202 total
         ];
 
-        // Generate lebih banyak staff untuk mencapai 202 total
-        $positions = ['Customer Service', 'Security Officer', 'Maintenance Staff', 'Ground Handler', 'Check-in Agent', 'Baggage Handler'];
-        $departments = ['Customer Relations', 'Security', 'Maintenance', 'Ground Handling', 'Operations'];
-        
-        for ($i = 9; $i <= 202; $i++) {
-            $employees[] = [
-                'employee_id' => sprintf('GA%03d', $i),
-                'name' => 'Karyawan ' . $i,
-                'email' => 'karyawan' . $i . '@gapura.com',
-                'phone' => '0812345678' . sprintf('%02d', ($i % 100)),
-                'position' => $positions[array_rand($positions)],
-                'department' => $departments[array_rand($departments)],
-                'hire_date' => '2021-0' . (($i % 9) + 1) . '-' . sprintf('%02d', ($i % 28) + 1),
-                'status' => ($i <= 195) ? 'active' : (($i % 2 == 0) ? 'inactive' : 'active'),
-                'role' => 'staff',
-                'organization_id' => (($i % 8) + 1)
-            ];
-        }
+        DB::table('users')->insert($users);
 
-        foreach ($employees as $employee) {
-            Employee::create($employee);
-        }
+        $this->command->info('Database seeded successfully!');
+        $this->command->info('Created ' . count($employees) . ' employees across ' . count($organizations) . ' organizations');
+        $this->command->info('Created ' . count($users) . ' users with different roles');
+        $this->command->info('Login credentials:');
+        $this->command->info('Super Admin: admin@gapura.com / password');
+        $this->command->info('Admin: manager.it@gapura.com / password');
+        $this->command->info('Staff: staff.ops@gapura.com / password');
     }
 }

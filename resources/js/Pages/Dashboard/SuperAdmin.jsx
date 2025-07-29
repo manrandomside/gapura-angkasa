@@ -1,21 +1,20 @@
-import DashboardLayout from "../../Layouts/DashboardLayout";
+import DashboardLayout from "@/Layouts/DashboardLayout";
 
-const SuperAdmin = ({
-    total_employees,
-    active_employees,
-    active_percentage,
-    organization_units,
-    organizations,
-    current_role,
-    user_profile,
-}) => {
+export default function SuperAdminDashboard({
+    total_employees = 202,
+    active_employees = 198,
+    active_percentage = 98,
+    organization_units = 8,
+    current_role = "Super Admin",
+    user_profile = { name: "GusDek", email: "admin@gapura.com" },
+}) {
     const quickActions = [
         {
             title: "Tambah Karyawan",
             description: "Daftarkan karyawan baru",
             icon: (
                 <svg
-                    className="w-6 h-6"
+                    className="w-8 h-8"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -28,7 +27,7 @@ const SuperAdmin = ({
                     />
                 </svg>
             ),
-            color: "bg-blue-500 hover:bg-blue-600",
+            gradient: "from-blue-500 to-blue-600",
             href: "/data-karyawan/create",
         },
         {
@@ -36,7 +35,7 @@ const SuperAdmin = ({
             description: "Buat laporan bulanan",
             icon: (
                 <svg
-                    className="w-6 h-6"
+                    className="w-8 h-8"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -49,7 +48,7 @@ const SuperAdmin = ({
                     />
                 </svg>
             ),
-            color: "bg-pink-500 hover:bg-pink-600",
+            gradient: "from-pink-500 to-pink-600",
             href: "/laporan/generate",
         },
         {
@@ -57,7 +56,7 @@ const SuperAdmin = ({
             description: "Kelola pengaturan sistem",
             icon: (
                 <svg
-                    className="w-6 h-6"
+                    className="w-8 h-8"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -76,215 +75,297 @@ const SuperAdmin = ({
                     />
                 </svg>
             ),
-            color: "bg-cyan-500 hover:bg-cyan-600",
+            gradient: "from-indigo-500 to-indigo-600",
             href: "/pengaturan",
         },
     ];
 
     return (
         <DashboardLayout title="Dashboard SDM">
-            <div className="p-6">
-                {/* Header */}
-                <div className="p-6 mb-6 bg-white rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-800">
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+                {/* Header Section */}
+                <div className="relative overflow-hidden bg-white shadow-sm">
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#439454]/5 to-transparent"></div>
+                    <div className="relative px-8 py-10">
+                        <div className="max-w-4xl">
+                            <h1 className="mb-3 text-4xl font-bold text-gray-900">
                                 Dashboard SDM
                             </h1>
-                            <p className="mt-1 text-gray-600">
+                            <p className="mb-6 text-lg text-gray-600">
                                 Selamat datang di sistem manajemen SDM GAPURA
                                 ANGKASA
                             </p>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <div className="text-right">
-                                <p className="text-sm text-gray-500">
-                                    Simulasi Role:
-                                </p>
-                                <p className="text-sm font-medium text-gray-800">
-                                    {user_profile?.email || "admin@gapura.com"}
-                                </p>
-                            </div>
-                            <div className="bg-[#439454] text-white px-4 py-2 rounded-lg text-sm font-medium">
-                                {current_role || "Super Admin"}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Total Karyawan */}
-                    <div className="p-6 bg-white rounded-lg shadow-sm">
-                        <div className="flex items-center">
-                            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                                <svg
-                                    className="w-6 h-6 text-blue-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                                    />
-                                </svg>
-                            </div>
-                            <div className="flex-1 ml-4">
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {total_employees || 0}
-                                </p>
-                                <p className="text-gray-600">Total Karyawan</p>
-                                <p className="mt-1 text-sm text-green-600">
-                                    +5 bulan ini
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Karyawan Aktif */}
-                    <div className="p-6 bg-white rounded-lg shadow-sm">
-                        <div className="flex items-center">
-                            <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
-                                <svg
-                                    className="w-6 h-6 text-green-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                </svg>
-                            </div>
-                            <div className="flex-1 ml-4">
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {active_employees || 0}
-                                </p>
-                                <p className="text-gray-600">Karyawan Aktif</p>
-                                <p className="mt-1 text-sm text-green-600">
-                                    {active_percentage || 0}% dari total
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Unit Organisasi */}
-                    <div className="p-6 bg-white rounded-lg shadow-sm">
-                        <div className="flex items-center">
-                            <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
-                                <svg
-                                    className="w-6 h-6 text-purple-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                                    />
-                                </svg>
-                            </div>
-                            <div className="flex-1 ml-4">
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {organization_units || 0}
-                                </p>
-                                <p className="text-gray-600">Unit Organisasi</p>
-                                <p className="mt-1 text-sm text-green-600">
-                                    Tersebar di bandara
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Data Access */}
-                    <div className="p-6 bg-white rounded-lg shadow-sm">
-                        <div className="flex items-center">
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-cyan-100">
-                                <svg
-                                    className="w-6 h-6 text-cyan-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                                    />
-                                </svg>
-                            </div>
-                            <div className="flex-1 ml-4">
-                                <p className="text-2xl font-bold text-gray-800">
-                                    100%
-                                </p>
-                                <p className="text-gray-600">Data Access</p>
-                                <p className="mt-1 text-sm text-green-600">
-                                    Full system access
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Info Access Banner */}
-                <div className="p-4 mb-6 border border-yellow-200 rounded-lg bg-yellow-50">
-                    <div className="flex items-center">
-                        <svg
-                            className="w-5 h-5 mr-3 text-yellow-600"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                        <p className="font-medium text-yellow-800">
-                            Informasi Akses: Anda memiliki akses penuh ke semua
-                            fitur sistem sebagai Super Admin.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="p-6 bg-white rounded-lg shadow-sm">
-                    <h2 className="mb-4 text-lg font-semibold text-gray-800">
-                        Quick Actions
-                    </h2>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        {quickActions.map((action, index) => (
-                            <div
-                                key={index}
-                                className={`${action.color} text-white rounded-lg p-6 cursor-pointer transition-all duration-200 transform hover:scale-105 hover:shadow-lg`}
-                            >
-                                <div className="flex items-center mb-3">
-                                    {action.icon}
-                                    <h3 className="ml-3 text-lg font-semibold">
-                                        {action.title}
-                                    </h3>
+                            <div className="inline-flex items-center px-4 py-3 border border-orange-200 shadow-sm bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl">
+                                <div className="flex items-center justify-center w-8 h-8 mr-3 bg-orange-500 rounded-full">
+                                    <svg
+                                        className="w-4 h-4 text-white"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                    </svg>
                                 </div>
-                                <p className="text-sm opacity-90">
-                                    {action.description}
-                                </p>
+                                <span className="font-medium text-orange-800">
+                                    Informasi Akses: Anda memiliki akses penuh
+                                    ke semua fitur sistem sebagai Super Admin
+                                </span>
                             </div>
-                        ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-8 pb-8 -mt-4">
+                    {/* Stats Cards */}
+                    <div className="relative z-10 grid grid-cols-1 gap-8 mb-12 md:grid-cols-2 lg:grid-cols-4">
+                        {/* Total Karyawan */}
+                        <div className="relative overflow-hidden transition-all duration-500 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-3">
+                            <div className="absolute inset-0 transition-opacity duration-500 opacity-0 bg-gradient-to-br from-blue-500/5 to-blue-600/10 group-hover:opacity-100"></div>
+                            <div className="relative p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center justify-center transition-all duration-500 shadow-2xl w-18 h-18 bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl group-hover:scale-110 group-hover:rotate-3">
+                                        <svg
+                                            className="text-white w-9 h-9"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-colors duration-500 group-hover:text-blue-600">
+                                        {total_employees}
+                                    </p>
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
+                                        Total Karyawan
+                                    </p>
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-blue-600 rounded-full bg-blue-50">
+                                        +5 bulan ini
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Karyawan Aktif */}
+                        <div className="relative overflow-hidden transition-all duration-500 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-3">
+                            <div className="absolute inset-0 transition-opacity duration-500 opacity-0 bg-gradient-to-br from-green-500/5 to-green-600/10 group-hover:opacity-100"></div>
+                            <div className="relative p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center justify-center transition-all duration-500 shadow-2xl w-18 h-18 bg-gradient-to-br from-green-500 to-green-600 rounded-3xl group-hover:scale-110 group-hover:rotate-3">
+                                        <svg
+                                            className="text-white w-9 h-9"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-colors duration-500 group-hover:text-green-600">
+                                        {active_employees}
+                                    </p>
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
+                                        Karyawan Aktif
+                                    </p>
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-green-600 rounded-full bg-green-50">
+                                        {active_percentage}% dari total
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Unit Organisasi */}
+                        <div className="relative overflow-hidden transition-all duration-500 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-3">
+                            <div className="absolute inset-0 transition-opacity duration-500 opacity-0 bg-gradient-to-br from-purple-500/5 to-purple-600/10 group-hover:opacity-100"></div>
+                            <div className="relative p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center justify-center transition-all duration-500 shadow-2xl w-18 h-18 bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl group-hover:scale-110 group-hover:rotate-3">
+                                        <svg
+                                            className="text-white w-9 h-9"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-colors duration-500 group-hover:text-purple-600">
+                                        {organization_units}
+                                    </p>
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
+                                        Unit Organisasi
+                                    </p>
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-purple-600 rounded-full bg-purple-50">
+                                        Tersebar di bandara
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Data Access */}
+                        <div className="relative overflow-hidden transition-all duration-500 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-3">
+                            <div className="absolute inset-0 transition-opacity duration-500 opacity-0 bg-gradient-to-br from-cyan-500/5 to-cyan-600/10 group-hover:opacity-100"></div>
+                            <div className="relative p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center justify-center transition-all duration-500 shadow-2xl w-18 h-18 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-3xl group-hover:scale-110 group-hover:rotate-3">
+                                        <svg
+                                            className="text-white w-9 h-9"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-colors duration-500 group-hover:text-cyan-600">
+                                        100%
+                                    </p>
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
+                                        Data Access
+                                    </p>
+                                    <p className="inline-block px-3 py-1 text-sm font-medium rounded-full text-cyan-600 bg-cyan-50">
+                                        Full system access
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="mb-10">
+                        <div className="mb-8 text-center">
+                            <h2 className="mb-3 text-3xl font-bold text-gray-900">
+                                Quick Actions
+                            </h2>
+                            <p className="text-lg text-gray-600">
+                                Akses cepat ke fitur utama sistem
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-8 mx-auto md:grid-cols-3 max-w-7xl">
+                            {quickActions.map((action, index) => (
+                                <a
+                                    key={index}
+                                    href={action.href}
+                                    className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl quick-action-card group rounded-3xl hover:shadow-2xl hover:-translate-y-4"
+                                >
+                                    <div
+                                        className={`absolute inset-0 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-700`}
+                                    ></div>
+                                    <div className="relative p-10">
+                                        <div className="flex flex-col items-center text-center">
+                                            <div
+                                                className={`flex items-center justify-center w-24 h-24 bg-gradient-to-br ${action.gradient} rounded-3xl shadow-2xl mb-8 group-hover:scale-110 group-hover:rotate-3 transition-all duration-700`}
+                                            >
+                                                <div className="text-white">
+                                                    {action.icon}
+                                                </div>
+                                            </div>
+                                            <h3 className="mb-3 text-2xl font-bold text-gray-900 transition-colors duration-700 group-hover:text-white">
+                                                {action.title}
+                                            </h3>
+                                            <p className="text-lg leading-relaxed text-gray-600 transition-colors duration-700 group-hover:text-white/90">
+                                                {action.description}
+                                            </p>
+                                            <div className="mt-6 transition-all duration-700 transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0">
+                                                <div className="flex items-center font-medium text-white">
+                                                    <span className="mr-2">
+                                                        Akses Sekarang
+                                                    </span>
+                                                    <svg
+                                                        className="w-5 h-5 transition-transform duration-300 transform group-hover:translate-x-1"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M13 7l5 5m0 0l-5 5m5-5H6"
+                                                        />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Decorative Elements */}
+                                    <div className="absolute w-20 h-20 transition-opacity duration-700 rounded-full opacity-0 top-4 right-4 bg-white/5 group-hover:opacity-100"></div>
+                                    <div className="absolute w-16 h-16 transition-opacity duration-700 delay-100 rounded-full opacity-0 bottom-4 left-4 bg-white/5 group-hover:opacity-100"></div>
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Welcome Message */}
+                    <div className="bg-gradient-to-r from-[#439454] to-[#358945] rounded-3xl shadow-2xl p-10 text-center text-white">
+                        <div className="max-w-3xl mx-auto">
+                            <h3 className="mb-4 text-3xl font-bold">
+                                Selamat Bekerja, {user_profile.name}!
+                            </h3>
+                            <p className="text-lg leading-relaxed text-white/90">
+                                Sistem manajemen SDM GAPURA ANGKASA siap
+                                membantu Anda mengelola sumber daya manusia
+                                dengan efisien. Gunakan menu navigasi di sebelah
+                                kiri untuk mengakses berbagai fitur yang
+                                tersedia.
+                            </p>
+                            <div className="flex items-center justify-center mt-8 space-x-6">
+                                <div className="flex items-center">
+                                    <div className="w-3 h-3 mr-2 bg-white rounded-full animate-pulse"></div>
+                                    <span className="text-white/90">
+                                        Sistem Online
+                                    </span>
+                                </div>
+                                <div className="flex items-center">
+                                    <div className="w-3 h-3 mr-2 bg-white rounded-full"></div>
+                                    <span className="text-white/90">
+                                        Data Tersinkronisasi
+                                    </span>
+                                </div>
+                                <div className="flex items-center">
+                                    <div className="w-3 h-3 mr-2 bg-white rounded-full"></div>
+                                    <span className="text-white/90">
+                                        Keamanan Aktif
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </DashboardLayout>
     );
-};
-
-export default SuperAdmin;
+}
