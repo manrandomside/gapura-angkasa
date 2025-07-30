@@ -156,8 +156,8 @@ export default function Index({ statistics = {} }) {
                                     </svg>
                                 </div>
                                 <span className="font-medium text-orange-800">
-                                    Informasi Akses: Anda memiliki akses penuh
-                                    ke semua fitur sistem
+                                    Informasi Akses: Anda sebagai Super Admin
+                                    memiliki akses penuh ke semua fitur sistem.
                                 </span>
                             </div>
                         </div>

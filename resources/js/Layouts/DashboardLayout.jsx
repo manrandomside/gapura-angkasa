@@ -56,20 +56,20 @@ export default function DashboardLayout({ title, children }) {
                     />
                 </svg>
             ),
-            href: "/management-karyawan",
+            // Fixed: Main menu mengarah ke /employees
+            href: "/employees",
             isActive:
-                url.startsWith("/management-karyawan") ||
+                url.startsWith("/employees") ||
                 url.startsWith("/total-karyawan") ||
+                url.startsWith("/management-karyawan") ||
                 url.startsWith("/data-karyawan"),
             hasSubmenu: true,
             submenu: [
+                // Separated: Total Karyawan dan Management Karyawan berbeda halaman
                 { name: "Total Karyawan", href: "/total-karyawan" },
-                { name: "Management Karyawan", href: "/management-karyawan" },
-                {
-                    name: "Tambah Karyawan",
-                    href: "/management-karyawan/create",
-                },
-                { name: "Import Data", href: "/management-karyawan/import" },
+                { name: "Management Karyawan", href: "/employees" },
+                { name: "Tambah Karyawan", href: "/employees/create" },
+                { name: "Import Data", href: "/employees/import" },
             ],
         },
         {
@@ -159,7 +159,9 @@ export default function DashboardLayout({ title, children }) {
 
     return (
         <>
-            <Head title={title} />
+            <Head
+                title={title ? `${title} - GAPURA ANGKASA` : "GAPURA ANGKASA"}
+            />
             <div className="flex h-screen bg-gray-50">
                 {/* Custom CSS Styles */}
                 <style
@@ -334,7 +336,7 @@ export default function DashboardLayout({ title, children }) {
                                         )}
                                     </div>
 
-                                    {/* Submenu */}
+                                    {/* Submenu - Fixed routing */}
                                     {item.hasSubmenu &&
                                         (openDropdowns[index] ||
                                             item.isActive) && (
@@ -348,14 +350,14 @@ export default function DashboardLayout({ title, children }) {
                                                                 url ===
                                                                     subItem.href ||
                                                                 (subItem.href ===
+                                                                    "/employees" &&
+                                                                    url.startsWith(
+                                                                        "/employees"
+                                                                    )) ||
+                                                                (subItem.href ===
                                                                     "/total-karyawan" &&
                                                                     url.startsWith(
                                                                         "/total-karyawan"
-                                                                    )) ||
-                                                                (subItem.href ===
-                                                                    "/management-karyawan" &&
-                                                                    url.startsWith(
-                                                                        "/management-karyawan"
                                                                     ))
                                                                     ? "bg-[#439454] text-white shadow-md"
                                                                     : "text-gray-500 hover:text-[#439454] hover:bg-green-50 hover:ml-2"
@@ -386,7 +388,7 @@ export default function DashboardLayout({ title, children }) {
                                         GusDek
                                     </p>
                                     <p className="text-xs text-gray-500 truncate">
-                                        Jabatan
+                                        Super Admin
                                     </p>
                                 </div>
                             </div>
