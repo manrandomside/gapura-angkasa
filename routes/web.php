@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -20,21 +21,44 @@ use Inertia\Inertia;
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Data Karyawan Routes
-Route::prefix('data-karyawan')->group(function () {
-    Route::get('/', [DashboardController::class, 'employees'])->name('employees.index');
-    Route::get('/create', function () {
-        return Inertia::render('Employees/Create');
-    })->name('employees.create');
+// Management Karyawan Routes (Updated from "Data Karyawan")
+Route::prefix('management-karyawan')->group(function () {
+    Route::get('/', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::get('/create', [EmployeeController::class, 'create'])->name('employees.create');
+    Route::post('/', [EmployeeController::class, 'store'])->name('employees.store');
     Route::get('/import', function () {
         return Inertia::render('Employees/Import');
     })->name('employees.import');
+    Route::post('/import', [EmployeeController::class, 'import'])->name('employees.import.process');
+    Route::get('/export', [EmployeeController::class, 'export'])->name('employees.export');
+    Route::get('/suggestions', [EmployeeController::class, 'suggestions'])->name('employees.suggestions');
+    Route::post('/bulk-action', [EmployeeController::class, 'bulkAction'])->name('employees.bulk');
+    Route::get('/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
+    Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
+    Route::put('/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+    Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+});
+
+// Total Karyawan Route (same as management karyawan - untuk menu Total Karyawan)
+Route::get('/total-karyawan', [EmployeeController::class, 'index'])->name('total.karyawan');
+
+// Legacy Data Karyawan Routes (Keep for backward compatibility, redirect to new routes)
+Route::prefix('data-karyawan')->group(function () {
+    Route::get('/', function () {
+        return redirect()->route('employees.index');
+    });
+    Route::get('/create', function () {
+        return redirect()->route('employees.create');
+    });
+    Route::get('/import', function () {
+        return redirect()->route('employees.import');
+    });
     Route::get('/{id}', function ($id) {
-        return Inertia::render('Employees/Show', ['id' => $id]);
-    })->name('employees.show');
+        return redirect()->route('employees.show', $id);
+    });
     Route::get('/{id}/edit', function ($id) {
-        return Inertia::render('Employees/Edit', ['id' => $id]);
-    })->name('employees.edit');
+        return redirect()->route('employees.edit', $id);
+    });
 });
 
 // Organisasi Routes
@@ -80,6 +104,8 @@ Route::prefix('pengaturan')->group(function () {
 Route::prefix('api')->group(function () {
     Route::get('/stats', [DashboardController::class, 'getStats'])->name('api.stats');
     Route::get('/organization-stats', [DashboardController::class, 'getOrganizationStats'])->name('api.organization-stats');
+    // API Routes for Employee Dashboard Data
+    Route::get('/employees/dashboard-data', [EmployeeController::class, 'getDashboardData'])->name('api.employees.dashboard');
 });
 
 // Development Routes (untuk testing tanpa login)

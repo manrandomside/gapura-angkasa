@@ -11,6 +11,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->command->info('🔄 Starting database seeding for GAPURA ANGKASA SDM System...');
+        
         // Clear existing data
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('employees')->truncate();
@@ -18,154 +20,17 @@ class DatabaseSeeder extends Seeder
         DB::table('users')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // Seed Organizations
-        $organizations = [
-            [
-                'id' => 1,
-                'name' => 'Divisi IT',
-                'code' => 'IT',
-                'description' => 'Divisi Teknologi Informasi',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 2,
-                'name' => 'Divisi Operations',
-                'code' => 'OPS',
-                'description' => 'Divisi Operasional Bandara',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 3,
-                'name' => 'Divisi Security',
-                'code' => 'SEC',
-                'description' => 'Divisi Keamanan Bandara',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 4,
-                'name' => 'Divisi Customer Service',
-                'code' => 'CS',
-                'description' => 'Divisi Layanan Pelanggan',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 5,
-                'name' => 'Divisi Ground Handling',
-                'code' => 'GH',
-                'description' => 'Divisi Penanganan Darat',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 6,
-                'name' => 'Divisi Finance',
-                'code' => 'FIN',
-                'description' => 'Divisi Keuangan',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 7,
-                'name' => 'Divisi HR',
-                'code' => 'HR',
-                'description' => 'Divisi Sumber Daya Manusia',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 8,
-                'name' => 'Divisi Cargo',
-                'code' => 'CGO',
-                'description' => 'Divisi Kargo',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ];
+        $this->command->info('🗑️  Cleared existing data');
 
-        DB::table('organizations')->insert($organizations);
-
-        // Generate realistic employee names
-        $firstNames = [
-            'Ahmad', 'Budi', 'Sari', 'Dewi', 'Eka', 'Fajar', 'Gita', 'Hadi',
-            'Indra', 'Joko', 'Kartika', 'Liana', 'Maya', 'Nanda', 'Omar', 'Putri',
-            'Qori', 'Rina', 'Sinta', 'Tono', 'Udin', 'Vera', 'Wati', 'Yudi', 'Zara',
-            'Agus', 'Bambang', 'Citra', 'Dian', 'Eri', 'Fitri', 'Gunawan', 'Heru',
-            'Ika', 'Juki', 'Kiki', 'Linda', 'Mira', 'Nina', 'Oki', 'Prita',
-            'Rizki', 'Sandi', 'Tari', 'Umi', 'Vina', 'Wawan', 'Yani', 'Zaki'
-        ];
-
-        $lastNames = [
-            'Pratama', 'Sari', 'Wijaya', 'Lestari', 'Putra', 'Dewi', 'Santoso', 'Wati',
-            'Kusuma', 'Indah', 'Nugroho', 'Sinta', 'Handoko', 'Rahayu', 'Setiawan', 'Fitri',
-            'Kurniawan', 'Maharani', 'Susanto', 'Anggraini', 'Permana', 'Safitri', 'Gunawan', 'Novita',
-            'Firmansyah', 'Puspita', 'Hermawan', 'Lestari', 'Wirawan', 'Kartini', 'Hakim', 'Savitri',
-            'Darmawan', 'Permatasari', 'Nugraha', 'Ratnasari', 'Wibowo', 'Melati', 'Surya', 'Ningrum'
-        ];
-
-        $positions = [
-            'Staff IT', 'Supervisor IT', 'Manager IT', 'System Administrator', 'Network Engineer',
-            'Ground Handling Officer', 'Supervisor Operations', 'Manager Operations', 'Flight Coordinator',
-            'Security Officer', 'Security Supervisor', 'Chief Security', 'CCTV Operator',
-            'Customer Service Agent', 'Supervisor CS', 'Manager CS', 'Information Desk Officer',
-            'Finance Staff', 'Accounting Officer', 'Finance Manager', 'Budget Analyst',
-            'HR Staff', 'HR Specialist', 'HR Manager', 'Recruitment Officer',
-            'Cargo Handler', 'Cargo Supervisor', 'Cargo Manager', 'Warehouse Officer'
-        ];
-
-        // Generate employees
-        $employees = [];
-        $employeeCounter = 1;
-
-        foreach ($organizations as $org) {
-            // Generate 20-30 employees per organization
-            $employeeCount = rand(20, 30);
-            
-            for ($i = 0; $i < $employeeCount; $i++) {
-                $firstName = $firstNames[array_rand($firstNames)];
-                $lastName = $lastNames[array_rand($lastNames)];
-                $fullName = $firstName . ' ' . $lastName;
-                
-                // Generate employee ID with organization code
-                $employeeId = $org['code'] . str_pad($employeeCounter, 3, '0', STR_PAD_LEFT);
-                
-                // Random hire date within last 5 years
-                $hireDate = Carbon::now()->subDays(rand(30, 1825));
-                
-                // 98% active employees (as shown in dashboard)
-                $status = (rand(1, 100) <= 98) ? 'active' : 'inactive';
-                
-                $employees[] = [
-                    'employee_id' => $employeeId,
-                    'name' => $fullName,
-                    'email' => strtolower(str_replace(' ', '.', $fullName)) . '@gapura.com',
-                    'phone' => '08' . rand(1000000000, 9999999999),
-                    'position' => $positions[array_rand($positions)],
-                    'organization_id' => $org['id'],
-                    'hire_date' => $hireDate,
-                    'salary' => rand(3000000, 15000000),
-                    'status' => $status,
-                    'address' => 'Jl. Bandara No. ' . rand(1, 999) . ', Jakarta',
-                    'birth_date' => Carbon::now()->subYears(rand(22, 55))->subDays(rand(1, 365)),
-                    'gender' => (rand(0, 1) ? 'male' : 'female'),
-                    'created_at' => $hireDate,
-                    'updated_at' => now(),
-                ];
-                
-                $employeeCounter++;
-            }
-        }
-
-        // Insert employees in chunks for better performance
-        $chunks = array_chunk($employees, 50);
-        foreach ($chunks as $chunk) {
-            DB::table('employees')->insert($chunk);
-        }
+        // Call SDM Employee Seeder (based on actual CSV data from GAPURA ANGKASA)
+        $this->command->info('📊 Seeding organizations and employees from CSV data...');
+        $this->call([
+            SDMEmployeeSeeder::class,
+        ]);
 
         // Create users for authentication (Super Admin, Admin, Staff)
+        $this->command->info('👥 Creating user accounts for different roles...');
+        
         $users = [
             [
                 'name' => 'GusDek',
@@ -177,20 +42,38 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Manager IT',
-                'email' => 'manager.it@gapura.com',
+                'name' => 'Super Admin',
+                'email' => 'superadmin@gapura.com',
                 'email_verified_at' => now(),
-                'password' => Hash::make('password'),
+                'password' => Hash::make('superadmin123'),
+                'role' => 'super_admin',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'Manager HR & GA',
+                'email' => 'manager.hr@gapura.com',
+                'email_verified_at' => now(),
+                'password' => Hash::make('manager123'),
                 'role' => 'admin',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'name' => 'Staff Operations',
-                'email' => 'staff.ops@gapura.com',
+                'name' => 'Staff HR',
+                'email' => 'staff.hr@gapura.com',
                 'email_verified_at' => now(),
-                'password' => Hash::make('password'),
+                'password' => Hash::make('staff123'),
                 'role' => 'staff',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'Controller HR & GA',
+                'email' => 'controller.hr@gapura.com',
+                'email_verified_at' => now(),
+                'password' => Hash::make('controller123'),
+                'role' => 'admin',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -198,12 +81,79 @@ class DatabaseSeeder extends Seeder
 
         DB::table('users')->insert($users);
 
-        $this->command->info('Database seeded successfully!');
-        $this->command->info('Created ' . count($employees) . ' employees across ' . count($organizations) . ' organizations');
-        $this->command->info('Created ' . count($users) . ' users with different roles');
-        $this->command->info('Login credentials:');
-        $this->command->info('Super Admin: admin@gapura.com / password');
-        $this->command->info('Admin: manager.it@gapura.com / password');
-        $this->command->info('Staff: staff.ops@gapura.com / password');
+        // Get statistics for comprehensive display
+        $totalEmployees = DB::table('employees')->count();
+        $totalOrganizations = DB::table('organizations')->count();
+        $activeEmployees = DB::table('employees')->where('status', 'active')->count();
+        $pegawaiTetap = DB::table('employees')->where('status_pegawai', 'PEGAWAI TETAP')->count();
+        $tad = DB::table('employees')->where('status_pegawai', 'TAD')->count();
+        $laki = DB::table('employees')->where('jenis_kelamin', 'L')->count();
+        $perempuan = DB::table('employees')->where('jenis_kelamin', 'P')->count();
+
+        // Get organization breakdown
+        $orgBreakdown = DB::table('organizations as o')
+            ->leftJoin('employees as e', 'o.id', '=', 'e.organization_id')
+            ->select('o.name', 'o.code', DB::raw('COUNT(e.id) as employee_count'))
+            ->groupBy('o.id', 'o.name', 'o.code')
+            ->orderBy('o.name')
+            ->get();
+
+        // Get shoe types breakdown
+        $pantofels = DB::table('employees')->where('jenis_sepatu', 'Pantofel')->count();
+        $safetyShoes = DB::table('employees')->where('jenis_sepatu', 'Safety Shoes')->count();
+
+        $this->command->info('');
+        $this->command->info('✅ GAPURA ANGKASA SDM DATABASE SEEDED SUCCESSFULLY!');
+        $this->command->info('');
+        $this->command->info('🏢 BANDAR UDARA NGURAH RAI - DPS');
+        $this->command->info('═══════════════════════════════════════════════');
+        $this->command->info('');
+        $this->command->info('📊 EMPLOYEE STATISTICS:');
+        $this->command->info("   📈 Total Employees: {$totalEmployees}");
+        $this->command->info("   ✅ Active Employees: {$activeEmployees}");
+        $this->command->info("   ❌ Inactive Employees: " . ($totalEmployees - $activeEmployees));
+        $this->command->info("   👔 Pegawai Tetap: {$pegawaiTetap}");
+        $this->command->info("   🏷️  TAD (Tenaga Alih Daya): {$tad}");
+        $this->command->info("   👨 Laki-laki: {$laki}");
+        $this->command->info("   👩 Perempuan: {$perempuan}");
+        $this->command->info('');
+        $this->command->info('👞 SHOE DISTRIBUTION:');
+        $this->command->info("   👞 Pantofel: {$pantofels}");
+        $this->command->info("   🥾 Safety Shoes: {$safetyShoes}");
+        $this->command->info('');
+        $this->command->info('🏢 ORGANIZATION BREAKDOWN:');
+        foreach ($orgBreakdown as $org) {
+            $this->command->info("   {$org->name} ({$org->code}): {$org->employee_count} employees");
+        }
+        $this->command->info('');
+        $this->command->info('🔐 LOGIN CREDENTIALS:');
+        $this->command->info('   GusDek (Super Admin): admin@gapura.com / password');
+        $this->command->info('   Super Admin: superadmin@gapura.com / superadmin123');
+        $this->command->info('   Manager HR: manager.hr@gapura.com / manager123');
+        $this->command->info('   Staff HR: staff.hr@gapura.com / staff123');
+        $this->command->info('   Controller HR: controller.hr@gapura.com / controller123');
+        $this->command->info('');
+        $this->command->info('📋 EMPLOYEE DATA INCLUDES:');
+        $this->command->info('   ✓ NIP (Employee ID Numbers)');
+        $this->command->info('   ✓ Personal Info (Name, Gender, Birth Date, Age)');
+        $this->command->info('   ✓ Job Information (Position, Department, TMT Jabatan)');
+        $this->command->info('   ✓ Contact Info (Phone, Address, Domicile)');
+        $this->command->info('   ✓ Education Background (Level, Institution, Major)');
+        $this->command->info('   ✓ Shoe Types (Pantofel & Safety Shoes with sizes)');
+        $this->command->info('   ✓ BPJS Information (Health & Employment)');
+        $this->command->info('   ✓ Work Experience (Start Date, Years of Service)');
+        $this->command->info('   ✓ Physical Data (Height, Weight)');
+        $this->command->info('   ✓ Organizational Structure (8 Units)');
+        $this->command->info('');
+        $this->command->info('🌐 ACCESS POINTS:');
+        $this->command->info('   🔗 Dashboard: /dashboard');
+        $this->command->info('   👥 Total Karyawan: /total-karyawan');
+        $this->command->info('   ⚙️  Management Karyawan: /management-karyawan');
+        $this->command->info('   ➕ Tambah Karyawan: /management-karyawan/create');
+        $this->command->info('   📥 Import Data: /management-karyawan/import');
+        $this->command->info('');
+        $this->command->info('🚀 System is ready! Visit your Laravel application to manage employees.');
+        $this->command->info('   Base URL with proper routes for GAPURA ANGKASA SDM System');
+        $this->command->info('');
     }
 }
