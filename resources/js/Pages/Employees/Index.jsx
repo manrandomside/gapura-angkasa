@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Head, Link, router } from "@inertiajs/react";
+import DashboardLayout from "../../Layouts/DashboardLayout";
 import {
     Eye,
     Search,
@@ -17,6 +18,7 @@ import {
     Mail,
     MapPin,
     GraduationCap,
+    X,
 } from "lucide-react";
 
 const EmployeeManagement = ({
@@ -86,103 +88,66 @@ const EmployeeManagement = ({
         ...new Set(employees.map((emp) => emp.unit_organisasi)),
     ].filter(Boolean);
 
+    // Get initials for avatar
+    const getInitials = (name) => {
+        if (!name) return "?";
+        return name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
     return (
-        <>
+        <DashboardLayout title="Management Karyawan">
             <Head title="Management Karyawan - GAPURA ANGKASA SDM" />
 
-            <div className="min-h-screen bg-white">
+            <div className="min-h-screen bg-gray-50">
                 {/* Header Section */}
-                <div className="px-6 py-4 bg-white border-b border-gray-200">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">
-                                Management Karyawan
-                            </h1>
-                            <p className="mt-1 text-sm text-gray-600">
-                                Kelola data karyawan PT Gapura Angkasa - Bandar
-                                Udara Ngurah Rai
-                            </p>
-                        </div>
-                        <div className="flex gap-3 mt-4 md:mt-0">
-                            <Link
-                                href={route("employees.create")}
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                            >
-                                <Upload className="w-4 h-4" />
-                                Import Data
-                            </Link>
-                            <Link
-                                href={route("employees.create")}
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                            >
-                                <Download className="w-4 h-4" />
-                                Export Data
-                            </Link>
-                            <Link
-                                href={route("employees.create")}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-[#439454] text-white rounded-lg text-sm font-medium hover:bg-[#3a7d46] transition-colors duration-200"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Tambah Karyawan
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Filters Section */}
-                <div className="px-6 py-4 bg-white border-b border-gray-200">
-                    <div className="flex flex-col gap-4 md:flex-row">
-                        {/* Search Input */}
-                        <div className="relative flex-1">
-                            <Search className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari berdasarkan NIP, nama, atau jabatan..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200"
-                            />
-                        </div>
-
-                        {/* Status Filter */}
-                        <div className="relative">
-                            <select
-                                value={statusFilter}
-                                onChange={(e) =>
-                                    setStatusFilter(e.target.value)
-                                }
-                                className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200"
-                            >
-                                <option value="all">Semua Status</option>
-                                <option value="PEGAWAI TETAP">
-                                    Pegawai Tetap
-                                </option>
-                                <option value="TAD">TAD</option>
-                            </select>
-                        </div>
-
-                        {/* Unit Filter */}
-                        <div className="relative">
-                            <select
-                                value={unitFilter}
-                                onChange={(e) => setUnitFilter(e.target.value)}
-                                className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200"
-                            >
-                                <option value="all">Semua Unit</option>
-                                {uniqueUnits.map((unit) => (
-                                    <option key={unit} value={unit}>
-                                        {unit}
-                                    </option>
-                                ))}
-                            </select>
+                <div className="bg-white border-b border-gray-200 shadow-sm">
+                    <div className="px-6 py-6">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900">
+                                    Management Karyawan
+                                </h1>
+                                <p className="mt-1 text-sm text-gray-600">
+                                    Kelola data karyawan PT Gapura Angkasa - Bandar
+                                    Udara Ngurah Rai
+                                </p>
+                            </div>
+                            <div className="flex gap-3 mt-4 md:mt-0">
+                                <Link
+                                    href={route("employees.import")}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    Import Data
+                                </Link>
+                                <Link
+                                    href={route("employees.export")}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Export Data
+                                </Link>
+                                <Link
+                                    href={route("employees.create")}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#439454] text-white rounded-lg text-sm font-medium hover:bg-[#3a7d46] transition-colors duration-200"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Tambah Karyawan
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Statistics Cards */}
-                <div className="px-6 py-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="p-6">
+                    {/* Statistics Cards */}
+                    <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-4">
+                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium text-gray-600">
@@ -197,7 +162,8 @@ const EmployeeManagement = ({
                                 </div>
                             </div>
                         </div>
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                        
+                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium text-gray-600">
@@ -218,7 +184,8 @@ const EmployeeManagement = ({
                                 </div>
                             </div>
                         </div>
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                        
+                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium text-gray-600">
@@ -238,7 +205,8 @@ const EmployeeManagement = ({
                                 </div>
                             </div>
                         </div>
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                        
+                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium text-gray-600">
@@ -254,11 +222,64 @@ const EmployeeManagement = ({
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Employee Table */}
-                <div className="px-6 pb-6">
-                    <div className="overflow-hidden bg-white border border-gray-200 rounded-lg">
+                    {/* Filters Section */}
+                    <div className="p-6 mb-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                            {/* Search Input */}
+                            <div className="relative">
+                                <Search className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari berdasarkan NIP, nama, atau jabatan..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200"
+                                />
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="relative">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) =>
+                                        setStatusFilter(e.target.value)
+                                    }
+                                    className="w-full py-2 pl-4 pr-8 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200 appearance-none"
+                                >
+                                    <option value="all">Semua Status</option>
+                                    <option value="PEGAWAI TETAP">
+                                        Pegawai Tetap
+                                    </option>
+                                    <option value="TAD">TAD</option>
+                                </select>
+                            </div>
+
+                            {/* Unit Filter */}
+                            <div className="relative">
+                                <select
+                                    value={unitFilter}
+                                    onChange={(e) => setUnitFilter(e.target.value)}
+                                    className="w-full py-2 pl-4 pr-8 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-colors duration-200 appearance-none"
+                                >
+                                    <option value="all">Semua Unit</option>
+                                    {uniqueUnits.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                            {unit}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            {/* Results Count */}
+                            <div className="flex items-center text-sm text-gray-600">
+                                Menampilkan {employees.length} karyawan
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Employee Table */}
+                    <div className="overflow-hidden bg-white border border-gray-200 rounded-lg shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-gray-50">
@@ -295,26 +316,16 @@ const EmployeeManagement = ({
                                                         <div className="flex-shrink-0 w-10 h-10">
                                                             <div className="h-10 w-10 rounded-full bg-[#439454] flex items-center justify-center">
                                                                 <span className="text-sm font-medium text-white">
-                                                                    {employee.nama_lengkap.charAt(
-                                                                        0
-                                                                    )}
+                                                                    {getInitials(employee.nama_lengkap)}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                         <div className="ml-4">
                                                             <div className="text-sm font-medium text-gray-900">
-                                                                {
-                                                                    employee.nama_lengkap
-                                                                }
+                                                                {employee.nama_lengkap}
                                                             </div>
                                                             <div className="text-sm text-gray-500">
-                                                                {
-                                                                    employee.unit_organisasi
-                                                                }{" "}
-                                                                -{" "}
-                                                                {
-                                                                    employee.nama_jabatan
-                                                                }
+                                                                {employee.unit_organisasi} - {employee.jabatan || employee.nama_jabatan}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -328,23 +339,17 @@ const EmployeeManagement = ({
                                                                 : "bg-yellow-100 text-yellow-800"
                                                         }`}
                                                     >
-                                                        {
-                                                            employee.status_pegawai
-                                                        }
+                                                        {employee.status_pegawai}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                                                    {formatDate(
-                                                        employee.tmt_mulai_jabatan
-                                                    )}
+                                                    {formatDate(employee.tmt_mulai_jabatan)}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
                                                     <div className="flex gap-2">
                                                         <button
                                                             onClick={() =>
-                                                                handleViewDetail(
-                                                                    employee
-                                                                )
+                                                                handleViewDetail(employee)
                                                             }
                                                             className="text-[#439454] hover:text-[#3a7d46] transition-colors duration-200 p-1 rounded"
                                                             title="Lihat Detail"
@@ -389,17 +394,15 @@ const EmployeeManagement = ({
                                         <tr>
                                             <td
                                                 colSpan="5"
-                                                className="px-6 py-8 text-center text-gray-500"
+                                                className="px-6 py-12 text-center text-gray-500"
                                             >
                                                 <div className="flex flex-col items-center">
                                                     <User className="w-12 h-12 mb-4 text-gray-300" />
-                                                    <p className="text-lg font-medium">
+                                                    <p className="mb-2 text-lg font-medium text-gray-900">
                                                         Tidak ada data karyawan
                                                     </p>
-                                                    <p className="text-sm">
-                                                        Silakan tambah karyawan
-                                                        baru atau ubah filter
-                                                        pencarian
+                                                    <p className="text-sm text-gray-500">
+                                                        Silakan tambah karyawan baru atau ubah filter pencarian
                                                     </p>
                                                 </div>
                                             </td>
@@ -424,19 +427,7 @@ const EmployeeManagement = ({
                                     onClick={closeDetailModal}
                                     className="text-gray-400 transition-colors duration-200 hover:text-gray-600"
                                 >
-                                    <svg
-                                        className="w-6 h-6"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
-                                    </svg>
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
 
@@ -453,43 +444,25 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Badge className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        NIP
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {selectedEmployee.nip}
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">NIP</p>
+                                                    <p className="font-medium">{selectedEmployee.nip}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <User className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Nama Lengkap
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {
-                                                            selectedEmployee.nama_lengkap
-                                                        }
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Nama Lengkap</p>
+                                                    <p className="font-medium">{selectedEmployee.nama_lengkap}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Tanggal Lahir
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Tanggal Lahir</p>
                                                     <p className="font-medium">
-                                                        {
-                                                            selectedEmployee.tempat_lahir
-                                                        }
-                                                        ,{" "}
-                                                        {formatDate(
-                                                            selectedEmployee.tanggal_lahir
-                                                        )}
+                                                        {selectedEmployee.tempat_lahir ? `${selectedEmployee.tempat_lahir}, ` : ""}{formatDate(selectedEmployee.tanggal_lahir)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -497,12 +470,9 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <User className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Jenis Kelamin
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Jenis Kelamin</p>
                                                     <p className="font-medium">
-                                                        {selectedEmployee.jenis_kelamin ===
-                                                        "L"
+                                                        {selectedEmployee.jenis_kelamin === "L" || selectedEmployee.jenis_kelamin === "Laki-laki"
                                                             ? "Laki-laki"
                                                             : "Perempuan"}
                                                     </p>
@@ -512,54 +482,47 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Phone className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Nomor Handphone
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Nomor Telepon</p>
                                                     <p className="font-medium">
-                                                        {selectedEmployee.handphone ||
-                                                            "-"}
+                                                        {selectedEmployee.no_telepon || selectedEmployee.handphone || "-"}
                                                     </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <Mail className="w-5 h-5 text-gray-500" />
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Email</p>
+                                                    <p className="font-medium">{selectedEmployee.email || "-"}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <MapPin className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Alamat
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {selectedEmployee.alamat ||
-                                                            "-"}
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Alamat</p>
+                                                    <p className="font-medium">{selectedEmployee.alamat || "-"}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <GraduationCap className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Pendidikan
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Pendidikan</p>
                                                     <p className="font-medium">
-                                                        {
-                                                            selectedEmployee.pendidikan
-                                                        }{" "}
-                                                        -{" "}
-                                                        {
-                                                            selectedEmployee.jurusan
-                                                        }
+                                                        {selectedEmployee.pendidikan_terakhir || selectedEmployee.pendidikan || "-"}
                                                     </p>
-                                                    <p className="text-sm text-gray-500">
-                                                        {
-                                                            selectedEmployee.instansi_pendidikan
-                                                        }{" "}
-                                                        (
-                                                        {
-                                                            selectedEmployee.tahun_lulus
-                                                        }
-                                                        )
-                                                    </p>
+                                                    {selectedEmployee.jurusan && (
+                                                        <p className="text-sm text-gray-500">
+                                                            {selectedEmployee.jurusan}
+                                                        </p>
+                                                    )}
+                                                    {selectedEmployee.instansi_pendidikan && (
+                                                        <p className="text-sm text-gray-500">
+                                                            {selectedEmployee.instansi_pendidikan} 
+                                                            {selectedEmployee.tahun_lulus && ` (${selectedEmployee.tahun_lulus})`}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -575,27 +538,17 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Building className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Unit Organisasi
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {
-                                                            selectedEmployee.unit_organisasi
-                                                        }
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Unit Organisasi</p>
+                                                    <p className="font-medium">{selectedEmployee.unit_organisasi}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <Badge className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Nama Jabatan
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Jabatan</p>
                                                     <p className="font-medium">
-                                                        {
-                                                            selectedEmployee.nama_jabatan
-                                                        }
+                                                        {selectedEmployee.jabatan || selectedEmployee.nama_jabatan}
                                                     </p>
                                                 </div>
                                             </div>
@@ -603,13 +556,9 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        TMT Mulai Kerja
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">TMT Mulai Kerja</p>
                                                     <p className="font-medium">
-                                                        {formatDate(
-                                                            selectedEmployee.tmt_mulai_kerja
-                                                        )}
+                                                        {formatDate(selectedEmployee.tmt_mulai_kerja)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -617,13 +566,9 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        TMT Mulai Jabatan
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">TMT Mulai Jabatan</p>
                                                     <p className="font-medium">
-                                                        {formatDate(
-                                                            selectedEmployee.tmt_mulai_jabatan
-                                                        )}
+                                                        {formatDate(selectedEmployee.tmt_mulai_jabatan)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -631,9 +576,7 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Badge className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Status Pegawai
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Status Pegawai</p>
                                                     <span
                                                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                                             selectedEmployee.status_pegawai ===
@@ -642,9 +585,7 @@ const EmployeeManagement = ({
                                                                 : "bg-yellow-100 text-yellow-800"
                                                         }`}
                                                     >
-                                                        {
-                                                            selectedEmployee.status_pegawai
-                                                        }
+                                                        {selectedEmployee.status_pegawai}
                                                     </span>
                                                 </div>
                                             </div>
@@ -652,16 +593,10 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Masa Kerja
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Masa Kerja</p>
                                                     <p className="font-medium">
-                                                        {selectedEmployee.masa_kerja_tahun ||
-                                                            "-"}{" "}
-                                                        (
-                                                        {selectedEmployee.masa_kerja_bulan ||
-                                                            "-"}
-                                                        )
+                                                        {selectedEmployee.masa_kerja_tahun ? `${selectedEmployee.masa_kerja_tahun} tahun` : "-"}
+                                                        {selectedEmployee.masa_kerja_bulan && ` ${selectedEmployee.masa_kerja_bulan} bulan`}
                                                     </p>
                                                 </div>
                                             </div>
@@ -670,13 +605,9 @@ const EmployeeManagement = ({
                                                 <div className="flex items-center gap-3">
                                                     <Calendar className="w-5 h-5 text-gray-500" />
                                                     <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            TMT Pensiun
-                                                        </p>
+                                                        <p className="text-sm text-gray-500">TMT Pensiun</p>
                                                         <p className="font-medium">
-                                                            {formatDate(
-                                                                selectedEmployee.tmt_pensiun
-                                                            )}
+                                                            {formatDate(selectedEmployee.tmt_pensiun)}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -685,12 +616,9 @@ const EmployeeManagement = ({
                                             <div className="flex items-center gap-3">
                                                 <Badge className="w-5 h-5 text-gray-500" />
                                                 <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Kelompok Jabatan
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Kelompok Jabatan</p>
                                                     <p className="font-medium">
-                                                        {selectedEmployee.kelompok_jabatan ||
-                                                            "-"}
+                                                        {selectedEmployee.kelompok_jabatan || "-"}
                                                     </p>
                                                 </div>
                                             </div>
@@ -705,60 +633,21 @@ const EmployeeManagement = ({
 
                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                             <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Jenis Sepatu
-                                                </p>
+                                                <p className="text-sm text-gray-500">Tinggi Badan</p>
                                                 <p className="font-medium">
-                                                    {selectedEmployee.jenis_sepatu ||
-                                                        "-"}
+                                                    {selectedEmployee.height ? `${selectedEmployee.height} cm` : "-"}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Ukuran Sepatu
-                                                </p>
+                                                <p className="text-sm text-gray-500">Berat Badan</p>
                                                 <p className="font-medium">
-                                                    {selectedEmployee.ukuran_sepatu ||
-                                                        "-"}
+                                                    {selectedEmployee.weight ? `${selectedEmployee.weight} kg` : "-"}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Usia
-                                                </p>
+                                                <p className="text-sm text-gray-500">Kota Domisili</p>
                                                 <p className="font-medium">
-                                                    {selectedEmployee.usia
-                                                        ? `${selectedEmployee.usia} tahun`
-                                                        : "-"}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Tinggi Badan
-                                                </p>
-                                                <p className="font-medium">
-                                                    {selectedEmployee.height
-                                                        ? `${selectedEmployee.height} cm`
-                                                        : "-"}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Berat Badan
-                                                </p>
-                                                <p className="font-medium">
-                                                    {selectedEmployee.weight
-                                                        ? `${selectedEmployee.weight} kg`
-                                                        : "-"}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm text-gray-500">
-                                                    Kota Domisili
-                                                </p>
-                                                <p className="font-medium">
-                                                    {selectedEmployee.kota_domisili ||
-                                                        "-"}
+                                                    {selectedEmployee.kota_domisili || "-"}
                                                 </p>
                                             </div>
                                         </div>
@@ -766,21 +655,15 @@ const EmployeeManagement = ({
                                         {/* BPJS Information */}
                                         <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
                                             <div>
-                                                <p className="text-sm text-gray-500">
-                                                    No. BPJS Kesehatan
-                                                </p>
+                                                <p className="text-sm text-gray-500">No. BPJS Kesehatan</p>
                                                 <p className="font-medium">
-                                                    {selectedEmployee.no_bpjs_kesehatan ||
-                                                        "-"}
+                                                    {selectedEmployee.no_bpjs_kesehatan || "-"}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-sm text-gray-500">
-                                                    No. BPJS Ketenagakerjaan
-                                                </p>
+                                                <p className="text-sm text-gray-500">No. BPJS Ketenagakerjaan</p>
                                                 <p className="font-medium">
-                                                    {selectedEmployee.no_bpjs_ketenagakerjaan ||
-                                                        "-"}
+                                                    {selectedEmployee.no_bpjs_ketenagakerjaan || "-"}
                                                 </p>
                                             </div>
                                         </div>
@@ -797,10 +680,7 @@ const EmployeeManagement = ({
                                     Tutup
                                 </button>
                                 <Link
-                                    href={route(
-                                        "employees.edit",
-                                        selectedEmployee.id
-                                    )}
+                                    href={route("employees.edit", selectedEmployee.id)}
                                     className="px-4 py-2 bg-[#439454] text-white rounded-lg text-sm font-medium hover:bg-[#3a7d46] transition-colors duration-200"
                                 >
                                     Edit Karyawan
@@ -810,63 +690,22 @@ const EmployeeManagement = ({
                     </div>
                 )}
             </div>
-
-            {/* Custom Styles */}
-            <style jsx>{`
-                /* Custom scrollbar for modal */
-                .overflow-y-auto::-webkit-scrollbar {
-                    width: 6px;
-                }
-
-                .overflow-y-auto::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 6px;
-                }
-
-                .overflow-y-auto::-webkit-scrollbar-thumb {
-                    background: #c1c1c1;
-                    border-radius: 6px;
-                }
-
-                .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-                    background: #a8a8a8;
-                }
-
-                /* Hover effects for table rows */
-                tbody tr:hover {
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                }
-
-                /* Custom select arrow */
-                select {
-                    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
-                    background-position: right 0.5rem center;
-                    background-repeat: no-repeat;
-                    background-size: 1.5em 1.5em;
-                }
-
-                /* Button hover effects */
-                .hover\\:bg-\\[\\#439454\\]:hover {
-                    background-color: #439454;
-                }
-
-                .hover\\:bg-\\[\\#3a7d46\\]:hover {
-                    background-color: #3a7d46;
-                }
-
-                /* Focus ring color */
-                .focus\\:ring-\\[\\#439454\\]:focus {
-                    --tw-ring-color: #439454;
-                }
-
-                .focus\\:border-\\[\\#439454\\]:focus {
-                    --tw-border-opacity: 1;
-                    border-color: #439454;
-                }
-            `}</style>
-        </>
+        </DashboardLayout>
     );
 };
 
-export default EmployeeManagement;
+export default EmployeeManagement;-gray-500">Jenis Sepatu</p>
+                                                <p className="font-medium">{selectedEmployee.jenis_sepatu || "-"}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Ukuran Sepatu</p>
+                                                <p className="font-medium">{selectedEmployee.ukuran_sepatu || "-"}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Usia</p>
+                                                <p className="font-medium">
+                                                    {selectedEmployee.usia ? `${selectedEmployee.usia} tahun` : "-"}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text
