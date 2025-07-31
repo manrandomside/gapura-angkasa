@@ -38,7 +38,9 @@ class EmployeeController extends Controller
                       ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%");
+                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
+                      ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
+                      ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                 });
             }
 
@@ -57,6 +59,16 @@ class EmployeeController extends Controller
                 $query->where('jenis_kelamin', $request->jenis_kelamin);
             }
 
+            // Filter by jenis sepatu
+            if ($request->filled('jenis_sepatu') && $request->jenis_sepatu !== 'all') {
+                $query->where('jenis_sepatu', $request->jenis_sepatu);
+            }
+
+            // Filter by ukuran sepatu
+            if ($request->filled('ukuran_sepatu') && $request->ukuran_sepatu !== 'all') {
+                $query->where('ukuran_sepatu', $request->ukuran_sepatu);
+            }
+
             // Get results - convert pagination to collection for Inertia compatibility
             $employees = $query->orderBy('nama_lengkap', 'asc')->get();
 
@@ -66,7 +78,7 @@ class EmployeeController extends Controller
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
                 'organizations' => $organizations,
-                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin']),
+                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu']),
                 'success' => session('success'),
                 'error' => session('error'),
                 'info' => session('info'),
@@ -76,7 +88,7 @@ class EmployeeController extends Controller
             return Inertia::render('Employees/Index', [
                 'employees' => [],
                 'organizations' => [],
-                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin']),
+                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu']),
                 'error' => 'Error loading employees: ' . $e->getMessage(),
             ]);
         }
@@ -328,7 +340,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Search employees (API endpoint)
+     * Search employees (API endpoint) - Enhanced with shoe data
      */
     public function search(Request $request)
     {
@@ -341,10 +353,12 @@ class EmployeeController extends Controller
                     $q->where('nama_lengkap', 'like', "%{$query}%")
                       ->orWhere('nip', 'like', "%{$query}%")
                       ->orWhere('jabatan', 'like', "%{$query}%")
-                      ->orWhere('nama_jabatan', 'like', "%{$query}%");
+                      ->orWhere('nama_jabatan', 'like', "%{$query}%")
+                      ->orWhere('jenis_sepatu', 'like', "%{$query}%")
+                      ->orWhere('ukuran_sepatu', 'like', "%{$query}%");
                 })
                 ->limit($limit)
-                ->get(['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi']);
+                ->get(['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
 
             return response()->json([
                 'employees' => $employees,
@@ -360,7 +374,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get employee statistics (API endpoint)
+     * Get employee statistics (API endpoint) - Enhanced with shoe statistics
      */
     public function getStatistics()
     {
@@ -373,6 +387,12 @@ class EmployeeController extends Controller
                 'tad' => Employee::where('status_pegawai', 'TAD')->count(),
                 'male_employees' => Employee::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
                 'female_employees' => Employee::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
+                'shoe_statistics' => [
+                    'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                    'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
+                    'no_shoe_data' => Employee::whereNull('jenis_sepatu')->count(),
+                    'size_distribution' => $this->getShoesSizeDistribution(),
+                ],
                 'by_organization' => $this->getEmployeesByOrganization(),
                 'by_education' => $this->getEmployeesByEducation(),
                 'recent_hires' => $this->getRecentHires(),
@@ -390,7 +410,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Export employees data to CSV
+     * Export employees data to CSV - Enhanced with shoe data
      */
     public function export(Request $request)
     {
@@ -405,7 +425,9 @@ class EmployeeController extends Controller
                       ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%");
+                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
+                      ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
+                      ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                 });
             }
 
@@ -415,6 +437,14 @@ class EmployeeController extends Controller
 
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
                 $query->where('unit_organisasi', $request->unit_organisasi);
+            }
+
+            if ($request->filled('jenis_sepatu') && $request->jenis_sepatu !== 'all') {
+                $query->where('jenis_sepatu', $request->jenis_sepatu);
+            }
+
+            if ($request->filled('ukuran_sepatu') && $request->ukuran_sepatu !== 'all') {
+                $query->where('ukuran_sepatu', $request->ukuran_sepatu);
             }
 
             $employees = $query->orderBy('nama_lengkap')->get();
@@ -466,8 +496,8 @@ class EmployeeController extends Controller
                         $employee->instansi_pendidikan,
                         $employee->jurusan,
                         $employee->tahun_lulus,
-                        $employee->jenis_sepatu,
-                        $employee->ukuran_sepatu,
+                        $employee->jenis_sepatu ?: '-',
+                        $employee->ukuran_sepatu ?: '-',
                         $employee->kota_domisili,
                         $employee->usia,
                         $employee->status_kerja ?: 'Aktif',
@@ -663,7 +693,7 @@ class EmployeeController extends Controller
     public function generateReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'type' => 'required|in:summary,detailed,by_unit,retirement',
+            'type' => 'required|in:summary,detailed,by_unit,retirement,shoes',
             'format' => 'required|in:csv,excel,json',
         ]);
 
@@ -684,6 +714,8 @@ class EmployeeController extends Controller
                     return $this->generateByUnitReport($request->format);
                 case 'retirement':
                     return $this->generateRetirementReport($request->format);
+                case 'shoes':
+                    return $this->generateShoesReport($request->format);
                 default:
                     return response()->json(['error' => 'Invalid report type'], 400);
             }
@@ -796,6 +828,25 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Get shoes size distribution
+     */
+    private function getShoesSizeDistribution()
+    {
+        return Employee::select('ukuran_sepatu', DB::raw('count(*) as total'))
+            ->whereNotNull('ukuran_sepatu')
+            ->where('status', 'active')
+            ->groupBy('ukuran_sepatu')
+            ->orderBy('ukuran_sepatu')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'size' => $item->ukuran_sepatu,
+                    'count' => $item->total,
+                ];
+            });
+    }
+
+    /**
      * Get recent hires (last 6 months)
      */
     private function getRecentHires()
@@ -832,7 +883,7 @@ class EmployeeController extends Controller
             'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
             'tanggal_lahir', 'alamat', 'no_telepon', 'email',
             'unit_organisasi', 'jabatan', 'status_pegawai',
-            'tmt_mulai_jabatan', 'pendidikan_terakhir'
+            'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 'ukuran_sepatu'
         ];
 
         $completedFields = 0;
@@ -911,6 +962,8 @@ class EmployeeController extends Controller
                 'pendidikan_terakhir' => $data['PENDIDIKAN'] ?? $data['Pendidikan'] ?? $data['PENDIDIKAN TERAKHIR'] ?? null,
                 'jurusan' => $data['JURUSAN'] ?? $data['Jurusan'] ?? null,
                 'email' => $data['EMAIL'] ?? $data['Email'] ?? null,
+                'jenis_sepatu' => $data['JENIS SEPATU'] ?? $data['Jenis Sepatu'] ?? null,
+                'ukuran_sepatu' => $data['UKURAN SEPATU'] ?? $data['Ukuran Sepatu'] ?? null,
                 'provider' => 'PT Gapura Angkasa',
                 'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
                 'cabang' => 'DPS',
@@ -987,6 +1040,8 @@ class EmployeeController extends Controller
                 'tad' => Employee::where('status_pegawai', 'TAD')->count(),
                 'laki_laki' => Employee::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
                 'perempuan' => Employee::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
+                'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
             ];
 
             $unitStats = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
@@ -1039,7 +1094,7 @@ class EmployeeController extends Controller
                     fputcsv($file, [
                         'NIP', 'Nama Lengkap', 'Status Pegawai', 'Unit Organisasi',
                         'Jabatan', 'TMT Mulai Jabatan', 'Jenis Kelamin',
-                        'Handphone', 'Email', 'Pendidikan', 'Jurusan'
+                        'Handphone', 'Email', 'Pendidikan', 'Jurusan', 'Jenis Sepatu', 'Ukuran Sepatu'
                     ]);
 
                     // Data
@@ -1056,6 +1111,8 @@ class EmployeeController extends Controller
                             $employee->email ?: '-',
                             $employee->pendidikan_terakhir ?: $employee->pendidikan,
                             $employee->jurusan,
+                            $employee->jenis_sepatu ?: '-',
+                            $employee->ukuran_sepatu ?: '-',
                         ]);
                     }
                     
@@ -1190,6 +1247,91 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Generate shoes report
+     */
+    private function generateShoesReport($format)
+    {
+        try {
+            $shoeStats = [
+                'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
+                'no_data' => Employee::whereNull('jenis_sepatu')->count(),
+            ];
+
+            $sizeDistribution = Employee::select('ukuran_sepatu', DB::raw('count(*) as total'))
+                ->whereNotNull('ukuran_sepatu')
+                ->where('status', 'active')
+                ->groupBy('ukuran_sepatu')
+                ->orderBy('ukuran_sepatu')
+                ->get();
+
+            $shoesByUnit = Employee::select('unit_organisasi', 'jenis_sepatu', DB::raw('count(*) as total'))
+                ->whereNotNull('jenis_sepatu')
+                ->where('status', 'active')
+                ->groupBy('unit_organisasi', 'jenis_sepatu')
+                ->orderBy('unit_organisasi')
+                ->get();
+
+            if ($format === 'csv') {
+                $filename = 'laporan_distribusi_sepatu_' . date('Y-m-d_H-i-s') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"$filename\"",
+                ];
+
+                $callback = function() use ($shoeStats, $sizeDistribution, $shoesByUnit) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    
+                    fputcsv($file, ['LAPORAN DISTRIBUSI SEPATU KARYAWAN']);
+                    fputcsv($file, ['PT GAPURA ANGKASA - BANDAR UDARA NGURAH RAI']);
+                    fputcsv($file, ['Tanggal Laporan', date('d/m/Y H:i:s')]);
+                    fputcsv($file, []);
+                    
+                    fputcsv($file, ['RINGKASAN JENIS SEPATU']);
+                    fputcsv($file, ['Jenis Sepatu', 'Jumlah Karyawan']);
+                    fputcsv($file, ['Pantofel', $shoeStats['pantofel']]);
+                    fputcsv($file, ['Safety Shoes', $shoeStats['safety_shoes']]);
+                    fputcsv($file, ['Belum ada data', $shoeStats['no_data']]);
+                    
+                    fputcsv($file, []);
+                    fputcsv($file, ['DISTRIBUSI UKURAN SEPATU']);
+                    fputcsv($file, ['Ukuran', 'Jumlah Karyawan']);
+                    
+                    foreach ($sizeDistribution as $size) {
+                        fputcsv($file, [$size->ukuran_sepatu, $size->total]);
+                    }
+                    
+                    fputcsv($file, []);
+                    fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);
+                    fputcsv($file, ['Unit Organisasi', 'Jenis Sepatu', 'Jumlah']);
+                    
+                    foreach ($shoesByUnit as $item) {
+                        fputcsv($file, [$item->unit_organisasi, $item->jenis_sepatu, $item->total]);
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'shoe_statistics' => $shoeStats,
+                'size_distribution' => $sizeDistribution,
+                'shoes_by_unit' => $shoesByUnit,
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate shoes report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Generate CSV report helper
      */
     private function generateCsvReport($reportName, $stats, $unitStats)
@@ -1216,6 +1358,13 @@ class EmployeeController extends Controller
             fputcsv($file, ['TAD', $stats['tad']]);
             fputcsv($file, ['Laki-laki', $stats['laki_laki']]);
             fputcsv($file, ['Perempuan', $stats['perempuan']]);
+            
+            if (isset($stats['pantofel']) && isset($stats['safety_shoes'])) {
+                fputcsv($file, []);
+                fputcsv($file, ['DISTRIBUSI SEPATU']);
+                fputcsv($file, ['Pantofel', $stats['pantofel']]);
+                fputcsv($file, ['Safety Shoes', $stats['safety_shoes']]);
+            }
             
             fputcsv($file, []);
             fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);

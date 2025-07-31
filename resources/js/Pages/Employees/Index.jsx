@@ -1,55 +1,129 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Head, Link, router } from "@inertiajs/react";
-import DashboardLayout from "../../Layouts/DashboardLayout";
+import DashboardLayout from "@/Layouts/DashboardLayout";
 import {
     Search,
-    Filter,
     Plus,
-    Download,
-    Upload,
+    FileDown,
+    FileUp,
     Eye,
-    Edit2,
+    Edit,
     Trash2,
-    User,
-    Badge,
-    Calendar,
-    Phone,
-    Mail,
-    MapPin,
     X,
-    Building,
+    Filter,
     Users,
+    UserCheck,
+    Calendar,
+    Building2,
 } from "lucide-react";
 
-export default function Index({
-    employees = [],
-    organizations = [],
-    filters = {},
-    success,
-    error,
-    info,
-}) {
-    const [searchTerm, setSearchTerm] = useState(filters.search || "");
-    const [statusFilter, setStatusFilter] = useState(
-        filters.status_pegawai || "all"
-    );
-    const [unitFilter, setUnitFilter] = useState(
-        filters.unit_organisasi || "all"
-    );
-    const [genderFilter, setGenderFilter] = useState(
-        filters.jenis_kelamin || "all"
-    );
+export default function Index({ employees: initialEmployees = [], auth }) {
+    // State management
+    const [employees, setEmployees] = useState(initialEmployees || []);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [unitFilter, setUnitFilter] = useState("all");
+    const [genderFilter, setGenderFilter] = useState("all");
+    const [shoeTypeFilter, setShoeTypeFilter] = useState("all");
+    const [shoeSizeFilter, setShoeSizeFilter] = useState("all");
+    const [showFilters, setShowFilters] = useState(false);
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    // Handle search submission
-    const handleSearch = (e) => {
-        e.preventDefault();
-        applyFilters();
+    // Get unique values for filters
+    const getUniqueUnits = () => {
+        const units = [
+            ...new Set(
+                employees.map((emp) => emp.unit_organisasi).filter(Boolean)
+            ),
+        ];
+        return units.sort();
     };
 
-    // Handle filter change
+    const getUniqueShoeTypes = () => {
+        const types = [
+            ...new Set(
+                employees.map((emp) => emp.jenis_sepatu).filter(Boolean)
+            ),
+        ];
+        return types.sort();
+    };
+
+    const getUniqueShoeSizes = () => {
+        const sizes = [
+            ...new Set(
+                employees.map((emp) => emp.ukuran_sepatu).filter(Boolean)
+            ),
+        ];
+        return sizes.sort((a, b) => parseInt(a) - parseInt(b));
+    };
+
+    // Filter employees based on all active filters
+    const filteredEmployees = useMemo(() => {
+        let filtered = employees;
+
+        // Search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(
+                (emp) =>
+                    emp.nama_lengkap?.toLowerCase().includes(query) ||
+                    emp.nip?.toLowerCase().includes(query) ||
+                    emp.nama_jabatan?.toLowerCase().includes(query) ||
+                    emp.unit_organisasi?.toLowerCase().includes(query) ||
+                    emp.jenis_sepatu?.toLowerCase().includes(query) ||
+                    emp.ukuran_sepatu?.toLowerCase().includes(query)
+            );
+        }
+
+        // Status filter
+        if (statusFilter !== "all") {
+            filtered = filtered.filter(
+                (emp) => emp.status_pegawai === statusFilter
+            );
+        }
+
+        // Unit filter
+        if (unitFilter !== "all") {
+            filtered = filtered.filter(
+                (emp) => emp.unit_organisasi === unitFilter
+            );
+        }
+
+        // Gender filter
+        if (genderFilter !== "all") {
+            filtered = filtered.filter(
+                (emp) => emp.jenis_kelamin === genderFilter
+            );
+        }
+
+        // Shoe type filter
+        if (shoeTypeFilter !== "all") {
+            filtered = filtered.filter(
+                (emp) => emp.jenis_sepatu === shoeTypeFilter
+            );
+        }
+
+        // Shoe size filter
+        if (shoeSizeFilter !== "all") {
+            filtered = filtered.filter(
+                (emp) => emp.ukuran_sepatu === shoeSizeFilter
+            );
+        }
+
+        return filtered;
+    }, [
+        employees,
+        searchQuery,
+        statusFilter,
+        unitFilter,
+        genderFilter,
+        shoeTypeFilter,
+        shoeSizeFilter,
+    ]);
+
+    // Handle filter changes
     const handleFilterChange = (filterType, value) => {
         switch (filterType) {
             case "status":
@@ -61,73 +135,56 @@ export default function Index({
             case "gender":
                 setGenderFilter(value);
                 break;
+            case "shoeType":
+                setShoeTypeFilter(value);
+                break;
+            case "shoeSize":
+                setShoeSizeFilter(value);
+                break;
         }
-
-        // Auto-apply filters after a short delay
-        setTimeout(() => {
-            applyFilters();
-        }, 100);
     };
 
-    // Apply all filters
-    const applyFilters = () => {
-        setIsLoading(true);
-
-        const params = {};
-        if (searchTerm.trim()) params.search = searchTerm.trim();
-        if (statusFilter !== "all") params.status_pegawai = statusFilter;
-        if (unitFilter !== "all") params.unit_organisasi = unitFilter;
-        if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
-
-        router.get(route("employees.index"), params, {
-            preserveState: true,
-            preserveScroll: true,
-            onFinish: () => setIsLoading(false),
-        });
+    // Remove specific filter
+    const removeFilter = (filterType) => {
+        handleFilterChange(filterType, "all");
     };
 
     // Clear all filters
-    const clearFilters = () => {
-        setSearchTerm("");
+    const clearAllFilters = () => {
+        setSearchQuery("");
         setStatusFilter("all");
         setUnitFilter("all");
         setGenderFilter("all");
-        setIsLoading(true);
+        setShoeTypeFilter("all");
+        setShoeSizeFilter("all");
+    };
 
-        router.get(
-            route("employees.index"),
-            {},
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onFinish: () => setIsLoading(false),
-            }
+    // Check if any filters are active
+    const hasActiveFilters = () => {
+        return (
+            searchQuery.trim() ||
+            statusFilter !== "all" ||
+            unitFilter !== "all" ||
+            genderFilter !== "all" ||
+            shoeTypeFilter !== "all" ||
+            shoeSizeFilter !== "all"
         );
     };
 
-    // Handle individual filter removal
-    const removeFilter = (filterType) => {
-        switch (filterType) {
-            case "search":
-                setSearchTerm("");
-                break;
-            case "status":
-                setStatusFilter("all");
-                break;
-            case "unit":
-                setUnitFilter("all");
-                break;
-            case "gender":
-                setGenderFilter("all");
-                break;
-        }
-
-        setTimeout(() => {
-            applyFilters();
-        }, 100);
+    // Search employees
+    const handleSearch = () => {
+        // Search is handled by the filteredEmployees useMemo
+        console.log("Searching with filters:", {
+            searchQuery,
+            statusFilter,
+            unitFilter,
+            genderFilter,
+            shoeTypeFilter,
+            shoeSizeFilter,
+        });
     };
 
-    // Get initials for avatar
+    // Get employee initials for avatar
     const getInitials = (name) => {
         if (!name) return "??";
         return name
@@ -164,22 +221,28 @@ export default function Index({
         setSelectedEmployee(null);
     };
 
-    // Get unique units from employees for filter
-    const getUniqueUnits = () => {
-        const units = [
-            ...new Set(
-                employees.map((emp) => emp.unit_organisasi).filter(Boolean)
-            ),
-        ];
-        return units.sort();
-    };
+    // Statistics calculations
+    const stats = useMemo(() => {
+        const total = employees.length;
+        const pegawaiTetap = employees.filter(
+            (emp) => emp.status_pegawai === "PEGAWAI TETAP"
+        ).length;
+        const tad = employees.filter(
+            (emp) => emp.status_pegawai === "TAD"
+        ).length;
+        const uniqueUnits = new Set(
+            employees.map((emp) => emp.unit_organisasi).filter(Boolean)
+        ).size;
+
+        return { total, pegawaiTetap, tad, uniqueUnits };
+    }, [employees]);
 
     return (
         <DashboardLayout title="Management Karyawan">
             <Head title="Management Karyawan - GAPURA ANGKASA SDM" />
 
             <div className="min-h-screen bg-gray-50">
-                {/* Header Section - Fixed/Sticky */}
+                {/* Header Section */}
                 <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
                     <div className="px-6 py-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -195,200 +258,140 @@ export default function Index({
                             <div className="flex gap-3 mt-4 md:mt-0">
                                 <Link
                                     href={route("employees.import")}
-                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-[#439454] transition-colors duration-200"
                                 >
-                                    <Upload className="w-4 h-4" />
+                                    <FileUp className="w-4 h-4" />
                                     Import Data
                                 </Link>
                                 <Link
                                     href={route("employees.export")}
-                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-[#439454] transition-colors duration-200"
                                 >
-                                    <Download className="w-4 h-4" />
+                                    <FileDown className="w-4 h-4" />
                                     Export Data
                                 </Link>
                                 <Link
                                     href={route("employees.create")}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#439454] text-white rounded-lg text-sm font-medium hover:bg-[#3a7d46] transition-colors duration-200"
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#439454] rounded-lg hover:bg-[#367a41] transition-colors duration-200 shadow-sm"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Tambah Karyawan
                                 </Link>
                             </div>
                         </div>
+
+                        {/* Statistics Cards */}
+                        <div className="grid grid-cols-1 gap-4 mt-6 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                        <Users className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-blue-900">
+                                            Total Karyawan
+                                        </p>
+                                        <p className="text-2xl font-bold text-blue-600">
+                                            {stats.total}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 border border-green-200 rounded-lg bg-green-50">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-green-100 rounded-lg">
+                                        <UserCheck className="w-5 h-5 text-green-600" />
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-green-900">
+                                            Pegawai Tetap
+                                        </p>
+                                        <p className="text-2xl font-bold text-green-600">
+                                            {stats.pegawaiTetap}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 border border-yellow-200 rounded-lg bg-yellow-50">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-yellow-100 rounded-lg">
+                                        <Calendar className="w-5 h-5 text-yellow-600" />
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-yellow-900">
+                                            TAD
+                                        </p>
+                                        <p className="text-2xl font-bold text-yellow-600">
+                                            {stats.tad}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 border border-purple-200 rounded-lg bg-purple-50">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-purple-100 rounded-lg">
+                                        <Building2 className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-purple-900">
+                                            Unit Organisasi
+                                        </p>
+                                        <p className="text-2xl font-bold text-purple-600">
+                                            {stats.uniqueUnits}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="p-6">
-                    {/* Statistics Cards */}
-                    <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-4">
-                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-600">
-                                        Total Karyawan
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900">
-                                        {employees.length}
-                                    </p>
-                                </div>
-                                <div className="p-3 bg-blue-100 rounded-lg">
-                                    <User className="w-6 h-6 text-blue-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-600">
-                                        Pegawai Tetap
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900">
-                                        {
-                                            employees.filter(
-                                                (emp) =>
-                                                    emp.status_pegawai ===
-                                                    "PEGAWAI TETAP"
-                                            ).length
-                                        }
-                                    </p>
-                                </div>
-                                <div className="p-3 bg-green-100 rounded-lg">
-                                    <Badge className="w-6 h-6 text-green-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-600">
-                                        TAD
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900">
-                                        {
-                                            employees.filter(
-                                                (emp) =>
-                                                    emp.status_pegawai === "TAD"
-                                            ).length
-                                        }
-                                    </p>
-                                </div>
-                                <div className="p-3 bg-yellow-100 rounded-lg">
-                                    <Calendar className="w-6 h-6 text-yellow-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-600">
-                                        Unit Organisasi
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900">
-                                        {getUniqueUnits().length}
-                                    </p>
-                                </div>
-                                <div className="p-3 bg-purple-100 rounded-lg">
-                                    <Building className="w-6 h-6 text-purple-600" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Success/Error Messages */}
-                    {success && (
-                        <div className="p-4 mb-6 text-green-800 bg-green-100 border border-green-200 rounded-lg">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <svg
-                                        className="w-5 h-5 text-green-400"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                    >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </div>
-                                <div className="ml-3">
-                                    <p className="text-sm font-medium">
-                                        {success}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="p-4 mb-6 text-red-800 bg-red-100 border border-red-200 rounded-lg">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <svg
-                                        className="w-5 h-5 text-red-400"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                    >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </div>
-                                <div className="ml-3">
-                                    <p className="text-sm font-medium">
-                                        {error}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Search and Filters - Normal (not sticky) */}
-                    <div className="p-6 mb-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-                        <form onSubmit={handleSearch} className="space-y-4">
-                            {/* Search Input dengan improved functionality */}
+                {/* Search and Filter Section */}
+                <div className="px-6 py-6 bg-white border-b border-gray-200">
+                    {/* Search Bar */}
+                    <div className="flex gap-4 mb-4">
+                        <div className="flex-1">
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <Search className="w-5 h-5 text-gray-400" />
-                                </div>
+                                <Search className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                                 <input
                                     type="text"
                                     placeholder="Cari berdasarkan NIP, nama, jabatan, atau unit organisasi..."
-                                    value={searchTerm}
+                                    value={searchQuery}
                                     onChange={(e) =>
-                                        setSearchTerm(e.target.value)
+                                        setSearchQuery(e.target.value)
                                     }
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            handleSearch(e);
-                                        }
-                                    }}
-                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-transparent transition-all duration-200"
+                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-transparent"
                                 />
-                                {searchTerm && (
-                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        <button
-                                            onClick={() =>
-                                                removeFilter("search")
-                                            }
-                                            className="p-1 text-gray-400 rounded-full hover:text-gray-600 hover:bg-gray-100"
-                                            title="Hapus pencarian"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                )}
                             </div>
+                        </div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border rounded-lg transition-colors duration-200 ${
+                                showFilters || hasActiveFilters()
+                                    ? "text-white bg-[#439454] border-[#439454]"
+                                    : "text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-[#439454]"
+                            }`}
+                        >
+                            <Filter className="w-4 h-4" />
+                            Filter
+                        </button>
+                        <button
+                            onClick={handleSearch}
+                            className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-[#439454] rounded-lg hover:bg-[#367a41] transition-colors duration-200 shadow-sm"
+                        >
+                            <Search className="w-4 h-4" />
+                            Cari
+                        </button>
+                    </div>
 
-                            {/* Filter Row */}
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    {/* Advanced Filters */}
+                    {showFilters && (
+                        <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+                                {/* Status Pegawai Filter */}
                                 <div>
                                     <label className="block mb-2 text-sm font-medium text-gray-700">
                                         Status Pegawai
@@ -413,6 +416,7 @@ export default function Index({
                                     </select>
                                 </div>
 
+                                {/* Unit Organisasi Filter */}
                                 <div>
                                     <label className="block mb-2 text-sm font-medium text-gray-700">
                                         Unit Organisasi
@@ -436,6 +440,7 @@ export default function Index({
                                     </select>
                                 </div>
 
+                                {/* Jenis Kelamin Filter */}
                                 <div>
                                     <label className="block mb-2 text-sm font-medium text-gray-700">
                                         Jenis Kelamin
@@ -451,60 +456,84 @@ export default function Index({
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-transparent"
                                     >
                                         <option value="all">Semua</option>
-                                        <option value="Laki-laki">
-                                            Laki-laki
-                                        </option>
-                                        <option value="Perempuan">
-                                            Perempuan
-                                        </option>
+                                        <option value="L">Laki-laki</option>
+                                        <option value="P">Perempuan</option>
                                     </select>
                                 </div>
 
-                                <div className="flex items-end gap-2">
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="flex-1 px-4 py-2 bg-[#439454] text-white rounded-lg hover:bg-[#3a7d46] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                {/* Jenis Sepatu Filter */}
+                                <div>
+                                    <label className="block mb-2 text-sm font-medium text-gray-700">
+                                        Jenis Sepatu
+                                    </label>
+                                    <select
+                                        value={shoeTypeFilter}
+                                        onChange={(e) =>
+                                            handleFilterChange(
+                                                "shoeType",
+                                                e.target.value
+                                            )
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-transparent"
                                     >
-                                        {isLoading ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
-                                                Mencari...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Search className="w-4 h-4" />
-                                                Cari
-                                            </>
-                                        )}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={clearFilters}
-                                        className="px-4 py-2 text-gray-600 transition-colors duration-200 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                        <option value="all">Semua Jenis</option>
+                                        {getUniqueShoeTypes().map((type) => (
+                                            <option key={type} value={type}>
+                                                {type}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Ukuran Sepatu Filter */}
+                                <div>
+                                    <label className="block mb-2 text-sm font-medium text-gray-700">
+                                        Ukuran Sepatu
+                                    </label>
+                                    <select
+                                        value={shoeSizeFilter}
+                                        onChange={(e) =>
+                                            handleFilterChange(
+                                                "shoeSize",
+                                                e.target.value
+                                            )
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-transparent"
                                     >
-                                        Reset
-                                    </button>
+                                        <option value="all">
+                                            Semua Ukuran
+                                        </option>
+                                        {getUniqueShoeSizes().map((size) => (
+                                            <option key={size} value={size}>
+                                                {size}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
-                        </form>
 
-                        <div className="flex items-center justify-between mt-4">
-                            {/* Active Filters */}
-                            <div className="flex flex-wrap gap-2">
-                                {searchTerm && (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full">
-                                        Pencarian: "{searchTerm}"
-                                        <button
-                                            onClick={() =>
-                                                removeFilter("search")
-                                            }
-                                            className="ml-1 text-blue-600 hover:text-blue-800"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </span>
-                                )}
+                            {/* Clear Filters Button */}
+                            {hasActiveFilters() && (
+                                <div className="mt-4 text-center">
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 transition-colors duration-200 hover:text-gray-800"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Reset Filter
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Active Filters Display */}
+                    {hasActiveFilters() && (
+                        <div className="mt-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700">
+                                    Filter aktif:
+                                </span>
                                 {statusFilter !== "all" && (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">
                                         Status: {statusFilter}
@@ -531,7 +560,10 @@ export default function Index({
                                 )}
                                 {genderFilter !== "all" && (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full">
-                                        Gender: {genderFilter}
+                                        Gender:{" "}
+                                        {genderFilter === "L"
+                                            ? "Laki-laki"
+                                            : "Perempuan"}
                                         <button
                                             onClick={() =>
                                                 removeFilter("gender")
@@ -542,475 +574,444 @@ export default function Index({
                                         </button>
                                     </span>
                                 )}
+                                {shoeTypeFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full">
+                                        Sepatu: {shoeTypeFilter}
+                                        <button
+                                            onClick={() =>
+                                                removeFilter("shoeType")
+                                            }
+                                            className="ml-1 text-blue-600 hover:text-blue-800"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                )}
+                                {shoeSizeFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-indigo-800 bg-indigo-100 rounded-full">
+                                        Ukuran: {shoeSizeFilter}
+                                        <button
+                                            onClick={() =>
+                                                removeFilter("shoeSize")
+                                            }
+                                            className="ml-1 text-indigo-600 hover:text-indigo-800"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                )}
                             </div>
 
                             {/* Results Count */}
-                            <div className="flex items-center text-sm text-gray-600">
-                                Menampilkan {employees.length} karyawan
+                            <div className="flex items-center mt-3 text-sm text-gray-600">
+                                Menampilkan {filteredEmployees.length} dari{" "}
+                                {employees.length} karyawan
                             </div>
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Employee Table */}
-                    <div className="overflow-hidden bg-white border border-gray-200 rounded-lg shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                                            NIP
-                                        </th>
-                                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                                            Nama Lengkap
-                                        </th>
-                                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                                            Status Pegawai
-                                        </th>
-                                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                                            TMT Mulai Jabatan
-                                        </th>
-                                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                                            Aksi
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {employees.length > 0 ? (
-                                        employees.map((employee) => (
-                                            <tr
-                                                key={employee.id}
-                                                className="transition-colors duration-200 hover:bg-gray-50"
-                                            >
-                                                <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                                                    {employee.nip}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <div className="flex-shrink-0 w-10 h-10">
-                                                            <div className="h-10 w-10 rounded-full bg-[#439454] flex items-center justify-center">
-                                                                <span className="text-sm font-medium text-white">
+                {/* Employee Table */}
+                <div className="px-6 pb-6">
+                    {filteredEmployees.length > 0 ? (
+                        <div className="overflow-hidden bg-white border border-gray-200 rounded-lg shadow-sm">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                NIP
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Nama Lengkap
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Status Pegawai
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Unit Organisasi
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Jenis Sepatu
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Ukuran Sepatu
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                TMT Mulai Jabatan
+                                            </th>
+                                            <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredEmployees.map(
+                                            (employee, index) => (
+                                                <tr
+                                                    key={employee.id || index}
+                                                    className="transition-colors duration-200 hover:bg-gray-50"
+                                                >
+                                                    <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                                                        {employee.nip || "-"}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center">
+                                                            <div className="flex-shrink-0 w-8 h-8">
+                                                                <div className="w-8 h-8 bg-[#439454] rounded-full flex items-center justify-center text-white text-xs font-medium">
                                                                     {getInitials(
                                                                         employee.nama_lengkap
                                                                     )}
-                                                                </span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="ml-3">
+                                                                <div className="text-sm font-medium text-gray-900">
+                                                                    {employee.nama_lengkap ||
+                                                                        "-"}
+                                                                </div>
+                                                                <div className="text-sm text-gray-500">
+                                                                    {employee.nama_jabatan ||
+                                                                        "-"}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="ml-4">
-                                                            <div className="text-sm font-medium text-gray-900">
-                                                                {
-                                                                    employee.nama_lengkap
-                                                                }
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {
-                                                                    employee.unit_organisasi
-                                                                }{" "}
-                                                                -{" "}
-                                                                {employee.jabatan ||
-                                                                    employee.nama_jabatan}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span
-                                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                            employee.status_pegawai ===
-                                                            "PEGAWAI TETAP"
-                                                                ? "bg-green-100 text-green-800"
-                                                                : "bg-yellow-100 text-yellow-800"
-                                                        }`}
-                                                    >
-                                                        {
-                                                            employee.status_pegawai
-                                                        }
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                                                    {formatDate(
-                                                        employee.tmt_mulai_jabatan
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() =>
-                                                                showEmployeeDetails(
-                                                                    employee
-                                                                )
-                                                            }
-                                                            className="p-1 text-blue-600 transition-colors duration-200 rounded hover:text-blue-900"
-                                                            title="Lihat Detail"
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
-                                                        <Link
-                                                            href={route(
-                                                                "employees.edit",
-                                                                employee.id
-                                                            )}
-                                                            className="p-1 text-indigo-600 transition-colors duration-200 rounded hover:text-indigo-900"
-                                                            title="Edit"
-                                                        >
-                                                            <Edit2 className="w-4 h-4" />
-                                                        </Link>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (
-                                                                    confirm(
-                                                                        `Apakah Anda yakin ingin menghapus data karyawan ${employee.nama_lengkap}?`
-                                                                    )
-                                                                ) {
-                                                                    router.delete(
-                                                                        route(
-                                                                            "employees.destroy",
-                                                                            employee.id
-                                                                        )
-                                                                    );
-                                                                }
-                                                            }}
-                                                            className="p-1 text-red-600 transition-colors duration-200 rounded hover:text-red-900"
-                                                            title="Hapus"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td
-                                                colSpan="5"
-                                                className="px-6 py-12 text-center text-gray-500"
-                                            >
-                                                <div className="flex flex-col items-center">
-                                                    <User className="w-12 h-12 mb-4 text-gray-300" />
-                                                    <p className="mb-2 text-lg font-medium text-gray-900">
-                                                        Tidak ada data karyawan
-                                                    </p>
-                                                    <p className="text-gray-500">
-                                                        {searchTerm ||
-                                                        statusFilter !==
-                                                            "all" ||
-                                                        unitFilter !== "all" ||
-                                                        genderFilter !== "all"
-                                                            ? "Tidak ada karyawan yang sesuai dengan filter pencarian."
-                                                            : "Belum ada data karyawan yang ditambahkan."}
-                                                    </p>
-                                                    {(searchTerm ||
-                                                        statusFilter !==
-                                                            "all" ||
-                                                        unitFilter !== "all" ||
-                                                        genderFilter !==
-                                                            "all") && (
-                                                        <button
-                                                            onClick={
-                                                                clearFilters
-                                                            }
-                                                            className="mt-4 px-4 py-2 text-sm text-[#439454] border border-[#439454] rounded-lg hover:bg-[#439454] hover:text-white transition-colors duration-200"
-                                                        >
-                                                            Hapus Semua Filter
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Employee Detail Modal */}
-                {showEmployeeModal && selectedEmployee && (
-                    <div className="fixed inset-0 z-50 overflow-y-auto">
-                        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                            <div
-                                className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
-                                onClick={closeModal}
-                            ></div>
-
-                            <div className="inline-block w-full max-w-4xl px-6 py-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white rounded-lg shadow-xl">
-                                {/* Modal Header */}
-                                <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-16 w-16 rounded-full bg-[#439454] flex items-center justify-center">
-                                            <span className="text-xl font-bold text-white">
-                                                {getInitials(
-                                                    selectedEmployee.nama_lengkap
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-semibold text-gray-900">
-                                                {selectedEmployee.nama_lengkap}
-                                            </h3>
-                                            <p className="text-sm text-gray-500">
-                                                NIP: {selectedEmployee.nip}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={closeModal}
-                                        className="p-2 text-gray-400 transition-colors duration-200 rounded-lg hover:text-gray-600 hover:bg-gray-100"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-
-                                {/* Modal Content */}
-                                <div className="mt-6 space-y-6">
-                                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                                        {/* Personal Information */}
-                                        <div className="space-y-4">
-                                            <h3 className="pb-2 text-lg font-semibold text-gray-900 border-b border-gray-200">
-                                                Informasi Pribadi
-                                            </h3>
-
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <User className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Jenis Kelamin
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {
-                                                                selectedEmployee.jenis_kelamin
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <MapPin className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Tempat, Tanggal
-                                                            Lahir
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.tempat_lahir
-                                                                ? `${
-                                                                      selectedEmployee.tempat_lahir
-                                                                  }, ${formatDate(
-                                                                      selectedEmployee.tanggal_lahir
-                                                                  )}`
-                                                                : "-"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Usia
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.usia
-                                                                ? `${selectedEmployee.usia} tahun`
-                                                                : "-"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Phone className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            No. Handphone
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.handphone ||
-                                                                "-"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Mail className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Email
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.email ||
-                                                                "-"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-start gap-3">
-                                                    <MapPin className="w-5 h-5 mt-1 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Alamat
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.alamat ||
-                                                                "-"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Work Information */}
-                                        <div className="space-y-4">
-                                            <h3 className="pb-2 text-lg font-semibold text-gray-900 border-b border-gray-200">
-                                                Informasi Pekerjaan
-                                            </h3>
-
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Building className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Unit Organisasi
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {
-                                                                selectedEmployee.unit_organisasi
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Badge className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Jabatan
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {selectedEmployee.jabatan ||
-                                                                selectedEmployee.nama_jabatan}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            TMT Mulai Jabatan
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {formatDate(
-                                                                selectedEmployee.tmt_mulai_jabatan
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            TMT Mulai Kerja
-                                                        </p>
-                                                        <p className="font-medium">
-                                                            {formatDate(
-                                                                selectedEmployee.tmt_mulai_kerja
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <Users className="w-5 h-5 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">
-                                                            Status Pegawai
-                                                        </p>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
                                                         <span
                                                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                                selectedEmployee.status_pegawai ===
+                                                                employee.status_pegawai ===
                                                                 "PEGAWAI TETAP"
                                                                     ? "bg-green-100 text-green-800"
                                                                     : "bg-yellow-100 text-yellow-800"
                                                             }`}
                                                         >
-                                                            {
-                                                                selectedEmployee.status_pegawai
-                                                            }
+                                                            {employee.status_pegawai ||
+                                                                "-"}
                                                         </span>
-                                                    </div>
-                                                </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                                                        {employee.unit_organisasi ||
+                                                            "-"}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                                                        <span
+                                                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                employee.jenis_sepatu ===
+                                                                "Safety Shoes"
+                                                                    ? "bg-red-100 text-red-800"
+                                                                    : employee.jenis_sepatu ===
+                                                                      "Pantofel"
+                                                                    ? "bg-blue-100 text-blue-800"
+                                                                    : "bg-gray-100 text-gray-800"
+                                                            }`}
+                                                        >
+                                                            {employee.jenis_sepatu ||
+                                                                "-"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                                                        <span className="inline-flex px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">
+                                                            {employee.ukuran_sepatu ||
+                                                                "-"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                                                        {formatDate(
+                                                            employee.tmt_mulai_jabatan
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() =>
+                                                                    showEmployeeDetails(
+                                                                        employee
+                                                                    )
+                                                                }
+                                                                className="p-1 text-blue-600 transition-colors duration-200 rounded hover:text-blue-900 hover:bg-blue-50"
+                                                                title="Lihat Detail"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </button>
+                                                            <Link
+                                                                href={route(
+                                                                    "employees.edit",
+                                                                    employee.id
+                                                                )}
+                                                                className="p-1 text-[#439454] transition-colors duration-200 rounded hover:text-[#367a41] hover:bg-green-50"
+                                                                title="Edit Karyawan"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Link>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (
+                                                                        confirm(
+                                                                            `Apakah Anda yakin ingin menghapus karyawan ${employee.nama_lengkap}?`
+                                                                        )
+                                                                    ) {
+                                                                        router.delete(
+                                                                            route(
+                                                                                "employees.destroy",
+                                                                                employee.id
+                                                                            )
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="p-1 text-red-600 transition-colors duration-200 rounded hover:text-red-900 hover:bg-red-50"
+                                                                title="Hapus Karyawan"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+                            <div className="flex flex-col items-center justify-center py-12">
+                                <div className="flex items-center justify-center w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full">
+                                    <Users className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <h3 className="mb-2 text-lg font-medium text-gray-900">
+                                    {hasActiveFilters()
+                                        ? "Tidak ada data yang sesuai"
+                                        : "Tidak ada data karyawan"}
+                                </h3>
+                                <p className="max-w-md mb-6 text-center text-gray-500">
+                                    {hasActiveFilters()
+                                        ? "Tidak ditemukan karyawan yang sesuai dengan filter yang Anda terapkan. Coba ubah atau hapus beberapa filter."
+                                        : "Belum ada data karyawan yang ditambahkan. Mulai dengan menambahkan karyawan baru atau import data."}
+                                </p>
+                                {hasActiveFilters() ? (
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#439454] bg-white border border-[#439454] rounded-lg hover:bg-[#439454] hover:text-white transition-colors duration-200"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Hapus Semua Filter
+                                    </button>
+                                ) : (
+                                    <Link
+                                        href={route("employees.create")}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#439454] rounded-lg hover:bg-[#367a41] transition-colors duration-200"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Tambah Karyawan Pertama
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Employee Detail Modal */}
+            {showEmployeeModal && selectedEmployee && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                        <div
+                            className="fixed inset-0 transition-opacity"
+                            aria-hidden="true"
+                        >
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span
+                            className="hidden sm:inline-block sm:align-middle sm:h-screen"
+                            aria-hidden="true"
+                        >
+                            &#8203;
+                        </span>
+
+                        <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                            <div className="px-6 py-4 bg-white">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-medium text-gray-900">
+                                        Detail Karyawan
+                                    </h3>
+                                    <button
+                                        onClick={closeModal}
+                                        className="text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div>
+                                        <h4 className="mb-2 font-medium text-gray-900">
+                                            Informasi Personal
+                                        </h4>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    NIP:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.nip ||
+                                                        "-"}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Nama:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.nama_lengkap ||
+                                                        "-"}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Jenis Kelamin:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.jenis_kelamin ===
+                                                    "L"
+                                                        ? "Laki-laki"
+                                                        : "Perempuan"}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Tempat, Tanggal Lahir:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.tempat_lahir ||
+                                                        "-"}
+                                                    ,{" "}
+                                                    {formatDate(
+                                                        selectedEmployee.tanggal_lahir
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Usia:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.usia ||
+                                                        "-"}{" "}
+                                                    tahun
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Additional Information */}
-                                    <div className="pt-4 border-t border-gray-200">
-                                        <h3 className="mb-4 text-lg font-semibold text-gray-900">
-                                            Informasi Tambahan
-                                        </h3>
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Pendidikan Terakhir
-                                                </p>
-                                                <p className="text-sm text-gray-900">
-                                                    {selectedEmployee.pendidikan_terakhir ||
-                                                        selectedEmployee.pendidikan ||
+                                    <div>
+                                        <h4 className="mb-2 font-medium text-gray-900">
+                                            Informasi Pekerjaan
+                                        </h4>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Status:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.status_pegawai ||
                                                         "-"}
-                                                </p>
+                                                </span>
                                             </div>
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Instansi Pendidikan
-                                                </p>
-                                                <p className="text-sm text-gray-900">
-                                                    {selectedEmployee.instansi_pendidikan ||
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Unit:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.unit_organisasi ||
                                                         "-"}
-                                                </p>
+                                                </span>
                                             </div>
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Jurusan
-                                                </p>
-                                                <p className="text-sm text-gray-900">
-                                                    {selectedEmployee.jurusan ||
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Jabatan:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.nama_jabatan ||
                                                         "-"}
-                                                </p>
+                                                </span>
                                             </div>
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Tahun Lulus
-                                                </p>
-                                                <p className="text-sm text-gray-900">
-                                                    {selectedEmployee.tahun_lulus ||
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    TMT Jabatan:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {formatDate(
+                                                        selectedEmployee.tmt_mulai_jabatan
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Grade:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.grade ||
                                                         "-"}
-                                                </p>
+                                                </span>
                                             </div>
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Jenis Sepatu
-                                                </p>
-                                                <p className="text-sm text-gray-900">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="mb-2 font-medium text-gray-900">
+                                            Informasi Sepatu
+                                        </h4>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Jenis Sepatu:
+                                                </span>
+                                                <span className="font-medium">
                                                     {selectedEmployee.jenis_sepatu ||
                                                         "-"}
-                                                </p>
+                                                </span>
                                             </div>
-                                            <div className="p-4 rounded-lg bg-gray-50">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    Ukuran Sepatu
-                                                </p>
-                                                <p className="text-sm text-gray-900">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Ukuran Sepatu:
+                                                </span>
+                                                <span className="font-medium">
                                                     {selectedEmployee.ukuran_sepatu ||
                                                         "-"}
-                                                </p>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="mb-2 font-medium text-gray-900">
+                                            Kontak & Alamat
+                                        </h4>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    No. HP:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.handphone ||
+                                                        "-"}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">
+                                                    Domisili:
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedEmployee.kota_domisili ||
+                                                        "-"}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Modal Footer */}
-                                <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200">
+                                <div className="flex justify-end gap-3 mt-6">
                                     <button
                                         onClick={closeModal}
                                         className="px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -1022,17 +1023,16 @@ export default function Index({
                                             "employees.edit",
                                             selectedEmployee.id
                                         )}
-                                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#439454] text-white rounded-lg text-sm font-medium hover:bg-[#3a7d46] transition-colors duration-200"
+                                        className="px-4 py-2 text-sm font-medium text-white bg-[#439454] rounded-lg hover:bg-[#367a41] transition-colors duration-200"
                                     >
-                                        <Edit2 className="w-4 h-4" />
-                                        Edit Data
+                                        Edit Karyawan
                                     </Link>
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </DashboardLayout>
     );
 }
