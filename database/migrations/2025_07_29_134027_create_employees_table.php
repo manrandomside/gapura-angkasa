@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('unit_organisasi')->nullable();
             $table->string('nama_organisasi')->nullable();
             $table->string('nama_jabatan')->nullable();
+            $table->string('jabatan')->nullable(); // TAMBAHAN: kolom jabatan
             $table->string('unit_kerja_kontrak')->nullable();
             $table->date('tmt_mulai_kerja')->nullable();
             $table->date('tmt_mulai_jabatan')->nullable();
@@ -41,11 +42,14 @@ return new class extends Migration
             $table->string('kota_domisili')->nullable();
             $table->text('alamat')->nullable();
             $table->string('pendidikan')->nullable();
+            $table->string('pendidikan_terakhir')->nullable(); // TAMBAHAN: pendidikan terakhir
             $table->string('instansi_pendidikan')->nullable();
             $table->string('jurusan')->nullable();
             $table->string('remarks_pendidikan')->nullable();
             $table->integer('tahun_lulus')->nullable();
             $table->string('handphone')->nullable();
+            $table->string('no_telepon')->nullable(); // TAMBAHAN: no telepon
+            $table->string('email')->nullable(); // TAMBAHAN: email
             $table->string('kategori_karyawan')->nullable();
             $table->date('tmt_pensiun')->nullable();
             $table->string('grade')->nullable();
