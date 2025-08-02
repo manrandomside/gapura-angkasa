@@ -79,13 +79,23 @@ class RunSDMSeederOnly extends Seeder
                         $table->string('masa_kerja_tahun', 50)->nullable()->change();
                     }
                     
-                    // Ensure other potentially problematic columns are adequate
-                    if (Schema::hasColumn('employees', 'pendidikan_terakhir')) {
-                        $table->string('pendidikan_terakhir', 20)->nullable()->change();
+                    // Fix pendidikan columns - handle long education names
+                    if (Schema::hasColumn('employees', 'pendidikan')) {
+                        $table->string('pendidikan', 100)->nullable()->change();
                     }
                     
+                    if (Schema::hasColumn('employees', 'pendidikan_terakhir')) {
+                        $table->string('pendidikan_terakhir', 50)->nullable()->change(); // Fix: was too short
+                    }
+                    
+                    // Ensure other potentially problematic columns are adequate
                     if (Schema::hasColumn('employees', 'kode_organisasi')) {
                         $table->string('kode_organisasi', 10)->nullable()->change();
+                    }
+                    
+                    // Fix status_pegawai to have default value
+                    if (Schema::hasColumn('employees', 'status_pegawai')) {
+                        $table->string('status_pegawai', 30)->default('PEGAWAI TETAP')->change();
                     }
                 });
                 
@@ -113,12 +123,15 @@ class RunSDMSeederOnly extends Seeder
             // Test insert with problematic values to ensure they work
             $testData = [
                 'no' => 999999,
-                'nip' => 'TEST',
+                'nip' => 'TEST_VALIDATION_' . time(), // Unique NIP to avoid conflicts
                 'nama_lengkap' => 'TEST VALIDATION',
+                'status_pegawai' => 'PEGAWAI TETAP',  // Required field
                 'jenis_sepatu' => '-',
                 'ukuran_sepatu' => '-', 
                 'grade' => '-',
                 'alamat' => '-',
+                'pendidikan' => 'SEKOLAH MENENGAH ATAS', // Test long education name
+                'pendidikan_terakhir' => 'SEKOLAH MENENGAH ATAS', // Test long value
                 'masa_kerja_bulan' => '1506 Bulan',
                 'masa_kerja_tahun' => '125 Tahun',
                 'organization_id' => 1,
@@ -131,7 +144,7 @@ class RunSDMSeederOnly extends Seeder
             DB::table('employees')->insert($testData);
             
             // If successful, delete the test record
-            DB::table('employees')->where('nip', 'TEST')->delete();
+            DB::table('employees')->where('nip', $testData['nip'])->delete();
             
             $this->command->info('✅ Column structure validation passed!');
             
@@ -299,6 +312,14 @@ class RunSDMSeederOnly extends Seeder
         if ($totalEmployees > 0) {
             $this->command->info("✅ SUCCESS: {$totalEmployees} employees loaded from SDMEmployeeSeeder!");
             
+            // Show failed insertions if any
+            if ($failedCount > 0) {
+                $this->command->warn("⚠️  NOTE: {$failedCount} records failed to insert (likely due to duplicates or data issues)");
+                if ($duplicateNIPs->count() > 0) {
+                    $this->command->info("   Duplicate NIPs detected: " . $duplicateNIPs->pluck('nip')->implode(', '));
+                }
+            }
+            
             // Additional insights
             if ($totalEmployees >= 10) {
                 $this->command->info('📊 Employee count is sufficient for meaningful statistics');
@@ -319,6 +340,23 @@ class RunSDMSeederOnly extends Seeder
         $this->command->info('   ✅ Flexible data size support');
         $this->command->info('   ✅ Comprehensive validation & reporting');
         $this->command->info('   ✅ Ready for additional SDM data expansion');
+        $this->command->info('   ✅ Duplicate detection & handling');
         $this->command->info('===============================================');
+    }
+    
+    /**
+     * Estimate total records expected from seeder (for failed count calculation)
+     */
+    private function getEstimatedTotalRecords()
+    {
+        // This is a rough estimate based on the range of employee numbers
+        $dataRange = DB::table('employees')->selectRaw('MIN(no) as min_no, MAX(no) as max_no')->first();
+        
+        if ($dataRange && $dataRange->max_no && $dataRange->min_no) {
+            return $dataRange->max_no - $dataRange->min_no + 1;
+        }
+        
+        // Fallback: assume current count is correct
+        return DB::table('employees')->count();
     }
 }
