@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Head, Link, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
+import EmployeeDetailModal from "@/Components/EmployeeDetailModal";
 import {
     Search,
     Plus,
@@ -71,9 +72,13 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                     emp.nama_lengkap?.toLowerCase().includes(query) ||
                     emp.nip?.toLowerCase().includes(query) ||
                     emp.nama_jabatan?.toLowerCase().includes(query) ||
+                    emp.jabatan?.toLowerCase().includes(query) ||
                     emp.unit_organisasi?.toLowerCase().includes(query) ||
                     emp.jenis_sepatu?.toLowerCase().includes(query) ||
-                    emp.ukuran_sepatu?.toLowerCase().includes(query)
+                    emp.ukuran_sepatu?.toLowerCase().includes(query) ||
+                    emp.nama_organisasi?.toLowerCase().includes(query) ||
+                    emp.kota_domisili?.toLowerCase().includes(query) ||
+                    emp.instansi_pendidikan?.toLowerCase().includes(query)
             );
         }
 
@@ -254,6 +259,11 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                     Kelola data karyawan PT Gapura Angkasa -
                                     Bandar Udara Ngurah Rai
                                 </p>
+                                {/* Display data count indicator */}
+                                <p className="mt-1 text-xs font-medium text-green-600">
+                                    Data Source: SDM Employee Seeder (
+                                    {employees.length} karyawan valid)
+                                </p>
                             </div>
                             <div className="flex gap-3 mt-4 md:mt-0">
                                 <Link
@@ -358,7 +368,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                 <Search className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                                 <input
                                     type="text"
-                                    placeholder="Cari berdasarkan NIP, nama, jabatan, atau unit organisasi..."
+                                    placeholder="Cari berdasarkan NIP, nama, jabatan, unit organisasi, instansi pendidikan..."
                                     value={searchQuery}
                                     onChange={(e) =>
                                         setSearchQuery(e.target.value)
@@ -649,7 +659,11 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                         {filteredEmployees.map(
                                             (employee, index) => (
                                                 <tr
-                                                    key={employee.id || index}
+                                                    key={
+                                                        employee.id ||
+                                                        employee.nip ||
+                                                        index
+                                                    }
                                                     className="transition-colors duration-200 hover:bg-gray-50"
                                                 >
                                                     <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
@@ -671,6 +685,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                                 </div>
                                                                 <div className="text-sm text-gray-500">
                                                                     {employee.nama_jabatan ||
+                                                                        employee.jabatan ||
                                                                         "-"}
                                                                 </div>
                                                             </div>
@@ -729,7 +744,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                                     )
                                                                 }
                                                                 className="p-1 text-blue-600 transition-colors duration-200 rounded hover:text-blue-900 hover:bg-blue-50"
-                                                                title="Lihat Detail"
+                                                                title="Lihat Detail Lengkap"
                                                             >
                                                                 <Eye className="w-4 h-4" />
                                                             </button>
@@ -811,228 +826,12 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                 </div>
             </div>
 
-            {/* Employee Detail Modal */}
-            {showEmployeeModal && selectedEmployee && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                        <div
-                            className="fixed inset-0 transition-opacity"
-                            aria-hidden="true"
-                        >
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span
-                            className="hidden sm:inline-block sm:align-middle sm:h-screen"
-                            aria-hidden="true"
-                        >
-                            &#8203;
-                        </span>
-
-                        <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                            <div className="px-6 py-4 bg-white">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-medium text-gray-900">
-                                        Detail Karyawan
-                                    </h3>
-                                    <button
-                                        onClick={closeModal}
-                                        className="text-gray-400 hover:text-gray-600"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div>
-                                        <h4 className="mb-2 font-medium text-gray-900">
-                                            Informasi Personal
-                                        </h4>
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    NIP:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.nip ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Nama:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.nama_lengkap ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Jenis Kelamin:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.jenis_kelamin ===
-                                                    "L"
-                                                        ? "Laki-laki"
-                                                        : "Perempuan"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Tempat, Tanggal Lahir:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.tempat_lahir ||
-                                                        "-"}
-                                                    ,{" "}
-                                                    {formatDate(
-                                                        selectedEmployee.tanggal_lahir
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Usia:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.usia ||
-                                                        "-"}{" "}
-                                                    tahun
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h4 className="mb-2 font-medium text-gray-900">
-                                            Informasi Pekerjaan
-                                        </h4>
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Status:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.status_pegawai ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Unit:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.unit_organisasi ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Jabatan:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.nama_jabatan ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    TMT Jabatan:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {formatDate(
-                                                        selectedEmployee.tmt_mulai_jabatan
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Grade:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.grade ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h4 className="mb-2 font-medium text-gray-900">
-                                            Informasi Sepatu
-                                        </h4>
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Jenis Sepatu:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.jenis_sepatu ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Ukuran Sepatu:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.ukuran_sepatu ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h4 className="mb-2 font-medium text-gray-900">
-                                            Kontak & Alamat
-                                        </h4>
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    No. HP:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.handphone ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">
-                                                    Domisili:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {selectedEmployee.kota_domisili ||
-                                                        "-"}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button
-                                        onClick={closeModal}
-                                        className="px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Tutup
-                                    </button>
-                                    <Link
-                                        href={route(
-                                            "employees.edit",
-                                            selectedEmployee.id
-                                        )}
-                                        className="px-4 py-2 text-sm font-medium text-white bg-[#439454] rounded-lg hover:bg-[#367a41] transition-colors duration-200"
-                                    >
-                                        Edit Karyawan
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Employee Detail Modal - Using the Complete EmployeeDetailModal Component */}
+            <EmployeeDetailModal
+                employee={selectedEmployee}
+                isOpen={showEmployeeModal}
+                onClose={closeModal}
+            />
         </DashboardLayout>
     );
 }

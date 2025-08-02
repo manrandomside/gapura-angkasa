@@ -218,7 +218,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2201048',
                 'nama_lengkap' => 'A.A GEDE AGUNG WIRAJAYA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Denpasar',
                 'tanggal_lahir' => '1985-03-15',
                 'usia' => Carbon::parse('1985-03-15')->age,
@@ -252,7 +252,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2012117',
                 'nama_lengkap' => 'A.A NGURAH GEDE AGUNG DHARMA PUTRA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Gianyar',
                 'tanggal_lahir' => '1987-06-20',
                 'usia' => Carbon::parse('1987-06-20')->age,
@@ -286,7 +286,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2012124',
                 'nama_lengkap' => 'A.A. AYU CANDRAWATI',
-                'jenis_kelamin' => 'Perempuan',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
                 'tempat_lahir' => 'Badung',
                 'tanggal_lahir' => '1990-09-12',
                 'usia' => Carbon::parse('1990-09-12')->age,
@@ -320,7 +320,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2150791',
                 'nama_lengkap' => 'I KETUT ADIYANA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Tabanan',
                 'tanggal_lahir' => '1983-02-28',
                 'usia' => Carbon::parse('1983-02-28')->age,
@@ -354,7 +354,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2019023',
                 'nama_lengkap' => 'I KOMANG AGUS WIRAWAN',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Klungkung',
                 'tanggal_lahir' => '1988-11-05',
                 'usia' => Carbon::parse('1988-11-05')->age,
@@ -388,7 +388,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2015089',
                 'nama_lengkap' => 'I MADE SURYA DINATA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Denpasar',
                 'tanggal_lahir' => '1985-01-18',
                 'usia' => Carbon::parse('1985-01-18')->age,
@@ -422,7 +422,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2012140',
                 'nama_lengkap' => 'I NYOMAN JOHN SUPARTA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Buleleng',
                 'tanggal_lahir' => '1986-12-03',
                 'usia' => Carbon::parse('1986-12-03')->age,
@@ -456,7 +456,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2018045',
                 'nama_lengkap' => 'NI PUTU SARI DEWI',
-                'jenis_kelamin' => 'Perempuan',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
                 'tempat_lahir' => 'Badung',
                 'tanggal_lahir' => '1992-04-22',
                 'usia' => Carbon::parse('1992-04-22')->age,
@@ -490,7 +490,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2020156',
                 'nama_lengkap' => 'KADEK RINA ASTUTI',
-                'jenis_kelamin' => 'Perempuan',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
                 'tempat_lahir' => 'Gianyar',
                 'tanggal_lahir' => '1993-07-14',
                 'usia' => Carbon::parse('1993-07-14')->age,
@@ -524,7 +524,7 @@ class DatabaseSeeder extends Seeder
             [
                 'nip' => '2019078',
                 'nama_lengkap' => 'WAYAN BAGUS SANTIKA',
-                'jenis_kelamin' => 'Laki-laki',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
                 'tempat_lahir' => 'Denpasar',
                 'tanggal_lahir' => '1989-10-30',
                 'usia' => Carbon::parse('1989-10-30')->age,
@@ -574,16 +574,9 @@ class DatabaseSeeder extends Seeder
         $pegawaiTetap = DB::table('employees')->where('status_pegawai', 'PEGAWAI TETAP')->count();
         $tad = DB::table('employees')->where('status_pegawai', 'TAD')->count();
         
-        // Handle both L/P and Laki-laki/Perempuan formats
-        $laki = DB::table('employees')
-            ->where('jenis_kelamin', 'L')
-            ->orWhere('jenis_kelamin', 'Laki-laki')
-            ->count();
-        
-        $perempuan = DB::table('employees')
-            ->where('jenis_kelamin', 'P')
-            ->orWhere('jenis_kelamin', 'Perempuan')
-            ->count();
+        // Handle both L/P format
+        $laki = DB::table('employees')->where('jenis_kelamin', 'L')->count();
+        $perempuan = DB::table('employees')->where('jenis_kelamin', 'P')->count();
 
         // Get organization breakdown with employee count
         $orgBreakdown = DB::table('organizations as o')
