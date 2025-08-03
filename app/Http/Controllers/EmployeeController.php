@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Validator;
 class EmployeeController extends Controller
 {
     /**
-     * Display a listing of employees with enhanced search and filter capabilities
+     * Display a listing of employees with enhanced search, filter, and pagination capabilities
      */
     public function index(Request $request)
     {
@@ -30,6 +30,9 @@ class EmployeeController extends Controller
             // Apply active scope - default to active employees
             $query->where('status', 'active');
 
+            // Build filter conditions
+            $filterConditions = [];
+            
             // Apply search filters
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
@@ -42,43 +45,92 @@ class EmployeeController extends Controller
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                 });
+                $filterConditions['search'] = $searchTerm;
             }
 
             // Filter by status pegawai
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
+                $filterConditions['status_pegawai'] = $request->status_pegawai;
             }
 
             // Filter by unit organisasi
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
                 $query->where('unit_organisasi', $request->unit_organisasi);
+                $filterConditions['unit_organisasi'] = $request->unit_organisasi;
             }
 
             // Filter by gender
             if ($request->filled('jenis_kelamin') && $request->jenis_kelamin !== 'all') {
                 $query->where('jenis_kelamin', $request->jenis_kelamin);
+                $filterConditions['jenis_kelamin'] = $request->jenis_kelamin;
             }
 
             // Filter by jenis sepatu
             if ($request->filled('jenis_sepatu') && $request->jenis_sepatu !== 'all') {
                 $query->where('jenis_sepatu', $request->jenis_sepatu);
+                $filterConditions['jenis_sepatu'] = $request->jenis_sepatu;
             }
 
             // Filter by ukuran sepatu
             if ($request->filled('ukuran_sepatu') && $request->ukuran_sepatu !== 'all') {
                 $query->where('ukuran_sepatu', $request->ukuran_sepatu);
+                $filterConditions['ukuran_sepatu'] = $request->ukuran_sepatu;
             }
 
-            // Get results - convert pagination to collection for Inertia compatibility
-            $employees = $query->orderBy('nama_lengkap', 'asc')->get();
+            // Clone query for statistics calculation before pagination
+            $statisticsQuery = clone $query;
+
+            // Set per page count
+            $perPage = $request->get('per_page', 20);
+            
+            // Validate per_page parameter
+            if (!in_array($perPage, [10, 20, 50, 100])) {
+                $perPage = 20;
+            }
+
+            // Get paginated results with proper ordering
+            $employees = $query->orderBy('nama_lengkap', 'asc')
+                             ->paginate($perPage)
+                             ->withQueryString(); // Preserve query parameters in pagination links
+
+            // Calculate statistics based on filtered results (not pagination)
+            $filteredStatistics = $this->calculateFilteredStatistics($statisticsQuery, $filterConditions);
 
             // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
 
+            // Get filter options for dropdowns
+            $filterOptions = $this->getFilterOptions();
+
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
                 'organizations' => $organizations,
-                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu']),
+                'filterOptions' => $filterOptions,
+                'statistics' => $filteredStatistics, // Add filtered statistics
+                'filters' => $request->only([
+                    'search', 
+                    'status_pegawai', 
+                    'unit_organisasi', 
+                    'jenis_kelamin', 
+                    'jenis_sepatu', 
+                    'ukuran_sepatu'
+                ]),
+                'pagination' => [
+                    'current_page' => $employees->currentPage(),
+                    'last_page' => $employees->lastPage(),
+                    'per_page' => $employees->perPage(),
+                    'total' => $employees->total(),
+                    'from' => $employees->firstItem(),
+                    'to' => $employees->lastItem(),
+                    'has_pages' => $employees->hasPages(),
+                    'has_more_pages' => $employees->hasMorePages(),
+                    'on_first_page' => $employees->onFirstPage(),
+                    'on_last_page' => $employees->onLastPage(),
+                    'next_page_url' => $employees->nextPageUrl(),
+                    'prev_page_url' => $employees->previousPageUrl(),
+                    'links' => $employees->links()->elements[0] ?? []
+                ],
                 'success' => session('success'),
                 'error' => session('error'),
                 'info' => session('info'),
@@ -86,9 +138,38 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             return Inertia::render('Employees/Index', [
-                'employees' => [],
+                'employees' => collect(),
                 'organizations' => [],
-                'filters' => $request->only(['search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu']),
+                'filterOptions' => [],
+                'statistics' => [
+                    'total' => 0,
+                    'pegawaiTetap' => 0,
+                    'tad' => 0,
+                    'uniqueUnits' => 0
+                ],
+                'filters' => $request->only([
+                    'search', 
+                    'status_pegawai', 
+                    'unit_organisasi', 
+                    'jenis_kelamin', 
+                    'jenis_sepatu', 
+                    'ukuran_sepatu'
+                ]),
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => 20,
+                    'total' => 0,
+                    'from' => null,
+                    'to' => null,
+                    'has_pages' => false,
+                    'has_more_pages' => false,
+                    'on_first_page' => true,
+                    'on_last_page' => true,
+                    'next_page_url' => null,
+                    'prev_page_url' => null,
+                    'links' => []
+                ],
                 'error' => 'Error loading employees: ' . $e->getMessage(),
             ]);
         }
@@ -340,15 +421,16 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Search employees (API endpoint) - Enhanced with shoe data
+     * Search employees (API endpoint) - Enhanced with shoe data and pagination
      */
     public function search(Request $request)
     {
         try {
             $query = $request->get('q', '');
             $limit = $request->get('limit', 10);
+            $page = $request->get('page', 1);
             
-            $employees = Employee::where('status', 'active')
+            $employeesQuery = Employee::where('status', 'active')
                 ->where(function($q) use ($query) {
                     $q->where('nama_lengkap', 'like', "%{$query}%")
                       ->orWhere('nip', 'like', "%{$query}%")
@@ -356,14 +438,33 @@ class EmployeeController extends Controller
                       ->orWhere('nama_jabatan', 'like', "%{$query}%")
                       ->orWhere('jenis_sepatu', 'like', "%{$query}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$query}%");
-                })
-                ->limit($limit)
-                ->get(['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
+                });
 
-            return response()->json([
-                'employees' => $employees,
-                'total' => $employees->count(),
-            ]);
+            // Get paginated results if requested
+            if ($request->has('paginate') && $request->paginate === 'true') {
+                $employees = $employeesQuery->paginate($limit, ['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
+                
+                return response()->json([
+                    'employees' => $employees->items(),
+                    'pagination' => [
+                        'current_page' => $employees->currentPage(),
+                        'last_page' => $employees->lastPage(),
+                        'per_page' => $employees->perPage(),
+                        'total' => $employees->total(),
+                        'from' => $employees->firstItem(),
+                        'to' => $employees->lastItem(),
+                    ]
+                ]);
+            } else {
+                $employees = $employeesQuery->limit($limit)
+                    ->get(['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
+                
+                return response()->json([
+                    'employees' => $employees,
+                    'total' => $employees->count(),
+                ]);
+            }
+
         } catch (\Exception $e) {
             return response()->json([
                 'employees' => [],
@@ -410,7 +511,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Export employees data to CSV - Enhanced with shoe data
+     * Export employees data to CSV - Enhanced with shoe data and pagination support
      */
     public function export(Request $request)
     {
@@ -731,6 +832,53 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
+     * Calculate statistics based on filtered results (not pagination)
+     */
+    private function calculateFilteredStatistics($query, $filterConditions)
+    {
+        try {
+            // If no filters applied, get global statistics
+            if (empty($filterConditions)) {
+                return [
+                    'total' => Employee::where('status', 'active')->count(),
+                    'pegawaiTetap' => Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count(),
+                    'tad' => Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count(),
+                    'uniqueUnits' => Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi'),
+                ];
+            }
+            
+            // If filters applied, calculate from filtered query
+            $baseQuery = clone $query;
+            
+            $total = $baseQuery->count();
+            
+            $pegawaiTetapQuery = clone $query;
+            $pegawaiTetap = $pegawaiTetapQuery->where('status_pegawai', 'PEGAWAI TETAP')->count();
+            
+            $tadQuery = clone $query;
+            $tad = $tadQuery->where('status_pegawai', 'TAD')->count();
+            
+            $unitsQuery = clone $query;
+            $uniqueUnits = $unitsQuery->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+            
+            return [
+                'total' => $total,
+                'pegawaiTetap' => $pegawaiTetap,
+                'tad' => $tad,
+                'uniqueUnits' => $uniqueUnits,
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'total' => 0,
+                'pegawaiTetap' => 0,
+                'tad' => 0,
+                'uniqueUnits' => 0,
+            ];
+        }
+    }
+
+    /**
      * Get organizations for filter dropdown
      */
     private function getOrganizationsForFilter()
@@ -741,6 +889,32 @@ class EmployeeController extends Controller
                 ->get(['id', 'name', 'code']);
         } catch (\Exception $e) {
             return [];
+        }
+    }
+
+    /**
+     * Get filter options for all dropdown filters
+     */
+    private function getFilterOptions()
+    {
+        try {
+            return [
+                'units' => $this->getUnitOptions(),
+                'positions' => $this->getJabatanOptions(),
+                'shoe_types' => ['Pantofel', 'Safety Shoes'],
+                'shoe_sizes' => $this->getShoeSizeOptions(),
+                'status_pegawai' => ['PEGAWAI TETAP', 'TAD'],
+                'genders' => ['Laki-laki', 'Perempuan'],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'units' => [],
+                'positions' => [],
+                'shoe_types' => [],
+                'shoe_sizes' => [],
+                'status_pegawai' => [],
+                'genders' => [],
+            ];
         }
     }
 
@@ -780,6 +954,23 @@ class EmployeeController extends Controller
             return $jabatan->merge($namaJabatan)
                 ->unique()
                 ->sort()
+                ->values();
+        } catch (\Exception $e) {
+            return collect([]);
+        }
+    }
+
+    /**
+     * Get unique shoe size options from employees
+     */
+    private function getShoeSizeOptions()
+    {
+        try {
+            return Employee::whereNotNull('ukuran_sepatu')
+                ->distinct()
+                ->orderByRaw('CAST(ukuran_sepatu AS UNSIGNED)')
+                ->pluck('ukuran_sepatu')
+                ->filter()
                 ->values();
         } catch (\Exception $e) {
             return collect([]);

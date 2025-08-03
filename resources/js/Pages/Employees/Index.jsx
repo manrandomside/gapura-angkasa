@@ -18,117 +18,94 @@ import {
     Building2,
     ChevronDown,
     ChevronUp,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
 } from "lucide-react";
 
-export default function Index({ employees: initialEmployees = [], auth }) {
+export default function Index({
+    employees = { data: [] },
+    pagination = {},
+    filters = {},
+    filterOptions = {},
+    statistics = {}, // Add statistics from backend
+    auth,
+}) {
     // State management
-    const [employees, setEmployees] = useState(initialEmployees || []);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [unitFilter, setUnitFilter] = useState("all");
-    const [genderFilter, setGenderFilter] = useState("all");
-    const [shoeTypeFilter, setShoeTypeFilter] = useState("all");
-    const [shoeSizeFilter, setShoeSizeFilter] = useState("all");
+    const [searchQuery, setSearchQuery] = useState(filters.search || "");
+    const [statusFilter, setStatusFilter] = useState(
+        filters.status_pegawai || "all"
+    );
+    const [unitFilter, setUnitFilter] = useState(
+        filters.unit_organisasi || "all"
+    );
+    const [genderFilter, setGenderFilter] = useState(
+        filters.jenis_kelamin || "all"
+    );
+    const [shoeTypeFilter, setShoeTypeFilter] = useState(
+        filters.jenis_sepatu || "all"
+    );
+    const [shoeSizeFilter, setShoeSizeFilter] = useState(
+        filters.ukuran_sepatu || "all"
+    );
+    const [perPage, setPerPage] = useState(pagination.per_page || 20);
     const [showFilters, setShowFilters] = useState(false);
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [isNavigating, setIsNavigating] = useState(false);
 
-    // Get unique values for filters
-    const getUniqueUnits = () => {
-        const units = [
-            ...new Set(
-                employees.map((emp) => emp.unit_organisasi).filter(Boolean)
-            ),
-        ];
-        return units.sort();
-    };
+    // Debounced search
+    const [searchTimeout, setSearchTimeout] = useState(null);
 
-    const getUniqueShoeTypes = () => {
-        const types = [
-            ...new Set(
-                employees.map((emp) => emp.jenis_sepatu).filter(Boolean)
-            ),
-        ];
-        return types.sort();
-    };
+    // Apply filters with backend pagination
+    const applyFilters = (page = 1, newPerPage = perPage) => {
+        setLoading(true);
+        setIsNavigating(true);
 
-    const getUniqueShoeSizes = () => {
-        const sizes = [
-            ...new Set(
-                employees.map((emp) => emp.ukuran_sepatu).filter(Boolean)
-            ),
-        ];
-        return sizes.sort((a, b) => parseInt(a) - parseInt(b));
-    };
+        const params = {
+            page,
+            per_page: newPerPage,
+        };
 
-    // Filter employees based on all active filters
-    const filteredEmployees = useMemo(() => {
-        let filtered = employees;
-
-        // Search filter
+        // Add search query
         if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(
-                (emp) =>
-                    emp.nama_lengkap?.toLowerCase().includes(query) ||
-                    emp.nip?.toLowerCase().includes(query) ||
-                    emp.nama_jabatan?.toLowerCase().includes(query) ||
-                    emp.jabatan?.toLowerCase().includes(query) ||
-                    emp.unit_organisasi?.toLowerCase().includes(query) ||
-                    emp.jenis_sepatu?.toLowerCase().includes(query) ||
-                    emp.ukuran_sepatu?.toLowerCase().includes(query) ||
-                    emp.nama_organisasi?.toLowerCase().includes(query) ||
-                    emp.kota_domisili?.toLowerCase().includes(query) ||
-                    emp.instansi_pendidikan?.toLowerCase().includes(query)
-            );
+            params.search = searchQuery.trim();
         }
 
-        // Status filter
-        if (statusFilter !== "all") {
-            filtered = filtered.filter(
-                (emp) => emp.status_pegawai === statusFilter
-            );
+        // Add filters
+        if (statusFilter !== "all") params.status_pegawai = statusFilter;
+        if (unitFilter !== "all") params.unit_organisasi = unitFilter;
+        if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
+        if (shoeTypeFilter !== "all") params.jenis_sepatu = shoeTypeFilter;
+        if (shoeSizeFilter !== "all") params.ukuran_sepatu = shoeSizeFilter;
+
+        router.visit(route("employees.index"), {
+            data: params,
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => {
+                setLoading(false);
+                setTimeout(() => setIsNavigating(false), 300);
+            },
+        });
+    };
+
+    // Handle search with debounce
+    const handleSearchChange = (value) => {
+        setSearchQuery(value);
+
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
         }
 
-        // Unit filter
-        if (unitFilter !== "all") {
-            filtered = filtered.filter(
-                (emp) => emp.unit_organisasi === unitFilter
-            );
-        }
+        const timeout = setTimeout(() => {
+            applyFilters(1); // Reset to page 1 on search
+        }, 500);
 
-        // Gender filter
-        if (genderFilter !== "all") {
-            filtered = filtered.filter(
-                (emp) => emp.jenis_kelamin === genderFilter
-            );
-        }
-
-        // Shoe type filter
-        if (shoeTypeFilter !== "all") {
-            filtered = filtered.filter(
-                (emp) => emp.jenis_sepatu === shoeTypeFilter
-            );
-        }
-
-        // Shoe size filter
-        if (shoeSizeFilter !== "all") {
-            filtered = filtered.filter(
-                (emp) => emp.ukuran_sepatu === shoeSizeFilter
-            );
-        }
-
-        return filtered;
-    }, [
-        employees,
-        searchQuery,
-        statusFilter,
-        unitFilter,
-        genderFilter,
-        shoeTypeFilter,
-        shoeSizeFilter,
-    ]);
+        setSearchTimeout(timeout);
+    };
 
     // Handle filter changes
     const handleFilterChange = (filterType, value) => {
@@ -149,6 +126,14 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                 setShoeSizeFilter(value);
                 break;
         }
+
+        applyFilters(1); // Reset to page 1 on filter change
+    };
+
+    // Handle per page change
+    const handlePerPageChange = (newPerPage) => {
+        setPerPage(newPerPage);
+        applyFilters(1, newPerPage); // Reset to page 1 with new per page
     };
 
     // Remove specific filter
@@ -164,6 +149,11 @@ export default function Index({ employees: initialEmployees = [], auth }) {
         setGenderFilter("all");
         setShoeTypeFilter("all");
         setShoeSizeFilter("all");
+
+        router.visit(route("employees.index"), {
+            preserveState: true,
+            preserveScroll: true,
+        });
     };
 
     // Check if any filters are active
@@ -178,17 +168,15 @@ export default function Index({ employees: initialEmployees = [], auth }) {
         );
     };
 
-    // Search employees
-    const handleSearch = () => {
-        // Search is handled by the filteredEmployees useMemo
-        console.log("Searching with filters:", {
-            searchQuery,
-            statusFilter,
-            unitFilter,
-            genderFilter,
-            shoeTypeFilter,
-            shoeSizeFilter,
-        });
+    // Navigate to specific page
+    const goToPage = (page) => {
+        if (
+            page !== pagination.current_page &&
+            page >= 1 &&
+            page <= pagination.last_page
+        ) {
+            applyFilters(page);
+        }
     };
 
     // Get employee initials for avatar
@@ -228,21 +216,61 @@ export default function Index({ employees: initialEmployees = [], auth }) {
         setSelectedEmployee(null);
     };
 
-    // Statistics calculations
-    const stats = useMemo(() => {
-        const total = employees.length;
-        const pegawaiTetap = employees.filter(
-            (emp) => emp.status_pegawai === "PEGAWAI TETAP"
-        ).length;
-        const tad = employees.filter(
-            (emp) => emp.status_pegawai === "TAD"
-        ).length;
-        const uniqueUnits = new Set(
-            employees.map((emp) => emp.unit_organisasi).filter(Boolean)
-        ).size;
+    // Generate page numbers for pagination
+    const generatePageNumbers = () => {
+        const pages = [];
+        const current = pagination.current_page;
+        const last = pagination.last_page;
 
-        return { total, pegawaiTetap, tad, uniqueUnits };
-    }, [employees]);
+        if (last <= 7) {
+            // Show all pages if total pages <= 7
+            for (let i = 1; i <= last; i++) {
+                pages.push(i);
+            }
+        } else {
+            // Show smart pagination
+            if (current <= 4) {
+                // Show first 5 pages + ... + last page
+                for (let i = 1; i <= 5; i++) {
+                    pages.push(i);
+                }
+                if (last > 6) {
+                    pages.push("...");
+                    pages.push(last);
+                }
+            } else if (current >= last - 3) {
+                // Show first page + ... + last 5 pages
+                pages.push(1);
+                if (last > 6) {
+                    pages.push("...");
+                }
+                for (let i = last - 4; i <= last; i++) {
+                    pages.push(i);
+                }
+            } else {
+                // Show first + ... + current-1,current,current+1 + ... + last
+                pages.push(1);
+                pages.push("...");
+                for (let i = current - 1; i <= current + 1; i++) {
+                    pages.push(i);
+                }
+                pages.push("...");
+                pages.push(last);
+            }
+        }
+
+        return pages;
+    };
+
+    // Statistics from backend - includes global or filtered results
+    const stats = useMemo(() => {
+        return {
+            total: statistics.total || 0,
+            pegawaiTetap: statistics.pegawaiTetap || 0,
+            tad: statistics.tad || 0,
+            uniqueUnits: statistics.uniqueUnits || 0,
+        };
+    }, [statistics]);
 
     return (
         <DashboardLayout title="Management Karyawan">
@@ -294,6 +322,44 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                     
                     select::-webkit-scrollbar-thumb:hover {
                         background: #367a41;
+                    }
+
+                    /* Pagination animations */
+                    @keyframes fadeIn {
+                        from { opacity: 0; transform: translateY(10px); }
+                        to { opacity: 1; transform: translateY(0); }
+                    }
+                    
+                    @keyframes slideIn {
+                        from { opacity: 0; transform: translateX(-20px); }
+                        to { opacity: 1; transform: translateX(0); }
+                    }
+                    
+                    @keyframes pageTransition {
+                        0% { opacity: 1; transform: scale(1); }
+                        50% { opacity: 0.7; transform: scale(0.98); }
+                        100% { opacity: 1; transform: scale(1); }
+                    }
+                    
+                    .animate-fadeIn {
+                        animation: fadeIn 0.5s ease-out;
+                    }
+                    
+                    .animate-slideIn {
+                        animation: slideIn 0.3s ease-out;
+                    }
+                    
+                    .animate-pageTransition {
+                        animation: pageTransition 0.3s ease-in-out;
+                    }
+                    
+                    /* Loading spinner */
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                    
+                    .animate-spin {
+                        animation: spin 1s linear infinite;
                     }
                 `}</style>
             </Head>
@@ -423,10 +489,27 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                     placeholder="Cari berdasarkan NIP, nama, jabatan, unit organisasi, instansi pendidikan..."
                                     value={searchQuery}
                                     onChange={(e) =>
-                                        setSearchQuery(e.target.value)
+                                        handleSearchChange(e.target.value)
                                     }
-                                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-lg transition-all duration-300 bg-white/90 placeholder-gray-500 text-gray-900 font-medium transform hover:scale-[1.02] focus:scale-[1.02]"
+                                    className="w-full pl-12 pr-12 py-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-lg transition-all duration-300 bg-white/90 placeholder-gray-500 text-gray-900 font-medium transform hover:scale-[1.02] focus:scale-[1.02]"
                                 />
+
+                                {/* Clear Search Button */}
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => handleSearchChange("")}
+                                        className="absolute p-1 text-gray-400 transition-all duration-300 transform -translate-y-1/2 rounded-full right-12 top-1/2 hover:text-red-500 hover:scale-110 hover:bg-red-50"
+                                        title="Hapus pencarian"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+
+                                {loading && (
+                                    <div className="absolute transform -translate-y-1/2 right-4 top-1/2">
+                                        <div className="w-5 h-5 border-2 border-[#439454] border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -447,12 +530,18 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                             )}
                         </button>
 
+                        {/* Clear All Button - Always visible */}
                         <button
-                            onClick={handleSearch}
-                            className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold text-white bg-gradient-to-r from-[#439454] to-[#367a41] rounded-xl hover:from-[#367a41] hover:to-[#2d6435] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                            onClick={clearAllFilters}
+                            className={`group inline-flex items-center gap-3 px-6 py-4 text-sm font-semibold border-2 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5 ${
+                                hasActiveFilters()
+                                    ? "text-red-600 bg-white border-red-300 hover:bg-red-50 hover:border-red-400 hover:text-red-700"
+                                    : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-700"
+                            }`}
+                            title="Hapus semua filter dan pencarian"
                         >
-                            <Search className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
-                            Cari
+                            <X className="w-4 h-4 transition-transform duration-300 group-hover:rotate-90" />
+                            Clear All
                         </button>
                     </div>
 
@@ -488,7 +577,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] [&>option]:bg-white [&>option]:text-gray-900 [&>option]:py-2 [&>option]:px-4 [&>option:hover]:bg-[#439454] [&>option:hover]:text-white [&>option:checked]:bg-[#439454] [&>option:checked]:text-white"
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
                                                 style={{
                                                     backgroundImage: "none",
                                                 }}
@@ -519,7 +608,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] [&>option]:bg-white [&>option]:text-gray-900 [&>option]:py-2 [&>option]:px-4 [&>option:hover]:bg-[#439454] [&>option:hover]:text-white [&>option:checked]:bg-[#439454] [&>option:checked]:text-white"
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
                                                 style={{
                                                     backgroundImage: "none",
                                                 }}
@@ -527,16 +616,16 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                 <option value="all">
                                                     Semua Unit
                                                 </option>
-                                                {getUniqueUnits().map(
-                                                    (unit) => (
-                                                        <option
-                                                            key={unit}
-                                                            value={unit}
-                                                        >
-                                                            {unit}
-                                                        </option>
-                                                    )
-                                                )}
+                                                {(
+                                                    filterOptions.units || []
+                                                ).map((unit) => (
+                                                    <option
+                                                        key={unit}
+                                                        value={unit}
+                                                    >
+                                                        {unit}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -556,7 +645,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] [&>option]:bg-white [&>option]:text-gray-900 [&>option]:py-2 [&>option]:px-4 [&>option:hover]:bg-[#439454] [&>option:hover]:text-white [&>option:checked]:bg-[#439454] [&>option:checked]:text-white"
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
                                                 style={{
                                                     backgroundImage: "none",
                                                 }}
@@ -589,7 +678,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] [&>option]:bg-white [&>option]:text-gray-900 [&>option]:py-2 [&>option]:px-4 [&>option:hover]:bg-[#439454] [&>option:hover]:text-white [&>option:checked]:bg-[#439454] [&>option:checked]:text-white"
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
                                                 style={{
                                                     backgroundImage: "none",
                                                 }}
@@ -597,16 +686,17 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                 <option value="all">
                                                     Semua Jenis
                                                 </option>
-                                                {getUniqueShoeTypes().map(
-                                                    (type) => (
-                                                        <option
-                                                            key={type}
-                                                            value={type}
-                                                        >
-                                                            {type}
-                                                        </option>
-                                                    )
-                                                )}
+                                                {(
+                                                    filterOptions.shoe_types ||
+                                                    []
+                                                ).map((type) => (
+                                                    <option
+                                                        key={type}
+                                                        value={type}
+                                                    >
+                                                        {type}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -626,7 +716,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] [&>option]:bg-white [&>option]:text-gray-900 [&>option]:py-2 [&>option]:px-4 [&>option:hover]:bg-[#439454] [&>option:hover]:text-white [&>option:checked]:bg-[#439454] [&>option:checked]:text-white"
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
                                                 style={{
                                                     backgroundImage: "none",
                                                 }}
@@ -634,16 +724,17 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                 <option value="all">
                                                     Semua Ukuran
                                                 </option>
-                                                {getUniqueShoeSizes().map(
-                                                    (size) => (
-                                                        <option
-                                                            key={size}
-                                                            value={size}
-                                                        >
-                                                            {size}
-                                                        </option>
-                                                    )
-                                                )}
+                                                {(
+                                                    filterOptions.shoe_sizes ||
+                                                    []
+                                                ).map((size) => (
+                                                    <option
+                                                        key={size}
+                                                        value={size}
+                                                    >
+                                                        {size}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -739,16 +830,57 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                             </div>
 
                             {/* Enhanced Results Count */}
-                            <div className="flex items-center inline-block px-4 py-2 mt-4 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg">
-                                Menampilkan{" "}
-                                <span className="text-[#439454] font-bold mx-1">
-                                    {filteredEmployees.length}
-                                </span>{" "}
-                                dari{" "}
-                                <span className="text-[#439454] font-bold mx-1">
-                                    {employees.length}
-                                </span>{" "}
-                                karyawan
+                            <div className="flex items-center justify-between mt-4">
+                                <div className="space-y-1">
+                                    <div className="inline-block px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg">
+                                        Menampilkan{" "}
+                                        <span className="text-[#439454] font-bold mx-1">
+                                            {pagination.from || 0}
+                                        </span>{" "}
+                                        -
+                                        <span className="text-[#439454] font-bold mx-1">
+                                            {pagination.to || 0}
+                                        </span>{" "}
+                                        dari{" "}
+                                        <span className="text-[#439454] font-bold mx-1">
+                                            {pagination.total || 0}
+                                        </span>{" "}
+                                        {hasActiveFilters()
+                                            ? "hasil filter"
+                                            : "karyawan"}
+                                    </div>
+                                    {hasActiveFilters() && (
+                                        <div className="text-xs text-gray-500">
+                                            {hasActiveFilters()
+                                                ? `Filter aktif dari ${stats.total} total karyawan`
+                                                : ""}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Per Page Selector */}
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-medium text-gray-600">
+                                        Tampilkan:
+                                    </span>
+                                    <select
+                                        value={perPage}
+                                        onChange={(e) =>
+                                            handlePerPageChange(
+                                                parseInt(e.target.value)
+                                            )
+                                        }
+                                        className="px-3 py-2 text-sm font-medium border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 transition-all duration-300 bg-white cursor-pointer"
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                    </select>
+                                    <span className="text-sm font-medium text-gray-600">
+                                        per halaman
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -756,9 +888,13 @@ export default function Index({ employees: initialEmployees = [], auth }) {
 
                 {/* Enhanced Employee Table */}
                 <div className="px-6 pb-8">
-                    {filteredEmployees.length > 0 ? (
+                    {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
-                            <div className="overflow-x-auto">
+                            <div
+                                className={`overflow-x-auto ${
+                                    isNavigating ? "animate-pageTransition" : ""
+                                }`}
+                            >
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                                         <tr>
@@ -783,7 +919,7 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {filteredEmployees.map(
+                                        {employees.data.map(
                                             (employee, index) => (
                                                 <tr
                                                     key={
@@ -794,7 +930,11 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                                     className="group hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5 transition-all duration-300"
                                                 >
                                                     <td className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
-                                                        {index + 1}
+                                                        {(pagination.current_page -
+                                                            1) *
+                                                            pagination.per_page +
+                                                            index +
+                                                            1}
                                                     </td>
                                                     <td className="px-6 py-5 whitespace-nowrap">
                                                         <div className="flex items-center">
@@ -893,6 +1033,154 @@ export default function Index({ employees: initialEmployees = [], auth }) {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Enhanced Pagination Component */}
+                            {pagination.has_pages && (
+                                <div className="px-6 py-6 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                        {/* Pagination Info */}
+                                        <div className="text-sm font-medium text-gray-600">
+                                            Menampilkan{" "}
+                                            <span className="font-bold text-[#439454]">
+                                                {pagination.from}
+                                            </span>{" "}
+                                            sampai{" "}
+                                            <span className="font-bold text-[#439454]">
+                                                {pagination.to}
+                                            </span>{" "}
+                                            dari{" "}
+                                            <span className="font-bold text-[#439454]">
+                                                {pagination.total}
+                                            </span>{" "}
+                                            hasil
+                                        </div>
+
+                                        {/* Pagination Navigation */}
+                                        <div className="flex items-center gap-2">
+                                            {/* First Page */}
+                                            <button
+                                                onClick={() => goToPage(1)}
+                                                disabled={
+                                                    pagination.on_first_page ||
+                                                    loading
+                                                }
+                                                className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
+                                                    pagination.on_first_page ||
+                                                    loading
+                                                        ? "text-gray-400 cursor-not-allowed"
+                                                        : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
+                                                }`}
+                                                title="Halaman Pertama"
+                                            >
+                                                <ChevronsLeft className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                            </button>
+
+                                            {/* Previous Page */}
+                                            <button
+                                                onClick={() =>
+                                                    goToPage(
+                                                        pagination.current_page -
+                                                            1
+                                                    )
+                                                }
+                                                disabled={
+                                                    pagination.on_first_page ||
+                                                    loading
+                                                }
+                                                className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
+                                                    pagination.on_first_page ||
+                                                    loading
+                                                        ? "text-gray-400 cursor-not-allowed"
+                                                        : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
+                                                }`}
+                                                title="Halaman Sebelumnya"
+                                            >
+                                                <ChevronLeft className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                            </button>
+
+                                            {/* Page Numbers */}
+                                            <div className="flex gap-1">
+                                                {generatePageNumbers().map(
+                                                    (page, index) =>
+                                                        page === "..." ? (
+                                                            <span
+                                                                key={`ellipsis-${index}`}
+                                                                className="px-3 py-2 text-sm font-medium text-gray-400"
+                                                            >
+                                                                ...
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                key={page}
+                                                                onClick={() =>
+                                                                    goToPage(
+                                                                        page
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    loading
+                                                                }
+                                                                className={`group px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 transform hover:scale-110 ${
+                                                                    page ===
+                                                                    pagination.current_page
+                                                                        ? "text-white bg-gradient-to-r from-[#439454] to-[#367a41] shadow-lg"
+                                                                        : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
+                                                                }`}
+                                                            >
+                                                                {page}
+                                                            </button>
+                                                        )
+                                                )}
+                                            </div>
+
+                                            {/* Next Page */}
+                                            <button
+                                                onClick={() =>
+                                                    goToPage(
+                                                        pagination.current_page +
+                                                            1
+                                                    )
+                                                }
+                                                disabled={
+                                                    pagination.on_last_page ||
+                                                    loading
+                                                }
+                                                className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
+                                                    pagination.on_last_page ||
+                                                    loading
+                                                        ? "text-gray-400 cursor-not-allowed"
+                                                        : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
+                                                }`}
+                                                title="Halaman Selanjutnya"
+                                            >
+                                                <ChevronRight className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                            </button>
+
+                                            {/* Last Page */}
+                                            <button
+                                                onClick={() =>
+                                                    goToPage(
+                                                        pagination.last_page
+                                                    )
+                                                }
+                                                disabled={
+                                                    pagination.on_last_page ||
+                                                    loading
+                                                }
+                                                className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
+                                                    pagination.on_last_page ||
+                                                    loading
+                                                        ? "text-gray-400 cursor-not-allowed"
+                                                        : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
+                                                }`}
+                                                title="Halaman Terakhir"
+                                            >
+                                                <ChevronsRight className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
