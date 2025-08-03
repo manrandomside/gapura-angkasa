@@ -100,7 +100,9 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+                'seragam' => '-',
+            'seragam' => '-',
+        ],
 
             // Employee 2 - CSV Row 2 - CORRECTED
             [
@@ -155,7 +157,9 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+                'seragam' => '-',
+            'seragam' => '-',
+        ],
 
             // Employee 3 - CSV Row 3 - CORRECTED
             [
@@ -210,7 +214,9 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+                
+            'seragam' => '-',
+        ],
 
             // Employee 4 - CSV Row 4 - CORRECTED
             [
@@ -265,7 +271,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 5 - CSV Row 5 - MAJOR CORRECTION
             [
@@ -320,7 +327,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 6 - CSV Row 6 - MAJOR CORRECTION (FINANCE, not OPERATION)
             [
@@ -375,7 +383,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 7 - CSV Row 7 - MAJOR CORRECTION (FINANCE, not OPERATION)
             [
@@ -430,7 +439,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 8 - CSV Row 8 - CORRECTED
             [
@@ -485,7 +495,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 9 - CSV Row 9 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -540,7 +551,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 10 - CSV Row 10 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -595,7 +607,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 11 - CSV Row 11 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -650,7 +663,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 12 - CSV Row 12 - MAJOR CORRECTION
             [
@@ -705,7 +719,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 13 - CSV Row 13 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -760,7 +775,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 14 - CSV Row 14 - MAJOR CORRECTION 
             [
@@ -815,7 +831,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 15 - CSV Row 15 - MAJOR CORRECTION (FINANCE, not OPERATION)
             [
@@ -870,7 +887,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 16 - CSV Row 16 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -925,7 +943,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 17 - CSV Row 17 - CORRECTED
             [
@@ -980,7 +999,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 18 - CSV Row 18 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1035,7 +1055,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 19 - CSV Row 19 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1090,7 +1111,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 20 - CSV Row 20 - CORRECTED
             [
@@ -1145,7 +1167,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 21 - CSV Row 21 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1200,7 +1223,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 22 - CSV Row 22 - MAJOR CORRECTION (SAFETY, SECURITY AND QUALITY CONTROL)
             [
@@ -1255,7 +1279,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 23 - CSV Row 23 - CORRECTED
             [
@@ -1310,7 +1335,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 24 - CSV Row 24 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1365,7 +1391,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 25 - CSV Row 25 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1420,7 +1447,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 26 - CSV Row 26 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -1475,7 +1503,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 27 - CSV Row 27 - CORRECTED
             [
@@ -1530,7 +1559,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 28 - CSV Row 28 - CORRECTED
             [
@@ -1585,7 +1615,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 29 - CSV Row 29 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -1640,7 +1671,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 30 - CSV Row 30 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -1695,7 +1727,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 31 - CSV Row 31 - MAJOR CORRECTION (SAFETY, SECURITY AND QUALITY CONTROL)
             [
@@ -1750,7 +1783,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 32 - CSV Row 32 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -1805,7 +1839,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 33 - CSV Row 33 - CORRECTED
             [
@@ -1860,7 +1895,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 34 - CSV Row 34 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -1915,7 +1951,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 35 - CSV Row 35 - CORRECTED
             [
@@ -1970,7 +2007,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 36 - CSV Row 36 - CORRECTED
             [
@@ -2025,7 +2063,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 37 - CSV Row 37 - CORRECTED
             [
@@ -2080,7 +2119,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 38 - CSV Row 38 - MAJOR CORRECTION (MPA, MPL & UNSCHEDULE FLIGHT)
             [
@@ -2135,7 +2175,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 39 - CSV Row 39 - MAJOR CORRECTION (GSE OPERATION & MAINTENANCE)
             [
@@ -2190,7 +2231,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee 40 - CSV Row 40 - CORRECTED
             [
@@ -2245,7 +2287,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
             // Employee ke-41
             [
                 'no' => 41,
@@ -2299,7 +2342,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-42
             [
@@ -2354,7 +2398,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-43
             [
@@ -2409,7 +2454,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-44
             [
@@ -2464,7 +2510,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-45
             [
@@ -2519,7 +2566,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-46
             [
@@ -2574,7 +2622,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-47
             [
@@ -2629,7 +2678,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-48
             [
@@ -2684,7 +2734,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-49
             [
@@ -2739,7 +2790,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-50
             [
@@ -2794,7 +2846,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-51
             [
@@ -2849,7 +2902,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-52
             [
@@ -2904,7 +2958,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-53
             [
@@ -2959,7 +3014,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-54
             [
@@ -3014,7 +3070,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-55
             [
@@ -3069,7 +3126,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-56
             [
@@ -3124,7 +3182,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-57
             [
@@ -3179,7 +3238,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-58
             [
@@ -3234,7 +3294,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-59
             [
@@ -3289,7 +3350,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-60
             [
@@ -3344,7 +3406,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
             // Employee ke-61
             [
                 'no' => 61,
@@ -3398,7 +3461,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-62
             [
@@ -3453,7 +3517,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-63
             [
@@ -3508,7 +3573,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-64
             [
@@ -3563,7 +3629,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-65
             [
@@ -3618,7 +3685,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-66
             [
@@ -3673,7 +3741,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-67
             [
@@ -3728,7 +3797,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-68
             [
@@ -3783,7 +3853,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-69
             [
@@ -3838,7 +3909,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-70
             [
@@ -3893,7 +3965,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-71
             [
@@ -3948,7 +4021,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-72
             [
@@ -4003,7 +4077,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-73
             [
@@ -4058,7 +4133,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-74
             [
@@ -4113,7 +4189,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-75
             [
@@ -4168,7 +4245,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-76
             [
@@ -4223,7 +4301,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-77
             [
@@ -4278,7 +4357,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-78
             [
@@ -4333,7 +4413,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-79
             [
@@ -4388,7 +4469,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-80
             [
@@ -4443,7 +4525,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
             // Employee ke-81
             [
                 'no' => 81,
@@ -4497,7 +4580,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-82
             [
@@ -4552,7 +4636,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-83
             [
@@ -4607,7 +4692,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-84
             [
@@ -4662,7 +4748,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-85
             [
@@ -4717,7 +4804,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-86
             [
@@ -4772,7 +4860,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-87
             [
@@ -4827,7 +4916,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-88
             [
@@ -4882,7 +4972,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-89
             [
@@ -4937,7 +5028,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-90
             [
@@ -4992,7 +5084,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-91
             [
@@ -5047,7 +5140,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-92
             [
@@ -5102,7 +5196,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-93
             [
@@ -5157,7 +5252,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-94
             [
@@ -5212,7 +5308,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-95
             [
@@ -5267,7 +5364,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-96
             [
@@ -5322,7 +5420,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-97
             [
@@ -5377,7 +5476,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-98
             [
@@ -5432,7 +5532,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-99
             [
@@ -5487,7 +5588,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-100
             [
@@ -5542,7 +5644,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
             // Employee ke-101
             [
                 'no' => 101,
@@ -5596,7 +5699,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-102
             [
@@ -5651,7 +5755,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-103
             [
@@ -5706,7 +5811,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-104
             [
@@ -5761,7 +5867,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-105
             [
@@ -5816,7 +5923,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-106
             [
@@ -5871,7 +5979,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-107
             [
@@ -5926,7 +6035,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-108
             [
@@ -5981,7 +6091,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-109
             [
@@ -6036,7 +6147,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-110
             [
@@ -6091,7 +6203,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-111
             [
@@ -6146,7 +6259,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-112
             [
@@ -6201,7 +6315,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-113
             [
@@ -6256,7 +6371,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-114
             [
@@ -6311,7 +6427,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-115
             [
@@ -6366,7 +6483,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-116
             [
@@ -6421,7 +6539,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-117
             [
@@ -6476,7 +6595,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-118
             [
@@ -6531,7 +6651,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-119
             [
@@ -6586,7 +6707,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
 
             // Employee ke-120
             [
@@ -6641,7 +6763,8 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            'seragam' => '-',
+        ],
             // Employee ke-121
 [
     'no' => 121,
@@ -6695,7 +6818,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-122
 [
@@ -6750,7 +6874,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-123
 [
@@ -6805,7 +6930,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-124
 [
@@ -6860,7 +6986,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-125
 [
@@ -6915,7 +7042,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-126
 [
@@ -6970,7 +7098,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-127
 [
@@ -7025,7 +7154,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-128
 [
@@ -7080,7 +7210,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-129
 [
@@ -7135,7 +7266,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-130
 [
@@ -7190,7 +7322,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-131
 [
@@ -7245,7 +7378,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-132
 [
@@ -7300,7 +7434,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-133
 [
@@ -7355,7 +7490,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-134
 [
@@ -7410,7 +7546,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-135
 [
@@ -7465,7 +7602,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-136
 [
@@ -7520,7 +7658,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-137
 [
@@ -7575,7 +7714,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-138
 [
@@ -7630,7 +7770,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-139
 [
@@ -7685,7 +7826,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 
 // Employee ke-140
 [
@@ -7740,7 +7882,8 @@ class SDMEmployeeSeeder extends Seeder
     'status' => 'active',
     'created_at' => now(),
     'updated_at' => now(),
-],
+'seragam' => '-',
+        ],
 // Employee ke-141
     [
         'no' => 141,
@@ -7794,7 +7937,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-142
     [
@@ -7849,7 +7993,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-143
     [
@@ -7904,7 +8049,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-144
     [
@@ -7959,7 +8105,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-145
     [
@@ -8014,7 +8161,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-146
     [
@@ -8069,7 +8217,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-147
     [
@@ -8124,7 +8273,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-148
     [
@@ -8179,7 +8329,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-149
     [
@@ -8234,7 +8385,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-150
     [
@@ -8289,7 +8441,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-151
     [
@@ -8344,7 +8497,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-152
     [
@@ -8399,7 +8553,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-153
     [
@@ -8454,7 +8609,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-154
     [
@@ -8509,7 +8665,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-155
     [
@@ -8564,7 +8721,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-156
     [
@@ -8619,7 +8777,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-157
     [
@@ -8674,7 +8833,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-158
     [
@@ -8729,7 +8889,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-159
     [
@@ -8784,7 +8945,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-160
     [
@@ -8839,7 +9001,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
     // Employee ke-161
     [
         'no' => 161,
@@ -8893,7 +9056,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-162
     [
@@ -8948,7 +9112,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-163
     [
@@ -9003,7 +9168,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-164
     [
@@ -9058,7 +9224,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-165
     [
@@ -9113,7 +9280,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-166
     [
@@ -9168,7 +9336,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-167
     [
@@ -9223,7 +9392,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-168
     [
@@ -9278,7 +9448,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-169
     [
@@ -9333,7 +9504,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-170
     [
@@ -9388,7 +9560,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-171
     [
@@ -9443,7 +9616,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-172
     [
@@ -9498,7 +9672,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-173
     [
@@ -9553,7 +9728,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-174
     [
@@ -9608,7 +9784,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-175
     [
@@ -9663,7 +9840,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-176
     [
@@ -9718,7 +9896,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-177
     [
@@ -9773,7 +9952,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-178
     [
@@ -9828,7 +10008,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-179
     [
@@ -9883,7 +10064,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-180
     [
@@ -9938,7 +10120,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
     // Employee ke-181
     [
         'no' => 181,
@@ -9992,7 +10175,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-182
     [
@@ -10047,7 +10231,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-183
     [
@@ -10102,7 +10287,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-184
     [
@@ -10157,7 +10343,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-185
     [
@@ -10212,7 +10399,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-186
     [
@@ -10267,7 +10455,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-187
     [
@@ -10322,7 +10511,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-188
     [
@@ -10377,7 +10567,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-189
     [
@@ -10432,7 +10623,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-190
     [
@@ -10487,7 +10679,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-191
     [
@@ -10542,7 +10735,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-192
     [
@@ -10597,7 +10791,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-193
     [
@@ -10652,7 +10847,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-194
     [
@@ -10707,7 +10903,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-195
     [
@@ -10762,7 +10959,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-196
     [
@@ -10817,7 +11015,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-197
     [
@@ -10872,7 +11071,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-198
     [
@@ -10927,7 +11127,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-199
     [
@@ -10982,7 +11183,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-200
     [
@@ -11037,7 +11239,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-201
     [
@@ -11092,7 +11295,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
 
     // Employee ke-202
     [
@@ -11147,7 +11351,8 @@ class SDMEmployeeSeeder extends Seeder
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),
-    ],
+    'seragam' => '-',
+        ],
         ];
 
         // Insert employees data one by one with error handling
@@ -11192,7 +11397,7 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+        ],
             [
                 'id' => 2,
                 'name' => 'Airside',
@@ -11202,7 +11407,7 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+        ],
             [
                 'id' => 3,
                 'name' => 'GSE',
@@ -11212,7 +11417,7 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+        ],
             [
                 'id' => 4,
                 'name' => 'Landside',
@@ -11222,7 +11427,7 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+        ],
             [
                 'id' => 5,
                 'name' => 'Avsec',
@@ -11232,7 +11437,7 @@ class SDMEmployeeSeeder extends Seeder
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+        ],
             [
                 'id' => 6,
                 'name' => 'Finance',
