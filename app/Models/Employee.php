@@ -35,6 +35,7 @@ class Employee extends Model
         'jenis_kelamin',
         'jenis_sepatu',
         'ukuran_sepatu',
+        'seragam',
         'tempat_lahir',
         'tanggal_lahir',
         'usia',
@@ -136,6 +137,7 @@ class Employee extends Model
               ->orWhere('nama_organisasi', 'like', $searchTerm)
               ->orWhere('jenis_sepatu', 'like', $searchTerm)
               ->orWhere('ukuran_sepatu', 'like', $searchTerm)
+              ->orWhere('seragam', 'like', $searchTerm)
               ->orWhere('kota_domisili', 'like', $searchTerm)
               ->orWhere('instansi_pendidikan', 'like', $searchTerm)
               ->orWhere('pendidikan_terakhir', 'like', $searchTerm)
@@ -206,6 +208,18 @@ class Employee extends Model
         }
         
         return $query->where('ukuran_sepatu', $shoeSize);
+    }
+
+    /**
+     * Scope untuk filter berdasarkan seragam
+     */
+    public function scopeBySeragam(Builder $query, $uniform)
+    {
+        if ($uniform === 'all' || empty($uniform)) {
+            return $query;
+        }
+        
+        return $query->where('seragam', $uniform);
     }
 
     /**
@@ -292,6 +306,11 @@ class Employee extends Model
         // Ukuran sepatu filter
         if (!empty($filters['ukuran_sepatu'])) {
             $query->byUkuranSepatu($filters['ukuran_sepatu']);
+        }
+
+        // Seragam filter
+        if (!empty($filters['seragam'])) {
+            $query->bySeragam($filters['seragam']);
         }
 
         // Pendidikan filter
@@ -526,6 +545,10 @@ class Employee extends Model
                 'safety_shoes' => self::where('jenis_sepatu', 'Safety Shoes')->count(),
                 'no_shoe_data' => self::whereNull('jenis_sepatu')->orWhere('jenis_sepatu', '')->count(),
             ],
+            'uniform_statistics' => [
+                'total_with_uniform' => self::whereNotNull('seragam')->where('seragam', '!=', '')->count(),
+                'no_uniform_data' => self::whereNull('seragam')->orWhere('seragam', '')->count(),
+            ],
             'by_organization' => self::getByUnitOrganisasi(),
             'by_education' => self::getByEducation(),
             'recent_hires_count' => self::recentHires()->count(),
@@ -562,6 +585,14 @@ class Employee extends Model
                                ->pluck('ukuran_sepatu')
                                ->filter()
                                ->values(),
+
+            'uniform_types' => self::whereNotNull('seragam')
+                                  ->where('seragam', '!=', '')
+                                  ->distinct()
+                                  ->orderBy('seragam')
+                                  ->pluck('seragam')
+                                  ->filter()
+                                  ->values(),
             
             'education_levels' => self::select(\DB::raw('COALESCE(pendidikan_terakhir, pendidikan) as education'))
                                      ->whereNotNull(\DB::raw('COALESCE(pendidikan_terakhir, pendidikan)'))
@@ -638,6 +669,26 @@ class Employee extends Model
                    ->map(function ($item) {
                        return [
                            'size' => $item->ukuran_sepatu,
+                           'count' => $item->total,
+                       ];
+                   });
+    }
+
+    /**
+     * Get uniform distribution
+     */
+    public static function getUniformDistribution()
+    {
+        return self::select('seragam', \DB::raw('count(*) as total'))
+                   ->whereNotNull('seragam')
+                   ->where('seragam', '!=', '')
+                   ->where('status', 'active')
+                   ->groupBy('seragam')
+                   ->orderBy('seragam')
+                   ->get()
+                   ->map(function ($item) {
+                       return [
+                           'type' => $item->seragam,
                            'count' => $item->total,
                        ];
                    });
@@ -731,7 +782,8 @@ class Employee extends Model
             'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
             'tanggal_lahir', 'alamat', 'handphone', 'email',
             'unit_organisasi', 'nama_jabatan', 'status_pegawai',
-            'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 'ukuran_sepatu'
+            'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 
+            'ukuran_sepatu', 'seragam'
         ];
 
         $completedFields = 0;
