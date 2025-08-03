@@ -40,7 +40,7 @@ export default function DashboardLayout({ title, children }) {
             isActive: url === "/dashboard" || url === "/",
         },
         {
-            name: "Management Karyawan",
+            name: "Karyawan",
             icon: (
                 <svg
                     className="w-5 h-5"
@@ -56,8 +56,8 @@ export default function DashboardLayout({ title, children }) {
                     />
                 </svg>
             ),
-            // Fixed: Main menu mengarah ke /employees
-            href: "/employees",
+            // Updated: Tidak ada href, hanya untuk toggle dropdown
+            href: null,
             isActive:
                 url.startsWith("/employees") ||
                 url.startsWith("/total-karyawan") ||
@@ -65,11 +65,10 @@ export default function DashboardLayout({ title, children }) {
                 url.startsWith("/data-karyawan"),
             hasSubmenu: true,
             submenu: [
-                // Separated: Total Karyawan dan Management Karyawan berbeda halaman
-                { name: "Total Karyawan", href: "/total-karyawan" },
+                // Updated: "Total Karyawan" menjadi "Detail Karyawan"
+                { name: "Detail Karyawan", href: "/total-karyawan" },
                 { name: "Management Karyawan", href: "/employees" },
-                { name: "Tambah Karyawan", href: "/employees/create" },
-                { name: "Import Data", href: "/employees/import" },
+                // Removed: "Tambah Karyawan" dan "Import Data" dihapus
             ],
         },
         {
@@ -294,26 +293,48 @@ export default function DashboardLayout({ title, children }) {
                                         onClick={() => {
                                             if (item.hasSubmenu) {
                                                 toggleDropdown(index);
+                                            } else if (item.href) {
+                                                // Hanya navigate jika ada href dan bukan submenu
+                                                window.location.href =
+                                                    item.href;
                                             }
                                         }}
                                     >
-                                        <Link
-                                            href={item.href}
-                                            className="flex items-center flex-1 space-x-3"
-                                        >
-                                            <div
-                                                className={`transition-transform duration-300 ${
-                                                    item.isActive
-                                                        ? "scale-110"
-                                                        : "group-hover:scale-110"
-                                                }`}
+                                        {/* Updated: Conditional rendering untuk menu dengan dan tanpa href */}
+                                        {item.href && !item.hasSubmenu ? (
+                                            <Link
+                                                href={item.href}
+                                                className="flex items-center flex-1 space-x-3"
                                             >
-                                                {item.icon}
+                                                <div
+                                                    className={`transition-transform duration-300 ${
+                                                        item.isActive
+                                                            ? "scale-110"
+                                                            : "group-hover:scale-110"
+                                                    }`}
+                                                >
+                                                    {item.icon}
+                                                </div>
+                                                <span className="text-sm font-medium">
+                                                    {item.name}
+                                                </span>
+                                            </Link>
+                                        ) : (
+                                            <div className="flex items-center flex-1 space-x-3">
+                                                <div
+                                                    className={`transition-transform duration-300 ${
+                                                        item.isActive
+                                                            ? "scale-110"
+                                                            : "group-hover:scale-110"
+                                                    }`}
+                                                >
+                                                    {item.icon}
+                                                </div>
+                                                <span className="text-sm font-medium">
+                                                    {item.name}
+                                                </span>
                                             </div>
-                                            <span className="text-sm font-medium">
-                                                {item.name}
-                                            </span>
-                                        </Link>
+                                        )}
                                         {item.hasSubmenu && (
                                             <svg
                                                 className={`w-4 h-4 transition-transform duration-300 ${
