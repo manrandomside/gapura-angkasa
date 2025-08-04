@@ -1,3 +1,282 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Tambahkan CSS ini ke file resources/css/app.css atau buat file terpisah */
+
+/* Animation untuk slide in dari kanan */
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+}
+
+/* Animation untuk fade in */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.4s ease-out;
+}
+
+/* Animation untuk scale up */
+@keyframes scale-up {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-scale-up {
+    animation: scale-up 0.3s ease-out;
+}
+
+/* Enhanced hover effects untuk table rows */
+.employee-row-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.employee-row-hover:hover {
+    transform: translateX(4px);
+    box-shadow: 0 10px 25px rgba(67, 148, 84, 0.15);
+}
+
+/* NEW employee row highlighting */
+.employee-row-new {
+    position: relative;
+    background: linear-gradient(
+        90deg,
+        rgba(67, 148, 84, 0.1) 0%,
+        rgba(67, 148, 84, 0.05) 100%
+    );
+    border-left: 4px solid #439454;
+}
+
+.employee-row-new::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(67, 148, 84, 0.1) 0%,
+        transparent 50%
+    );
+    animation: shimmer 2s infinite;
+    pointer-events: none;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* NEW badge animation */
+@keyframes bounce-new {
+    0%,
+    20%,
+    53%,
+    80%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    40%,
+    43% {
+        transform: translate3d(0, -8px, 0);
+    }
+    70% {
+        transform: translate3d(0, -4px, 0);
+    }
+    90% {
+        transform: translate3d(0, -2px, 0);
+    }
+}
+
+.new-badge {
+    animation: bounce-new 2s infinite;
+    background: linear-gradient(135deg, #ef4444 0%, #ec4899 100%);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* Loading spinner */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Success checkmark animation */
+@keyframes checkmark {
+    0% {
+        transform: scale(0) rotate(0deg);
+    }
+    50% {
+        transform: scale(1.2) rotate(180deg);
+    }
+    100% {
+        transform: scale(1) rotate(360deg);
+    }
+}
+
+.animate-checkmark {
+    animation: checkmark 0.6s ease-out;
+}
+
+/* Form field focus animation */
+.form-field-focus {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-field-focus:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(67, 148, 84, 0.15);
+}
+
+/* Button hover animations */
+.btn-primary {
+    background: linear-gradient(135deg, #439454 0%, #367a41 100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    transition: left 0.5s;
+}
+
+.btn-primary:hover::before {
+    left: 100%;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(67, 148, 84, 0.3);
+}
+
+/* Card hover effects */
+.stat-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* Table smooth scrolling */
+.table-container {
+    scroll-behavior: smooth;
+}
+
+/* Notification slide animations */
+.notification-enter {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.notification-enter-active {
+    transform: translateX(0);
+    opacity: 1;
+    transition: all 0.3s ease-out;
+}
+
+.notification-exit {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification-exit-active {
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.3s ease-in;
+}
+
+/* Responsive animations */
+@media (max-width: 768px) {
+    .employee-row-hover:hover {
+        transform: none;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px) scale(1.01);
+    }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+    .employee-row-new {
+        background: linear-gradient(
+            90deg,
+            rgba(67, 148, 84, 0.2) 0%,
+            rgba(67, 148, 84, 0.1) 100%
+        );
+    }
+
+    .employee-row-new::before {
+        background: linear-gradient(
+            90deg,
+            rgba(67, 148, 84, 0.2) 0%,
+            transparent 50%
+        );
+    }
+}
+
+/* Print styles */
+@media print {
+    .animate-slide-in-right,
+    .animate-fade-in,
+    .animate-scale-up,
+    .new-badge {
+        animation: none !important;
+    }
+
+    .employee-row-new::before {
+        display: none;
+    }
+}

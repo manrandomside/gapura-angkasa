@@ -22,6 +22,7 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    CheckCircle, // ENHANCED: Added for new employee notification
 } from "lucide-react";
 
 export default function Index({
@@ -30,6 +31,7 @@ export default function Index({
     filters = {},
     filterOptions = {},
     statistics = {}, // Add statistics from backend
+    newEmployee = null, // ENHANCED: New employee data from session
     auth,
 }) {
     // State management
@@ -58,6 +60,99 @@ export default function Index({
 
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
+
+    // ENHANCED: State untuk tracking karyawan baru
+    const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
+    const [showNewEmployeeNotification, setShowNewEmployeeNotification] =
+        useState(false);
+
+    // ENHANCED: Effect untuk handle karyawan baru
+    useEffect(() => {
+        if (newEmployee) {
+            // Tambahkan ID karyawan baru ke set
+            setNewEmployeeIds((prev) => new Set([...prev, newEmployee.id]));
+
+            // Tampilkan notifikasi
+            setShowNewEmployeeNotification(true);
+
+            // Auto-scroll ke karyawan baru setelah data dimuat
+            setTimeout(() => {
+                const newEmployeeRow = document.querySelector(
+                    `[data-employee-id="${newEmployee.id}"]`
+                );
+                if (newEmployeeRow) {
+                    newEmployeeRow.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                    });
+                    // Highlight efek
+                    newEmployeeRow.classList.add("animate-pulse");
+                    setTimeout(() => {
+                        newEmployeeRow.classList.remove("animate-pulse");
+                    }, 2000);
+                }
+            }, 500);
+
+            // Hilangkan notifikasi setelah 5 detik
+            setTimeout(() => {
+                setShowNewEmployeeNotification(false);
+            }, 5000);
+        }
+    }, [newEmployee]);
+
+    // ENHANCED: Function untuk handle klik pada karyawan baru (menghilangkan badge NEW)
+    const handleEmployeeClick = (employeeId, action = "view") => {
+        // Hapus dari daftar karyawan baru
+        if (newEmployeeIds.has(employeeId)) {
+            setNewEmployeeIds((prev) => {
+                const updated = new Set(prev);
+                updated.delete(employeeId);
+                return updated;
+            });
+        }
+
+        // Jalankan aksi sesuai parameter
+        if (action === "view") {
+            const employee = employees.data.find(
+                (emp) => emp.id === employeeId
+            );
+            if (employee) {
+                setSelectedEmployee(employee);
+                setShowEmployeeModal(true);
+            }
+        } else if (action === "edit") {
+            router.visit(route("employees.edit", employeeId));
+        }
+    };
+
+    // ENHANCED: Komponen NewEmployeeNotification
+    const NewEmployeeNotification = () => {
+        if (!showNewEmployeeNotification || !newEmployee) return null;
+
+        return (
+            <div className="fixed z-50 max-w-sm top-4 right-4 animate-slide-in-right">
+                <div className="flex items-center gap-3 px-4 py-3 bg-white border-2 border-[#439454] rounded-xl shadow-xl">
+                    <div className="flex items-center justify-center w-8 h-8 bg-[#439454] rounded-full">
+                        <CheckCircle className="w-5 h-5 text-white animate-checkmark" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-sm font-bold text-gray-900">
+                            Karyawan Baru Ditambahkan!
+                        </h4>
+                        <p className="text-xs text-gray-600">
+                            {newEmployee.name} ({newEmployee.nip})
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setShowNewEmployeeNotification(false)}
+                        className="text-gray-400 transition-colors duration-300 hover:text-gray-600"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     // Apply filters with backend pagination
     const applyFilters = (page = 1, newPerPage = perPage) => {
@@ -206,8 +301,8 @@ export default function Index({
 
     // Show employee details modal
     const showEmployeeDetails = (employee) => {
-        setSelectedEmployee(employee);
-        setShowEmployeeModal(true);
+        // ENHANCED: Handle new employee click
+        handleEmployeeClick(employee.id, "view");
     };
 
     // Close modal
@@ -276,6 +371,86 @@ export default function Index({
         <DashboardLayout title="Management Karyawan">
             <Head title="Management Karyawan - GAPURA ANGKASA SDM">
                 <style>{`
+                    /* ENHANCED: Real-time update animations */
+                    @keyframes slide-in-right {
+                        from {
+                            transform: translateX(100%);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
+                    }
+
+                    .animate-slide-in-right {
+                        animation: slide-in-right 0.3s ease-out;
+                    }
+
+                    @keyframes checkmark {
+                        0% {
+                            transform: scale(0) rotate(0deg);
+                        }
+                        50% {
+                            transform: scale(1.2) rotate(180deg);
+                        }
+                        100% {
+                            transform: scale(1) rotate(360deg);
+                        }
+                    }
+
+                    .animate-checkmark {
+                        animation: checkmark 0.6s ease-out;
+                    }
+
+                    @keyframes bounce-new {
+                        0%, 20%, 53%, 80%, 100% {
+                            transform: translate3d(0, 0, 0);
+                        }
+                        40%, 43% {
+                            transform: translate3d(0, -8px, 0);
+                        }
+                        70% {
+                            transform: translate3d(0, -4px, 0);
+                        }
+                        90% {
+                            transform: translate3d(0, -2px, 0);
+                        }
+                    }
+
+                    .new-badge {
+                        animation: bounce-new 2s infinite;
+                        background: linear-gradient(135deg, #ef4444 0%, #ec4899 100%);
+                        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+                    }
+
+                    @keyframes shimmer {
+                        0% {
+                            transform: translateX(-100%);
+                        }
+                        100% {
+                            transform: translateX(100%);
+                        }
+                    }
+
+                    .employee-row-new {
+                        position: relative;
+                        background: linear-gradient(90deg, rgba(67, 148, 84, 0.1) 0%, rgba(67, 148, 84, 0.05) 100%);
+                        border-left: 4px solid #439454;
+                    }
+
+                    .employee-row-new::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: linear-gradient(90deg, rgba(67, 148, 84, 0.1) 0%, transparent 50%);
+                        animation: shimmer 2s infinite;
+                        pointer-events: none;
+                    }
+
                     /* Custom dropdown styling */
                     select option {
                         background-color: white;
@@ -363,6 +538,9 @@ export default function Index({
                     }
                 `}</style>
             </Head>
+
+            {/* ENHANCED: Notifikasi karyawan baru */}
+            <NewEmployeeNotification />
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
                 {/* Header Section */}
@@ -886,7 +1064,7 @@ export default function Index({
                     )}
                 </div>
 
-                {/* Enhanced Employee Table */}
+                {/* ENHANCED: Employee Table dengan Badge NEW */}
                 <div className="px-6 pb-8">
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
@@ -920,115 +1098,151 @@ export default function Index({
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {employees.data.map(
-                                            (employee, index) => (
-                                                <tr
-                                                    key={
-                                                        employee.id ||
-                                                        employee.nip ||
-                                                        index
-                                                    }
-                                                    className="group hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5 transition-all duration-300"
-                                                >
-                                                    <td className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
-                                                        {(pagination.current_page -
-                                                            1) *
-                                                            pagination.per_page +
-                                                            index +
-                                                            1}
-                                                    </td>
-                                                    <td className="px-6 py-5 whitespace-nowrap">
-                                                        <div className="flex items-center">
-                                                            <div className="flex-shrink-0 w-10 h-10">
-                                                                <div className="w-10 h-10 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
-                                                                    {getInitials(
-                                                                        employee.nama_lengkap
-                                                                    )}
+                                            (employee, index) => {
+                                                // ENHANCED: Check if this is a new employee
+                                                const isNew =
+                                                    newEmployeeIds.has(
+                                                        employee.id
+                                                    );
+
+                                                return (
+                                                    <tr
+                                                        key={
+                                                            employee.id ||
+                                                            employee.nip ||
+                                                            index
+                                                        }
+                                                        data-employee-id={
+                                                            employee.id
+                                                        }
+                                                        className={`
+                                                            group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5 
+                                                            ${
+                                                                isNew
+                                                                    ? "employee-row-new"
+                                                                    : ""
+                                                            }
+                                                        `}
+                                                    >
+                                                        <td className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
+                                                            {(pagination.current_page -
+                                                                1) *
+                                                                pagination.per_page +
+                                                                index +
+                                                                1}
+                                                        </td>
+                                                        <td className="px-6 py-5 whitespace-nowrap">
+                                                            <div className="flex items-center">
+                                                                <div className="flex-shrink-0 w-10 h-10">
+                                                                    <div className="w-10 h-10 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                                                        {getInitials(
+                                                                            employee.nama_lengkap
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="ml-4">
+                                                                    <div className="flex flex-col">
+                                                                        <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
+                                                                            {employee.nip ||
+                                                                                "-"}
+                                                                        </div>
+                                                                        {/* ENHANCED: Badge NEW */}
+                                                                        {isNew && (
+                                                                            <span className="inline-flex items-center px-2 py-1 mt-1 text-xs font-bold text-white rounded-full new-badge">
+                                                                                NEW
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="ml-4">
-                                                                <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
-                                                                    {employee.nip ||
-                                                                        "-"}
-                                                                </div>
+                                                        </td>
+                                                        <td className="px-6 py-5 whitespace-nowrap">
+                                                            <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
+                                                                {employee.nama_lengkap ||
+                                                                    "-"}
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-5 whitespace-nowrap">
-                                                        <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
-                                                            {employee.nama_lengkap ||
-                                                                "-"}
-                                                        </div>
-                                                        <div className="text-sm font-medium text-gray-500">
-                                                            {employee.nama_jabatan ||
-                                                                employee.jabatan ||
-                                                                "-"}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-5 whitespace-nowrap">
-                                                        <span
-                                                            className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 ${
-                                                                employee.status_pegawai ===
-                                                                "PEGAWAI TETAP"
-                                                                    ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
-                                                                    : "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
-                                                            }`}
-                                                        >
-                                                            {employee.status_pegawai ||
-                                                                "-"}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
-                                                        {formatDate(
-                                                            employee.tmt_mulai_jabatan
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-5 text-sm font-medium whitespace-nowrap">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <button
-                                                                onClick={() =>
-                                                                    showEmployeeDetails(
-                                                                        employee
-                                                                    )
-                                                                }
-                                                                className="p-2 text-blue-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-blue-600 hover:shadow-lg hover:scale-110"
-                                                                title="Lihat Detail Lengkap"
+                                                            <div className="text-sm font-medium text-gray-500">
+                                                                {employee.nama_jabatan ||
+                                                                    employee.jabatan ||
+                                                                    "-"}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-5 whitespace-nowrap">
+                                                            <span
+                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 ${
+                                                                    employee.status_pegawai ===
+                                                                    "PEGAWAI TETAP"
+                                                                        ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
+                                                                        : "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
+                                                                }`}
                                                             >
-                                                                <Eye className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
-                                                            </button>
-                                                            <Link
-                                                                href={route(
-                                                                    "employees.edit",
-                                                                    employee.id
-                                                                )}
-                                                                className="group/btn p-2 text-[#439454] transition-all duration-300 rounded-xl hover:text-white hover:bg-[#439454] hover:shadow-lg transform hover:scale-110"
-                                                                title="Edit Karyawan"
-                                                            >
-                                                                <Edit className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
-                                                            </Link>
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (
-                                                                        confirm(
-                                                                            `Apakah Anda yakin ingin menghapus karyawan ${employee.nama_lengkap}?`
+                                                                {employee.status_pegawai ||
+                                                                    "-"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
+                                                            {formatDate(
+                                                                employee.tmt_mulai_jabatan
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-5 text-sm font-medium whitespace-nowrap">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() =>
+                                                                        showEmployeeDetails(
+                                                                            employee
                                                                         )
-                                                                    ) {
-                                                                        router.delete(
-                                                                            route(
-                                                                                "employees.destroy",
-                                                                                employee.id
-                                                                            )
-                                                                        );
                                                                     }
-                                                                }}
-                                                                className="p-2 text-red-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-red-600 hover:shadow-lg hover:scale-110"
-                                                                title="Hapus Karyawan"
-                                                            >
-                                                                <Trash2 className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )
+                                                                    className="p-2 text-blue-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-blue-600 hover:shadow-lg hover:scale-110"
+                                                                    title="Lihat Detail Lengkap"
+                                                                >
+                                                                    <Eye className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
+                                                                </button>
+                                                                <Link
+                                                                    href={route(
+                                                                        "employees.edit",
+                                                                        employee.id
+                                                                    )}
+                                                                    onClick={() =>
+                                                                        handleEmployeeClick(
+                                                                            employee.id,
+                                                                            "edit"
+                                                                        )
+                                                                    }
+                                                                    className="group/btn p-2 text-[#439454] transition-all duration-300 rounded-xl hover:text-white hover:bg-[#439454] hover:shadow-lg transform hover:scale-110"
+                                                                    title="Edit Karyawan"
+                                                                >
+                                                                    <Edit className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
+                                                                </Link>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            confirm(
+                                                                                `Apakah Anda yakin ingin menghapus karyawan ${employee.nama_lengkap}?`
+                                                                            )
+                                                                        ) {
+                                                                            handleEmployeeClick(
+                                                                                employee.id,
+                                                                                "delete"
+                                                                            );
+                                                                            router.delete(
+                                                                                route(
+                                                                                    "employees.destroy",
+                                                                                    employee.id
+                                                                                )
+                                                                            );
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-red-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-red-600 hover:shadow-lg hover:scale-110"
+                                                                    title="Hapus Karyawan"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
                                         )}
                                     </tbody>
                                 </table>

@@ -15,6 +15,7 @@ class EmployeeController extends Controller
 {
     /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
+     * ENHANCED: Added support for real-time new employee notifications
      */
     public function index(Request $request)
     {
@@ -89,8 +90,9 @@ class EmployeeController extends Controller
                 $perPage = 20;
             }
 
-            // Get paginated results with proper ordering
-            $employees = $query->orderBy('nama_lengkap', 'asc')
+            // ENHANCED: Order by ID desc to show newest first (for real-time update)
+            $employees = $query->orderBy('id', 'desc')
+                             ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
                              ->withQueryString(); // Preserve query parameters in pagination links
 
@@ -102,6 +104,14 @@ class EmployeeController extends Controller
 
             // Get filter options for dropdowns
             $filterOptions = $this->getFilterOptions();
+
+            // ENHANCED: Get new employee data from session if exists
+            $newEmployee = session('new_employee');
+            
+            // Clear the session data after retrieving it
+            if ($newEmployee) {
+                session()->forget('new_employee');
+            }
 
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
@@ -131,6 +141,8 @@ class EmployeeController extends Controller
                     'prev_page_url' => $employees->previousPageUrl(),
                     'links' => $employees->links()->elements[0] ?? []
                 ],
+                // ENHANCED: Pass new employee data to frontend for real-time update
+                'newEmployee' => $newEmployee,
                 'success' => session('success'),
                 'error' => session('error'),
                 'info' => session('info'),
@@ -170,6 +182,7 @@ class EmployeeController extends Controller
                     'prev_page_url' => null,
                     'links' => []
                 ],
+                'newEmployee' => null,
                 'error' => 'Error loading employees: ' . $e->getMessage(),
             ]);
         }
@@ -177,16 +190,37 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for creating a new employee
+     * ENHANCED: Better unit and jabatan options with fallbacks
      */
     public function create()
     {
         try {
             $organizations = $this->getOrganizationsForFilter();
             
+            // Enhanced unit options with fallbacks
+            $unitOptions = $this->getUnitOptions();
+            if ($unitOptions->isEmpty()) {
+                $unitOptions = collect([
+                    'Back Office',
+                    'Front Office', 
+                    'Security',
+                    'Ground Handling',
+                    'Cargo',
+                    'Aviation Security',
+                    'Passenger Service',
+                    'Ramp'
+                ]);
+            }
+
+            // Enhanced jabatan options
+            $jabatanOptions = $this->getJabatanOptions();
+            
             return Inertia::render('Employees/Create', [
                 'organizations' => $organizations,
-                'unitOptions' => $this->getUnitOptions(),
-                'jabatanOptions' => $this->getJabatanOptions(),
+                'unitOptions' => $unitOptions->toArray(),
+                'jabatanOptions' => $jabatanOptions->toArray(),
+                'success' => session('success'),
+                'error' => session('error'),
             ]);
         } catch (\Exception $e) {
             return redirect()->route('employees.index')
@@ -196,6 +230,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
+     * ENHANCED: Added real-time update support with session flash data
      */
     public function store(Request $request)
     {
@@ -269,10 +304,19 @@ class EmployeeController extends Controller
                 $data['jabatan'] = $data['nama_jabatan'];
             }
 
-            Employee::create($data);
+            // ENHANCED: Create the employee and get the created instance
+            $employee = Employee::create($data);
+
+            // ENHANCED: Set session flash data for real-time update
+            session()->flash('new_employee', [
+                'id' => $employee->id,
+                'name' => $employee->nama_lengkap,
+                'nip' => $employee->nip,
+                'created_at' => $employee->created_at->toISOString()
+            ]);
 
             return redirect()->route('employees.index')
-                ->with('success', 'Data karyawan berhasil ditambahkan.');
+                ->with('success', 'Karyawan berhasil ditambahkan! Data akan muncul dengan indikator NEW.');
 
         } catch (\Exception $e) {
             return redirect()->back()
@@ -312,8 +356,8 @@ class EmployeeController extends Controller
             return Inertia::render('Employees/Edit', [
                 'employee' => $employee,
                 'organizations' => $organizations,
-                'unitOptions' => $this->getUnitOptions(),
-                'jabatanOptions' => $this->getJabatanOptions(),
+                'unitOptions' => $this->getUnitOptions()->toArray(),
+                'jabatanOptions' => $this->getJabatanOptions()->toArray(),
             ]);
         } catch (\Exception $e) {
             return redirect()->route('employees.index')
@@ -920,6 +964,7 @@ class EmployeeController extends Controller
 
     /**
      * Get unique unit options from employees
+     * ENHANCED: Return as collection instead of array for better chaining
      */
     private function getUnitOptions()
     {
@@ -937,6 +982,7 @@ class EmployeeController extends Controller
 
     /**
      * Get unique jabatan options from employees
+     * ENHANCED: Return as collection and merge both jabatan fields
      */
     private function getJabatanOptions()
     {
