@@ -17,9 +17,12 @@ import {
     ArrowLeft,
     FileText,
     Shield,
+    Loader2,
+    Info,
+    AlertTriangle,
 } from "lucide-react";
 
-// Komponen InputField yang sudah diperbaiki
+// Enhanced InputField component dengan better validation dan styling
 const InputField = ({
     name,
     label,
@@ -32,21 +35,44 @@ const InputField = ({
     onChange,
     onBlur,
     error,
+    disabled = false,
+    hint = null,
 }) => {
+    const [focused, setFocused] = useState(false);
+    const [hasValue, setHasValue] = useState(false);
+
+    useEffect(() => {
+        setHasValue(Boolean(value));
+    }, [value]);
+
     const handleChange = (e) => {
         onChange(name, e.target.value);
+        setHasValue(Boolean(e.target.value));
     };
 
     const handleBlur = (e) => {
+        setFocused(false);
         if (onBlur) {
             onBlur(name, e.target.value);
         }
     };
 
+    const handleFocus = () => {
+        setFocused(true);
+    };
+
     return (
         <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                {Icon && <Icon className="w-4 h-4 text-[#439454]" />}
+                {Icon && (
+                    <Icon
+                        className={`w-4 h-4 transition-colors duration-200 ${
+                            focused || hasValue
+                                ? "text-[#439454]"
+                                : "text-gray-400"
+                        }`}
+                    />
+                )}
                 {label}
                 {required && <span className="text-red-500">*</span>}
             </label>
@@ -57,9 +83,13 @@ const InputField = ({
                     value={value || ""}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 ${
+                    onFocus={handleFocus}
+                    disabled={disabled}
+                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 disabled:opacity-50 disabled:cursor-not-allowed ${
                         error
                             ? "border-red-300 bg-red-50"
+                            : focused
+                            ? "border-[#439454] bg-white"
                             : "border-gray-300 bg-white"
                     }`}
                 >
@@ -76,11 +106,15 @@ const InputField = ({
                     value={value || ""}
                     onChange={handleChange}
                     onBlur={handleBlur}
+                    onFocus={handleFocus}
                     placeholder={placeholder}
+                    disabled={disabled}
                     rows={4}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 resize-none ${
+                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 resize-none disabled:opacity-50 disabled:cursor-not-allowed ${
                         error
                             ? "border-red-300 bg-red-50"
+                            : focused
+                            ? "border-[#439454] bg-white"
                             : "border-gray-300 bg-white"
                     }`}
                 />
@@ -91,13 +125,24 @@ const InputField = ({
                     value={value || ""}
                     onChange={handleChange}
                     onBlur={handleBlur}
+                    onFocus={handleFocus}
                     placeholder={placeholder}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 ${
+                    disabled={disabled}
+                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 disabled:opacity-50 disabled:cursor-not-allowed ${
                         error
                             ? "border-red-300 bg-red-50"
+                            : focused
+                            ? "border-[#439454] bg-white"
                             : "border-gray-300 bg-white"
                     }`}
                 />
+            )}
+
+            {hint && !error && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <Info className="w-3 h-3" />
+                    {hint}
+                </div>
             )}
 
             {error && (
@@ -110,45 +155,135 @@ const InputField = ({
     );
 };
 
+// Enhanced notification component untuk form feedback
+const FormNotification = ({ type, title, message, onClose }) => {
+    const [visible, setVisible] = useState(true);
+
+    useEffect(() => {
+        if (type === "success") {
+            const timer = setTimeout(() => {
+                setVisible(false);
+                setTimeout(onClose, 300);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [type, onClose]);
+
+    if (!visible) return null;
+
+    const getIcon = () => {
+        switch (type) {
+            case "success":
+                return <CheckCircle className="w-5 h-5 text-green-600" />;
+            case "error":
+                return <AlertTriangle className="w-5 h-5 text-red-600" />;
+            default:
+                return <Info className="w-5 h-5 text-blue-600" />;
+        }
+    };
+
+    const getBgColor = () => {
+        switch (type) {
+            case "success":
+                return "bg-green-50 border-green-200";
+            case "error":
+                return "bg-red-50 border-red-200";
+            default:
+                return "bg-blue-50 border-blue-200";
+        }
+    };
+
+    return (
+        <div
+            className={`fixed top-4 right-4 z-50 max-w-md p-4 border-2 rounded-xl shadow-lg transition-all duration-300 ${getBgColor()} ${
+                visible
+                    ? "opacity-100 translate-x-0"
+                    : "opacity-0 translate-x-full"
+            }`}
+        >
+            <div className="flex items-start gap-3">
+                {getIcon()}
+                <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900">{title}</h4>
+                    <p className="text-sm text-gray-600">{message}</p>
+                </div>
+                {onClose && (
+                    <button
+                        onClick={() => {
+                            setVisible(false);
+                            setTimeout(onClose, 300);
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export default function Create({
     organizations = [],
     unitOptions = [],
     jabatanOptions = [],
+    success = null,
+    error = null,
+    message = null,
 }) {
-    const { data, setData, post, processing, errors, reset } = useForm({
-        nip: "",
-        nama_lengkap: "",
-        jenis_kelamin: "",
-        tempat_lahir: "",
-        tanggal_lahir: "",
-        alamat: "",
-        no_telepon: "",
-        handphone: "",
-        email: "",
-        unit_organisasi: "",
-        jabatan: "",
-        nama_jabatan: "",
-        status_pegawai: "PEGAWAI TETAP",
-        tmt_mulai_jabatan: "",
-        tmt_mulai_kerja: "",
-        tmt_pensiun: "",
-        pendidikan_terakhir: "",
-        pendidikan: "",
-        instansi_pendidikan: "",
-        jurusan: "",
-        tahun_lulus: "",
-        jenis_sepatu: "",
-        ukuran_sepatu: "",
-        kota_domisili: "",
-        height: "",
-        weight: "",
-        no_bpjs_kesehatan: "",
-        no_bpjs_ketenagakerjaan: "",
-    });
+    const { data, setData, post, processing, errors, reset, clearErrors } =
+        useForm({
+            nip: "",
+            nama_lengkap: "",
+            jenis_kelamin: "",
+            tempat_lahir: "",
+            tanggal_lahir: "",
+            alamat: "",
+            handphone: "",
+            email: "",
+            unit_organisasi: "",
+            jabatan: "",
+            nama_jabatan: "",
+            status_pegawai: "PEGAWAI TETAP",
+            tmt_mulai_jabatan: "",
+            tmt_mulai_kerja: "",
+            tmt_pensiun: "",
+            pendidikan_terakhir: "",
+            pendidikan: "",
+            instansi_pendidikan: "",
+            jurusan: "",
+            tahun_lulus: "",
+            jenis_sepatu: "",
+            ukuran_sepatu: "",
+            kota_domisili: "",
+            height: "",
+            weight: "",
+            no_bpjs_kesehatan: "",
+            no_bpjs_ketenagakerjaan: "",
+            seragam: "",
+        });
 
     const [activeSection, setActiveSection] = useState("personal");
     const [formValidation, setFormValidation] = useState({});
-    const [showSuccess, setShowSuccess] = useState(false);
+    const [notification, setNotification] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Show notification dari session
+    useEffect(() => {
+        if (success) {
+            setNotification({
+                type: "success",
+                title: "Berhasil!",
+                message: success,
+            });
+        } else if (error) {
+            setNotification({
+                type: "error",
+                title: "Terjadi Kesalahan!",
+                message: error,
+            });
+        }
+    }, [success, error]);
 
     // Auto-calculate pension date when birth date changes
     useEffect(() => {
@@ -160,6 +295,13 @@ export default function Create({
         }
     }, [data.tanggal_lahir]);
 
+    // Auto-sync jabatan fields
+    useEffect(() => {
+        if (data.nama_jabatan && !data.jabatan) {
+            setData("jabatan", data.nama_jabatan);
+        }
+    }, [data.nama_jabatan]);
+
     const sections = {
         personal: { name: "Data Pribadi", icon: User },
         work: { name: "Data Pekerjaan", icon: Building2 },
@@ -170,61 +312,189 @@ export default function Create({
     const validateField = (fieldName, value) => {
         let error = "";
 
-        if (fieldName === "email" && value) {
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                error = "Format email tidak valid";
-            }
-        }
-
-        if (fieldName === "handphone" && value) {
-            if (!/^[0-9+\-\s()]+$/.test(value)) {
-                error = "Format nomor handphone tidak valid";
-            }
-        }
-
-        if (fieldName === "nip" && value) {
-            if (!/^[0-9]+$/.test(value)) {
-                error = "NIP hanya boleh berisi angka";
-            }
+        switch (fieldName) {
+            case "email":
+                if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                    error = "Format email tidak valid";
+                }
+                break;
+            case "handphone":
+                if (value && !/^[0-9+\-\s()]+$/.test(value)) {
+                    error = "Format nomor handphone tidak valid";
+                }
+                break;
+            case "nip":
+                if (value && !/^[0-9]+$/.test(value)) {
+                    error = "NIP hanya boleh berisi angka";
+                } else if (value && value.length < 6) {
+                    error = "NIP minimal 6 digit";
+                }
+                break;
+            case "tahun_lulus":
+                const currentYear = new Date().getFullYear();
+                if (
+                    value &&
+                    (parseInt(value) < 1950 ||
+                        parseInt(value) > currentYear + 5)
+                ) {
+                    error = `Tahun lulus harus antara 1950 - ${
+                        currentYear + 5
+                    }`;
+                }
+                break;
+            case "height":
+                if (value && (parseInt(value) < 100 || parseInt(value) > 250)) {
+                    error = "Tinggi badan harus antara 100-250 cm";
+                }
+                break;
+            case "weight":
+                if (value && (parseInt(value) < 30 || parseInt(value) > 200)) {
+                    error = "Berat badan harus antara 30-200 kg";
+                }
+                break;
+            case "tanggal_lahir":
+                if (value) {
+                    const birthDate = new Date(value);
+                    const today = new Date();
+                    const age = today.getFullYear() - birthDate.getFullYear();
+                    if (age < 17 || age > 70) {
+                        error = "Usia harus antara 17-70 tahun";
+                    }
+                }
+                break;
         }
 
         setFormValidation((prev) => ({
             ...prev,
             [fieldName]: error,
         }));
+
+        // Clear server errors when user starts typing
+        if (errors[fieldName]) {
+            clearErrors(fieldName);
+        }
+
+        return error;
     };
 
     const handleInputChange = (name, value) => {
         setData(name, value);
+
+        // Real-time validation for important fields
+        if (["nip", "email", "handphone"].includes(name)) {
+            setTimeout(() => validateField(name, value), 500);
+        }
     };
 
     const handleInputBlur = (name, value) => {
         validateField(name, value);
     };
 
+    const validateRequiredFields = () => {
+        const requiredFields = {
+            nip: "NIP wajib diisi",
+            nama_lengkap: "Nama lengkap wajib diisi",
+            jenis_kelamin: "Jenis kelamin wajib dipilih",
+            unit_organisasi: "Unit organisasi wajib dipilih",
+            nama_jabatan: "Nama jabatan wajib diisi",
+        };
+
+        const newErrors = {};
+
+        Object.entries(requiredFields).forEach(([field, message]) => {
+            if (!data[field] || data[field].trim() === "") {
+                newErrors[field] = message;
+            }
+        });
+
+        return newErrors;
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
 
-        post("/employees", {
+        // Validate required fields
+        const requiredFieldErrors = validateRequiredFields();
+        if (Object.keys(requiredFieldErrors).length > 0) {
+            setFormValidation((prev) => ({ ...prev, ...requiredFieldErrors }));
+            setNotification({
+                type: "error",
+                title: "Data Tidak Lengkap",
+                message: "Mohon lengkapi semua field yang wajib diisi",
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Check for validation errors
+        const hasValidationErrors = Object.values(formValidation).some(
+            (error) => error !== ""
+        );
+        if (hasValidationErrors) {
+            setNotification({
+                type: "error",
+                title: "Data Tidak Valid",
+                message: "Mohon perbaiki kesalahan pada form",
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
+        post(route("employees.store"), {
             onSuccess: () => {
-                setShowSuccess(true);
+                setNotification({
+                    type: "success",
+                    title: "Berhasil!",
+                    message:
+                        "Karyawan berhasil ditambahkan. Mengalihkan ke daftar karyawan...",
+                });
+
+                // Redirect after 2 seconds untuk memberikan waktu user melihat notification
                 setTimeout(() => {
-                    router.visit("/employees");
+                    router.visit(route("employees.index"));
                 }, 2000);
             },
-            onError: () => {
-                // Error handling
+            onError: (errors) => {
+                let errorMessage = "Terjadi kesalahan saat menyimpan data";
+
+                if (errors.nip) {
+                    errorMessage = "NIP sudah digunakan atau tidak valid";
+                } else if (errors.email) {
+                    errorMessage = "Email sudah digunakan atau tidak valid";
+                } else if (Object.keys(errors).length > 0) {
+                    errorMessage =
+                        "Data yang diisi tidak valid. Silakan periksa kembali.";
+                }
+
+                setNotification({
+                    type: "error",
+                    title: "Gagal Menyimpan",
+                    message: errorMessage,
+                });
+                setIsSubmitting(false);
+            },
+            onFinish: () => {
+                setIsSubmitting(false);
             },
         });
     };
 
     const handleCancel = () => {
-        if (
-            confirm(
-                "Yakin ingin membatalkan? Data yang sudah diisi akan hilang."
-            )
-        ) {
-            router.visit("/employees");
+        const hasData = Object.values(data).some(
+            (value) => value && value.toString().trim() !== ""
+        );
+
+        if (hasData) {
+            if (
+                confirm(
+                    "Yakin ingin membatalkan? Data yang sudah diisi akan hilang."
+                )
+            ) {
+                router.visit(route("employees.index"));
+            }
+        } else {
+            router.visit(route("employees.index"));
         }
     };
 
@@ -246,6 +516,7 @@ export default function Create({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nip || formValidation.nip}
+                    hint="Nomor Induk Pegawai (minimal 6 digit)"
                 />
                 <InputField
                     name="nama_lengkap"
@@ -255,7 +526,7 @@ export default function Create({
                     icon={User}
                     value={data.nama_lengkap}
                     onChange={handleInputChange}
-                    error={errors.nama_lengkap}
+                    error={errors.nama_lengkap || formValidation.nama_lengkap}
                 />
                 <InputField
                     name="jenis_kelamin"
@@ -265,7 +536,7 @@ export default function Create({
                     icon={User}
                     value={data.jenis_kelamin}
                     onChange={handleInputChange}
-                    error={errors.jenis_kelamin}
+                    error={errors.jenis_kelamin || formValidation.jenis_kelamin}
                 />
                 <InputField
                     name="tempat_lahir"
@@ -283,12 +554,14 @@ export default function Create({
                     icon={Calendar}
                     value={data.tanggal_lahir}
                     onChange={handleInputChange}
-                    error={errors.tanggal_lahir}
+                    onBlur={handleInputBlur}
+                    error={errors.tanggal_lahir || formValidation.tanggal_lahir}
+                    hint="Tanggal pensiun akan otomatis dihitung (usia 60 tahun)"
                 />
                 <InputField
                     name="kota_domisili"
                     label="Kota Domisili"
-                    placeholder="Kota tempat tinggal"
+                    placeholder="Kota tempat tinggal saat ini"
                     icon={MapPin}
                     value={data.kota_domisili}
                     onChange={handleInputChange}
@@ -308,15 +581,6 @@ export default function Create({
             />
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <InputField
-                    name="no_telepon"
-                    label="No. Telepon"
-                    placeholder="021-1234567"
-                    icon={Phone}
-                    value={data.no_telepon}
-                    onChange={handleInputChange}
-                    error={errors.no_telepon}
-                />
                 <InputField
                     name="handphone"
                     label="No. Handphone"
@@ -354,20 +618,26 @@ export default function Create({
                     name="unit_organisasi"
                     label="Unit Organisasi"
                     required={true}
-                    options={[
-                        "Back Office",
-                        "Front Office",
-                        "Security",
-                        "Ground Handling",
-                        "Cargo",
-                        "Aviation Security",
-                        "Passenger Service",
-                        "Ramp",
-                    ]}
+                    options={
+                        unitOptions.length > 0
+                            ? unitOptions
+                            : [
+                                  "Back Office",
+                                  "Front Office",
+                                  "Security",
+                                  "Ground Handling",
+                                  "Cargo",
+                                  "Aviation Security",
+                                  "Passenger Service",
+                                  "Ramp",
+                              ]
+                    }
                     icon={Building2}
                     value={data.unit_organisasi}
                     onChange={handleInputChange}
-                    error={errors.unit_organisasi}
+                    error={
+                        errors.unit_organisasi || formValidation.unit_organisasi
+                    }
                 />
                 <InputField
                     name="nama_jabatan"
@@ -377,7 +647,7 @@ export default function Create({
                     icon={UserCheck}
                     value={data.nama_jabatan}
                     onChange={handleInputChange}
-                    error={errors.nama_jabatan}
+                    error={errors.nama_jabatan || formValidation.nama_jabatan}
                 />
                 <InputField
                     name="status_pegawai"
@@ -401,6 +671,7 @@ export default function Create({
                     value={data.tmt_mulai_kerja}
                     onChange={handleInputChange}
                     error={errors.tmt_mulai_kerja}
+                    hint="Tanggal Mulai Tugas pertama kali bekerja"
                 />
                 <InputField
                     name="tmt_mulai_jabatan"
@@ -410,6 +681,7 @@ export default function Create({
                     value={data.tmt_mulai_jabatan}
                     onChange={handleInputChange}
                     error={errors.tmt_mulai_jabatan}
+                    hint="Tanggal Mulai Tugas pada jabatan saat ini"
                 />
                 <InputField
                     name="tmt_pensiun"
@@ -419,6 +691,8 @@ export default function Create({
                     value={data.tmt_pensiun}
                     onChange={handleInputChange}
                     error={errors.tmt_pensiun}
+                    hint="Otomatis terisi berdasarkan tanggal lahir"
+                    disabled={!data.tanggal_lahir}
                 />
             </div>
         </div>
@@ -464,7 +738,7 @@ export default function Create({
                 <InputField
                     name="jurusan"
                     label="Jurusan"
-                    placeholder="Nama jurusan"
+                    placeholder="Nama jurusan/program studi"
                     icon={GraduationCap}
                     value={data.jurusan}
                     onChange={handleInputChange}
@@ -478,7 +752,9 @@ export default function Create({
                     icon={Calendar}
                     value={data.tahun_lulus}
                     onChange={handleInputChange}
-                    error={errors.tahun_lulus}
+                    onBlur={handleInputBlur}
+                    error={errors.tahun_lulus || formValidation.tahun_lulus}
+                    hint="Tahun kelulusan dari pendidikan terakhir"
                 />
             </div>
         </div>
@@ -491,20 +767,27 @@ export default function Create({
                 Data Tambahan
             </h2>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <InputField
+                    name="seragam"
+                    label="Seragam"
+                    placeholder="Akan diisi nanti"
+                    icon={Shield}
+                    value=""
+                    onChange={() => {}} // No-op function
+                    disabled={true}
+                    error={errors.seragam}
+                    hint="Field ini akan diisi oleh admin"
+                />
                 <InputField
                     name="jenis_sepatu"
                     label="Jenis Sepatu"
-                    options={[
-                        "Safety Boots",
-                        "Formal Shoes",
-                        "Sneakers",
-                        "Sandals",
-                    ]}
+                    options={["Pantofel", "Safety Shoes"]}
                     icon={Shield}
                     value={data.jenis_sepatu}
                     onChange={handleInputChange}
                     error={errors.jenis_sepatu}
+                    hint="Jenis sepatu kerja yang digunakan"
                 />
                 <InputField
                     name="ukuran_sepatu"
@@ -524,7 +807,9 @@ export default function Create({
                     icon={User}
                     value={data.height}
                     onChange={handleInputChange}
-                    error={errors.height}
+                    onBlur={handleInputBlur}
+                    error={errors.height || formValidation.height}
+                    hint="Tinggi badan dalam centimeter"
                 />
                 <InputField
                     name="weight"
@@ -534,8 +819,11 @@ export default function Create({
                     icon={User}
                     value={data.weight}
                     onChange={handleInputChange}
-                    error={errors.weight}
+                    onBlur={handleInputBlur}
+                    error={errors.weight || formValidation.weight}
+                    hint="Berat badan dalam kilogram"
                 />
+                <div></div>
                 <InputField
                     name="no_bpjs_kesehatan"
                     label="No. BPJS Kesehatan"
@@ -577,34 +865,24 @@ export default function Create({
         <DashboardLayout>
             <Head title="Tambah Karyawan" />
 
-            {/* Success Notification */}
-            {showSuccess && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="p-8 bg-white border-2 border-green-300 shadow-2xl rounded-2xl">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full">
-                                <CheckCircle className="w-6 h-6 text-green-600" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">
-                                    Berhasil!
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                    Karyawan baru berhasil ditambahkan
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {/* Enhanced Notification */}
+            {notification && (
+                <FormNotification
+                    type={notification.type}
+                    title={notification.title}
+                    message={notification.message}
+                    onClose={() => setNotification(null)}
+                />
             )}
 
             <div className="p-6 space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={handleCancel}
-                            className="flex items-center gap-2 px-4 py-2 text-gray-600 transition-all duration-300 border-2 border-gray-300 rounded-xl hover:border-[#439454] hover:text-[#439454] focus:ring-4 focus:ring-[#439454]/20"
+                            disabled={processing || isSubmitting}
+                            className="flex items-center gap-2 px-4 py-2 text-gray-600 transition-all duration-300 border-2 border-gray-300 rounded-xl hover:border-[#439454] hover:text-[#439454] focus:ring-4 focus:ring-[#439454]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             Kembali
@@ -621,12 +899,13 @@ export default function Create({
                 </div>
 
                 {/* Section Navigation */}
-                <div className="flex gap-2 p-2 bg-gray-100 rounded-xl">
+                <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded-xl">
                     {Object.entries(sections).map(([key, section]) => (
                         <button
                             key={key}
                             onClick={() => setActiveSection(key)}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
+                            disabled={processing || isSubmitting}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
                                 activeSection === key
                                     ? "bg-[#439454] text-white shadow-lg"
                                     : "text-gray-600 hover:bg-white hover:text-[#439454]"
@@ -646,23 +925,24 @@ export default function Create({
                     <div className="p-6 space-y-6">{renderSection()}</div>
 
                     {/* Form Actions */}
-                    <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                    <div className="flex flex-col gap-4 p-6 border-t border-gray-200 sm:flex-row sm:items-center sm:justify-end bg-gray-50 rounded-b-2xl">
                         <button
                             type="button"
                             onClick={handleCancel}
-                            className="flex items-center gap-2 px-6 py-3 text-gray-600 transition-all duration-300 border-2 border-gray-300 rounded-xl hover:border-red-400 hover:text-red-600 focus:ring-4 focus:ring-red-400/20"
+                            disabled={processing || isSubmitting}
+                            className="flex items-center justify-center gap-2 px-6 py-3 text-gray-600 transition-all duration-300 border-2 border-gray-300 rounded-xl hover:border-red-400 hover:text-red-600 focus:ring-4 focus:ring-red-400/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <X className="w-4 h-4" />
                             Batal
                         </button>
                         <button
                             type="submit"
-                            disabled={processing}
-                            className="flex items-center gap-2 px-6 py-3 text-white transition-all duration-300 bg-[#439454] border-2 border-[#439454] rounded-xl hover:bg-[#439454]/90 focus:ring-4 focus:ring-[#439454]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={processing || isSubmitting}
+                            className="flex items-center justify-center gap-2 px-6 py-3 text-white transition-all duration-300 bg-[#439454] border-2 border-[#439454] rounded-xl hover:bg-[#439454]/90 focus:ring-4 focus:ring-[#439454]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {processing ? (
+                            {processing || isSubmitting ? (
                                 <>
-                                    <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                     Menyimpan...
                                 </>
                             ) : (

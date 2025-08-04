@@ -106,19 +106,14 @@ class EmployeeController extends Controller
             // Get filter options for dropdowns
             $filterOptions = $this->getFilterOptions();
 
-            // ENHANCED: Get new employee data from session if exists
-            $newEmployeeId = session('newEmployeeId');
-            $newEmployee = null;
-            
-            if ($newEmployeeId) {
-                $newEmployee = Employee::find($newEmployeeId);
-            }
+            // ENHANCED: Get comprehensive notification data from session
+            $notificationData = $this->getNotificationData();
 
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
                 'organizations' => $organizations,
                 'filterOptions' => $filterOptions,
-                'statistics' => $filteredStatistics, // Add filtered statistics
+                'statistics' => $filteredStatistics,
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
@@ -142,17 +137,20 @@ class EmployeeController extends Controller
                     'prev_page_url' => $employees->previousPageUrl(),
                     'links' => $employees->links()->elements[0] ?? []
                 ],
-                // ENHANCED: Pass new employee data to frontend for real-time update
-                'newEmployee' => $newEmployee,
-                'success' => session('success'),
-                'error' => session('error'),
-                'message' => session('message'),
+                // ENHANCED: Comprehensive notification data
+                'newEmployee' => $notificationData['newEmployee'],
+                'success' => $notificationData['success'],
+                'error' => $notificationData['error'],
+                'message' => $notificationData['message'],
+                'notification' => $notificationData['notification'],
+                'alerts' => $notificationData['alerts'],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Employee Index Error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
             ]);
 
             return Inertia::render('Employees/Index', [
@@ -190,6 +188,8 @@ class EmployeeController extends Controller
                 ],
                 'newEmployee' => null,
                 'error' => 'Terjadi kesalahan saat memuat data karyawan: ' . $e->getMessage(),
+                'notification' => null,
+                'alerts' => [],
             ]);
         }
     }
@@ -227,8 +227,14 @@ class EmployeeController extends Controller
                 'jabatanOptions' => $jabatanOptions->toArray(),
                 'success' => session('success'),
                 'error' => session('error'),
+                'message' => session('message'),
             ]);
         } catch (\Exception $e) {
+            Log::error('Employee Create Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return redirect()->route('employees.index')
                 ->with('error', 'Error loading create form: ' . $e->getMessage());
         }
@@ -236,13 +242,19 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * ENHANCED: NIP sebagai primary identifier, real-time update support with session flash data
+     * ENHANCED: Advanced notification system with detailed tracking and logging
      */
     public function store(Request $request)
     {
         try {
-            // Log request data untuk debugging
-            Log::info('Employee Store Request', $request->all());
+            // Log request data untuk debugging (tanpa data sensitif)
+            Log::info('Employee Store Request Started', [
+                'nip' => $request->nip,
+                'nama_lengkap' => $request->nama_lengkap,
+                'unit_organisasi' => $request->unit_organisasi,
+                'user_agent' => $request->header('User-Agent'),
+                'ip_address' => $request->ip()
+            ]);
 
             // Comprehensive validation dengan custom error messages
             $validator = Validator::make($request->all(), [
@@ -304,17 +316,30 @@ class EmployeeController extends Controller
             ]);
 
             if ($validator->fails()) {
-                Log::warning('Employee Store Validation Failed', $validator->errors()->toArray());
+                Log::warning('Employee Store Validation Failed', [
+                    'nip' => $request->nip,
+                    'errors' => array_keys($validator->errors()->toArray())
+                ]);
+
                 return redirect()->back()
                     ->withErrors($validator)
-                    ->withInput();
+                    ->withInput()
+                    ->with([
+                        'error' => 'Data yang diisi tidak valid. Mohon periksa kembali.',
+                        'notification' => [
+                            'type' => 'error',
+                            'title' => 'Validasi Gagal',
+                            'message' => 'Mohon periksa kembali data yang diisi',
+                            'duration' => 7000
+                        ]
+                    ]);
             }
 
             // Begin database transaction
             DB::beginTransaction();
 
             try {
-                // Prepare data for insertion
+                // Prepare data for insertion dengan validasi tambahan
                 $employeeData = $request->only([
                     'nip', 'nik', 'nama_lengkap', 'jenis_kelamin',
                     'tempat_lahir', 'tanggal_lahir', 'alamat', 'kota_domisili',
@@ -327,7 +352,7 @@ class EmployeeController extends Controller
                     'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan', 'organization_id'
                 ]);
 
-                // Set default values for GAPURA ANGKASA
+                // Set default values untuk GAPURA ANGKASA
                 $employeeData['status_pegawai'] = $employeeData['status_pegawai'] ?? 'PEGAWAI TETAP';
                 $employeeData['status_kerja'] = 'Aktif';
                 $employeeData['provider'] = 'PT Gapura Angkasa';
@@ -346,49 +371,62 @@ class EmployeeController extends Controller
                     $employeeData['usia'] = $birthDate->age;
                 }
 
-                // Create employee
+                // Create employee dengan error handling
                 $employee = Employee::create($employeeData);
 
                 if (!$employee) {
-                    throw new \Exception('Failed to create employee record');
+                    throw new \Exception('Failed to create employee record in database');
                 }
 
                 // Commit transaction
                 DB::commit();
 
+                // Log successful creation
                 Log::info('Employee Created Successfully', [
                     'employee_id' => $employee->id,
                     'nip' => $employee->nip,
-                    'nama_lengkap' => $employee->nama_lengkap
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
-                // ENHANCED: Set session flash data for real-time update notification
+                // ENHANCED: Comprehensive notification system
+                $notificationData = $this->buildSuccessNotification($employee);
+
                 return redirect()->route('employees.index')
-                    ->with([
-                        'success' => 'Karyawan berhasil ditambahkan!',
-                        'newEmployeeId' => $employee->id,
-                        'newEmployeeNip' => $employee->nip,
-                        'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem."
-                    ]);
+                    ->with($notificationData);
 
             } catch (\Exception $e) {
                 DB::rollback();
+                
                 Log::error('Employee Creation Database Error', [
+                    'nip' => $request->nip,
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
-                throw $e;
+                
+                throw new \Exception('Gagal menyimpan data ke database: ' . $e->getMessage());
             }
 
         } catch (\Exception $e) {
             Log::error('Employee Store General Error', [
+                'nip' => $request->nip ?? 'N/A',
                 'error' => $e->getMessage(),
-                'request_data' => $request->all()
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
 
             return redirect()->back()
-                ->with('error', 'Terjadi kesalahan saat menyimpan data karyawan: ' . $e->getMessage())
-                ->withInput();
+                ->withInput()
+                ->with([
+                    'error' => 'Terjadi kesalahan saat menyimpan data karyawan: ' . $e->getMessage(),
+                    'notification' => [
+                        'type' => 'error',
+                        'title' => 'Gagal Menyimpan Data',
+                        'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
+                        'duration' => 10000
+                    ]
+                ]);
         }
     }
 
@@ -407,6 +445,11 @@ class EmployeeController extends Controller
                 'employee' => $employee,
             ]);
         } catch (\Exception $e) {
+            Log::error('Employee Show Error', [
+                'employee_id' => $employee->id ?? 'N/A',
+                'error' => $e->getMessage()
+            ]);
+
             return redirect()->route('employees.index')
                 ->with('error', 'Error loading employee details: ' . $e->getMessage());
         }
@@ -427,6 +470,11 @@ class EmployeeController extends Controller
                 'jabatanOptions' => $this->getJabatanOptions()->toArray(),
             ]);
         } catch (\Exception $e) {
+            Log::error('Employee Edit Error', [
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage()
+            ]);
+
             return redirect()->route('employees.index')
                 ->with('error', 'Error loading edit form: ' . $e->getMessage());
         }
@@ -434,10 +482,13 @@ class EmployeeController extends Controller
 
     /**
      * Update the specified employee
+     * ENHANCED: Better notification system untuk update
      */
     public function update(Request $request, Employee $employee)
     {
         try {
+            $originalData = $employee->toArray();
+
             $validator = Validator::make($request->all(), [
                 'nip' => [
                     'required',
@@ -478,7 +529,15 @@ class EmployeeController extends Controller
             if ($validator->fails()) {
                 return redirect()->back()
                     ->withErrors($validator)
-                    ->withInput();
+                    ->withInput()
+                    ->with([
+                        'error' => 'Data tidak valid. Mohon periksa kembali.',
+                        'notification' => [
+                            'type' => 'error',
+                            'title' => 'Validasi Gagal',
+                            'message' => 'Mohon periksa kembali data yang diisi'
+                        ]
+                    ]);
             }
 
             $data = $validator->validated();
@@ -502,10 +561,31 @@ class EmployeeController extends Controller
 
             $employee->update($data);
 
+            // Log the update
+            Log::info('Employee Updated Successfully', [
+                'employee_id' => $employee->id,
+                'nip' => $employee->nip,
+                'updated_fields' => array_keys(array_diff_assoc($data, $originalData))
+            ]);
+
             return redirect()->route('employees.index')
-                ->with('success', 'Data karyawan berhasil diperbarui.');
+                ->with([
+                    'success' => 'Data karyawan berhasil diperbarui!',
+                    'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui.",
+                    'notification' => [
+                        'type' => 'success',
+                        'title' => 'Data Berhasil Diperbarui',
+                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui.",
+                        'employee_id' => $employee->id
+                    ]
+                ]);
 
         } catch (\Exception $e) {
+            Log::error('Employee Update Error', [
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage()
+            ]);
+
             return redirect()->back()
                 ->with('error', 'Error updating employee: ' . $e->getMessage())
                 ->withInput();
@@ -514,18 +594,39 @@ class EmployeeController extends Controller
 
     /**
      * Remove the specified employee (soft delete)
+     * ENHANCED: Better notification untuk delete
      */
     public function destroy(Employee $employee)
     {
         try {
             $employeeName = $employee->nama_lengkap;
+            $employeeNip = $employee->nip;
             
             // Soft delete by setting status to inactive
             $employee->update(['status' => 'inactive']);
 
+            Log::info('Employee Deleted Successfully', [
+                'employee_id' => $employee->id,
+                'nip' => $employeeNip,
+                'nama_lengkap' => $employeeName
+            ]);
+
             return redirect()->route('employees.index')
-                ->with('success', "Karyawan {$employeeName} berhasil dihapus.");
+                ->with([
+                    'success' => "Karyawan {$employeeName} berhasil dihapus!",
+                    'message' => "Karyawan {$employeeName} (NIP: {$employeeNip}) berhasil dihapus dari sistem.",
+                    'notification' => [
+                        'type' => 'warning',
+                        'title' => 'Karyawan Dihapus',
+                        'message' => "Karyawan {$employeeName} (NIP: {$employeeNip}) berhasil dihapus dari sistem."
+                    ]
+                ]);
         } catch (\Exception $e) {
+            Log::error('Employee Delete Error', [
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage()
+            ]);
+
             return redirect()->route('employees.index')
                 ->with('error', 'Error deleting employee: ' . $e->getMessage());
         }
@@ -939,8 +1040,67 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // PRIVATE HELPER METHODS
+    // PRIVATE HELPER METHODS - ENHANCED
     // =====================================================
+
+    /**
+     * Get comprehensive notification data from session
+     * ENHANCED: Centralized notification data management
+     */
+    private function getNotificationData()
+    {
+        $newEmployeeId = session('newEmployeeId');
+        $newEmployee = null;
+        
+        if ($newEmployeeId) {
+            $newEmployee = Employee::find($newEmployeeId);
+        }
+
+        return [
+            'newEmployee' => $newEmployee,
+            'success' => session('success'),
+            'error' => session('error'),
+            'message' => session('message'),
+            'notification' => session('notification'),
+            'alerts' => session('alerts', []),
+        ];
+    }
+
+    /**
+     * Build comprehensive success notification data
+     * ENHANCED: Advanced notification system
+     */
+    private function buildSuccessNotification(Employee $employee)
+    {
+        return [
+            'success' => 'Karyawan berhasil ditambahkan!',
+            'newEmployeeId' => $employee->id,
+            'newEmployeeNip' => $employee->nip,
+            'newEmployeeName' => $employee->nama_lengkap,
+            'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+            'notification' => [
+                'type' => 'success',
+                'title' => 'Karyawan Baru Ditambahkan!',
+                'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                'employee_id' => $employee->id,
+                'employee_nip' => $employee->nip,
+                'employee_name' => $employee->nama_lengkap,
+                'unit_organisasi' => $employee->unit_organisasi,
+                'auto_scroll' => true,
+                'show_highlight' => true,
+                'duration' => 5000,
+                'click_to_hide' => true,
+                'created_at' => now()->toDateTimeString(),
+            ],
+            'alerts' => [
+                [
+                    'type' => 'info',
+                    'message' => 'Data karyawan telah tersimpan dan akan muncul di daftar karyawan.',
+                    'duration' => 3000
+                ]
+            ]
+        ];
+    }
 
     /**
      * Calculate statistics based on filtered results (not pagination)

@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -12,8 +13,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('employees', function (Blueprint $table) {
-            // Ensure NIP is unique if not already
-            if (!$this->hasUniqueIndex('employees', 'nip')) {
+            // Check and add unique constraint for NIP if not exists
+            if (!$this->hasUniqueConstraint('employees', 'nip')) {
                 $table->unique('nip', 'employees_nip_unique');
             }
             
@@ -43,38 +44,74 @@ return new class extends Migration
     {
         Schema::table('employees', function (Blueprint $table) {
             // Drop indexes if they exist
-            $table->dropIndex('employees_nip_unique');
-            $table->dropIndex('employees_created_at_index');
-            $table->dropIndex('employees_status_index');
-            $table->dropIndex('employees_nama_lengkap_index');
-            $table->dropIndex('employees_unit_organisasi_index');
-        });
-    }
-    
-    /**
-     * Check if unique index exists
-     */
-    private function hasUniqueIndex($table, $column)
-    {
-        $indexes = collect(Schema::getConnection()->getDoctrineSchemaManager()
-            ->listTableIndexes($table));
+            try {
+                $table->dropUnique('employees_nip_unique');
+            } catch (Exception $e) {
+                // Index might not exist
+            }
             
-        return $indexes->contains(function ($index) use ($column) {
-            return $index->isUnique() && 
-                   in_array($column, $index->getColumns());
+            try {
+                $table->dropIndex('employees_created_at_index');
+            } catch (Exception $e) {
+                // Index might not exist
+            }
+            
+            try {
+                $table->dropIndex('employees_status_index');
+            } catch (Exception $e) {
+                // Index might not exist
+            }
+            
+            try {
+                $table->dropIndex('employees_nama_lengkap_index');
+            } catch (Exception $e) {
+                // Index might not exist
+            }
+            
+            try {
+                $table->dropIndex('employees_unit_organisasi_index');
+            } catch (Exception $e) {
+                // Index might not exist
+            }
         });
     }
     
     /**
-     * Check if regular index exists
+     * Check if unique constraint exists using raw SQL
+     */
+    private function hasUniqueConstraint($table, $column)
+    {
+        $database = DB::connection()->getDatabaseName();
+        
+        $result = DB::select("
+            SELECT COUNT(*) as count 
+            FROM information_schema.TABLE_CONSTRAINTS tc
+            JOIN information_schema.KEY_COLUMN_USAGE kcu 
+                ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+            WHERE tc.TABLE_SCHEMA = ? 
+                AND tc.TABLE_NAME = ? 
+                AND tc.CONSTRAINT_TYPE = 'UNIQUE'
+                AND kcu.COLUMN_NAME = ?
+        ", [$database, $table, $column]);
+
+        return $result[0]->count > 0;
+    }
+    
+    /**
+     * Check if regular index exists using raw SQL
      */
     private function hasIndex($table, $column)
     {
-        $indexes = collect(Schema::getConnection()->getDoctrineSchemaManager()
-            ->listTableIndexes($table));
-            
-        return $indexes->contains(function ($index) use ($column) {
-            return in_array($column, $index->getColumns());
-        });
+        $database = DB::connection()->getDatabaseName();
+        
+        $result = DB::select("
+            SELECT COUNT(*) as count 
+            FROM information_schema.STATISTICS 
+            WHERE TABLE_SCHEMA = ? 
+                AND TABLE_NAME = ? 
+                AND COLUMN_NAME = ?
+        ", [$database, $table, $column]);
+
+        return $result[0]->count > 0;
     }
 };

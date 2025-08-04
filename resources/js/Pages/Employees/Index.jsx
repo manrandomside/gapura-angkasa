@@ -25,7 +25,151 @@ import {
     CheckCircle,
     Sparkles,
     Star,
+    AlertCircle,
+    Info,
+    AlertTriangle,
+    Clock,
+    Bell,
 } from "lucide-react";
+
+// Enhanced Notification Component dengan better UI dan functionality
+const EnhancedNotification = ({ notification, onClose }) => {
+    const [visible, setVisible] = useState(true);
+    const [progress, setProgress] = useState(100);
+
+    useEffect(() => {
+        if (!notification || !notification.duration) return;
+
+        const interval = setInterval(() => {
+            setProgress((prev) => {
+                const newProgress = prev - 100 / (notification.duration / 100);
+                if (newProgress <= 0) {
+                    setVisible(false);
+                    setTimeout(() => onClose(), 300);
+                    return 0;
+                }
+                return newProgress;
+            });
+        }, 100);
+
+        return () => clearInterval(interval);
+    }, [notification, onClose]);
+
+    if (!notification || !visible) return null;
+
+    const getIcon = () => {
+        switch (notification.type) {
+            case "success":
+                return (
+                    <CheckCircle className="w-6 h-6 text-green-600 animate-checkmark" />
+                );
+            case "error":
+                return <AlertTriangle className="w-6 h-6 text-red-600" />;
+            case "warning":
+                return <AlertCircle className="w-6 h-6 text-yellow-600" />;
+            case "info":
+                return <Info className="w-6 h-6 text-blue-600" />;
+            default:
+                return <Bell className="w-6 h-6 text-gray-600" />;
+        }
+    };
+
+    const getBgColor = () => {
+        switch (notification.type) {
+            case "success":
+                return "bg-white border-[#439454] shadow-green-100";
+            case "error":
+                return "bg-white border-red-500 shadow-red-100";
+            case "warning":
+                return "bg-white border-yellow-500 shadow-yellow-100";
+            case "info":
+                return "bg-white border-blue-500 shadow-blue-100";
+            default:
+                return "bg-white border-gray-300 shadow-gray-100";
+        }
+    };
+
+    return (
+        <div
+            className={`fixed top-4 right-4 z-50 max-w-md transition-all duration-300 ${
+                visible
+                    ? "translate-x-0 opacity-100"
+                    : "translate-x-full opacity-0"
+            }`}
+        >
+            <div className={`border-2 rounded-xl shadow-xl ${getBgColor()}`}>
+                {/* Progress bar */}
+                {notification.duration && (
+                    <div className="absolute top-0 left-0 h-1 bg-gray-200 rounded-t-xl">
+                        <div
+                            className={`h-full rounded-t-xl transition-all duration-100 ease-linear ${
+                                notification.type === "success"
+                                    ? "bg-[#439454]"
+                                    : notification.type === "error"
+                                    ? "bg-red-500"
+                                    : notification.type === "warning"
+                                    ? "bg-yellow-500"
+                                    : "bg-blue-500"
+                            }`}
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                )}
+
+                <div className="flex items-start gap-4 p-4 pt-6">
+                    <div className="flex-shrink-0">{getIcon()}</div>
+
+                    <div className="flex-1 min-w-0">
+                        <h4 className="mb-1 text-sm font-bold text-gray-900">
+                            {notification.title}
+                        </h4>
+                        <p className="mb-2 text-sm text-gray-600">
+                            {notification.message}
+                        </p>
+
+                        {notification.employee_name && (
+                            <div className="flex items-center gap-2 text-xs text-[#439454] font-medium">
+                                <Users className="w-3 h-3" />
+                                <span>
+                                    {notification.employee_name} (
+                                    {notification.employee_nip})
+                                </span>
+                            </div>
+                        )}
+
+                        {notification.auto_scroll && (
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Otomatis scroll ke karyawan baru</span>
+                            </div>
+                        )}
+
+                        {notification.duration && (
+                            <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                                <Clock className="w-3 h-3" />
+                                <span>
+                                    Hilang dalam {Math.ceil(progress / 20)}{" "}
+                                    detik
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            setVisible(false);
+                            setTimeout(() => onClose(), 300);
+                        }}
+                        className="flex-shrink-0 text-gray-400 transition-colors duration-200 hover:text-gray-600"
+                        aria-label="Tutup notifikasi"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function Index({
     employees = { data: [] },
@@ -34,8 +178,11 @@ export default function Index({
     filterOptions = {},
     statistics = {},
     newEmployee = null,
-    success,
-    message,
+    success = null,
+    error = null,
+    message = null,
+    notification = null,
+    alerts = [],
     auth,
 }) {
     // State management
@@ -65,44 +212,86 @@ export default function Index({
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
 
+    // Enhanced notification state
+    const [activeNotification, setActiveNotification] = useState(null);
+    const [alertQueue, setAlertQueue] = useState([]);
+
     // Enhanced state untuk tracking karyawan baru dengan click-to-hide dan auto-hide
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
     const [clickedEmployees, setClickedEmployees] = useState(new Set());
     const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
-    const [showNewEmployeeNotification, setShowNewEmployeeNotification] =
-        useState(false);
+
+    // Enhanced notification effect dengan support untuk notification object
+    useEffect(() => {
+        // Handle notification object dari controller
+        if (notification) {
+            setActiveNotification({
+                ...notification,
+                duration: notification.duration || 5000,
+            });
+
+            // Handle auto-scroll jika diperlukan
+            if (notification.auto_scroll && notification.employee_id) {
+                setTimeout(() => {
+                    const employeeRow = document.querySelector(
+                        `[data-employee-id="${notification.employee_id}"]`
+                    );
+                    if (employeeRow) {
+                        employeeRow.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                        });
+
+                        // Add highlight effect
+                        employeeRow.classList.add("animate-pulse");
+                        setTimeout(() => {
+                            employeeRow.classList.remove("animate-pulse");
+                        }, 2000);
+                    }
+                }, 500);
+            }
+        }
+
+        // Handle simple success/error messages
+        else if (success) {
+            setActiveNotification({
+                type: "success",
+                title: "Berhasil!",
+                message: success,
+                duration: 4000,
+            });
+        } else if (error) {
+            setActiveNotification({
+                type: "error",
+                title: "Terjadi Kesalahan!",
+                message: error,
+                duration: 6000,
+            });
+        }
+
+        // Handle message
+        else if (message) {
+            setActiveNotification({
+                type: "info",
+                title: "Informasi",
+                message: message,
+                duration: 4000,
+            });
+        }
+    }, [notification, success, error, message]);
+
+    // Handle alerts queue
+    useEffect(() => {
+        if (alerts && alerts.length > 0) {
+            setAlertQueue(alerts);
+        }
+    }, [alerts]);
 
     // Enhanced effect untuk handle karyawan baru dengan auto-hide timer
     useEffect(() => {
         if (newEmployee) {
             // Tambahkan ID karyawan baru ke set
             setNewEmployeeIds((prev) => new Set([...prev, newEmployee.id]));
-
-            // Tampilkan notifikasi
-            setShowNewEmployeeNotification(true);
-
-            // Auto-scroll ke karyawan baru setelah data dimuat
-            setTimeout(() => {
-                const newEmployeeRow = document.querySelector(
-                    `[data-employee-id="${newEmployee.id}"]`
-                );
-                if (newEmployeeRow) {
-                    newEmployeeRow.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center",
-                    });
-                    // Highlight efek
-                    newEmployeeRow.classList.add("animate-pulse");
-                    setTimeout(() => {
-                        newEmployeeRow.classList.remove("animate-pulse");
-                    }, 2000);
-                }
-            }, 500);
-
-            // Hilangkan notifikasi setelah 5 detik
-            setTimeout(() => {
-                setShowNewEmployeeNotification(false);
-            }, 5000);
 
             // Auto-hide "Baru Ditambahkan" label setelah 1 menit
             setTimeout(() => {
@@ -227,39 +416,6 @@ export default function Index({
         } else if (action === "edit") {
             router.visit(route("employees.edit", employeeId));
         }
-    };
-
-    // Enhanced komponen NewEmployeeNotification
-    const NewEmployeeNotification = () => {
-        if (!showNewEmployeeNotification || !newEmployee) return null;
-
-        return (
-            <div className="fixed z-50 max-w-sm top-4 right-4 animate-slide-in-right">
-                <div className="flex items-center gap-3 px-4 py-3 bg-white border-2 border-[#439454] rounded-xl shadow-xl">
-                    <div className="flex items-center justify-center w-8 h-8 bg-[#439454] rounded-full">
-                        <CheckCircle className="w-5 h-5 text-white animate-checkmark" />
-                    </div>
-                    <div className="flex-1">
-                        <h4 className="text-sm font-bold text-gray-900">
-                            Karyawan Baru Ditambahkan!
-                        </h4>
-                        <p className="text-xs text-gray-600">
-                            {newEmployee.nama_lengkap} ({newEmployee.nip})
-                        </p>
-                        <p className="mt-1 text-xs text-green-600">
-                            Label akan hilang dalam 1 menit atau klik profile
-                            karyawan
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => setShowNewEmployeeNotification(false)}
-                        className="text-gray-400 transition-colors duration-300 hover:text-gray-600"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-        );
     };
 
     // Apply filters with backend pagination
@@ -591,36 +747,7 @@ export default function Index({
                         transform: scale(1.02);
                     }
 
-                    /* Custom dropdown styling */
-                    select option {
-                        background-color: white;
-                        color: #374151;
-                        padding: 8px 12px;
-                        transition: all 0.2s ease-in-out;
-                    }
-                    
-                    select option:hover {
-                        background-color: #439454 !important;
-                        color: white !important;
-                    }
-                    
-                    select option:checked {
-                        background-color: #439454 !important;
-                        color: white !important;
-                    }
-                    
-                    /* Enhanced dropdown animation */
-                    select:focus {
-                        animation: dropdownPulse 0.3s ease-in-out;
-                    }
-                    
-                    @keyframes dropdownPulse {
-                        0% { transform: scale(1); }
-                        50% { transform: scale(1.02); }
-                        100% { transform: scale(1.02); }
-                    }
-                    
-                    /* Pagination animations */
+                    /* Enhanced animations */
                     @keyframes fadeIn {
                         from { opacity: 0; transform: translateY(10px); }
                         to { opacity: 1; transform: translateY(0); }
@@ -657,11 +784,45 @@ export default function Index({
                     .animate-spin {
                         animation: spin 1s linear infinite;
                     }
+
+                    /* Enhanced dropdown styling */
+                    select option {
+                        background-color: white;
+                        color: #374151;
+                        padding: 8px 12px;
+                        transition: all 0.2s ease-in-out;
+                    }
+                    
+                    select option:hover {
+                        background-color: #439454 !important;
+                        color: white !important;
+                    }
+                    
+                    select option:checked {
+                        background-color: #439454 !important;
+                        color: white !important;
+                    }
+                    
+                    /* Enhanced dropdown animation */
+                    select:focus {
+                        animation: dropdownPulse 0.3s ease-in-out;
+                    }
+                    
+                    @keyframes dropdownPulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.02); }
+                        100% { transform: scale(1.02); }
+                    }
                 `}</style>
             </Head>
 
-            {/* Enhanced Notifikasi karyawan baru */}
-            <NewEmployeeNotification />
+            {/* Enhanced Notification System */}
+            {activeNotification && (
+                <EnhancedNotification
+                    notification={activeNotification}
+                    onClose={() => setActiveNotification(null)}
+                />
+            )}
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
                 {/* Header Section */}
@@ -677,7 +838,7 @@ export default function Index({
                                     Bandar Udara Ngurah Rai
                                 </p>
                             </div>
-                            <div className="flex gap-3 mt-6 md:mt-0">
+                            <div className="flex flex-wrap gap-3 mt-6 md:mt-0">
                                 <Link
                                     href={route("employees.import")}
                                     className="group inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
@@ -804,7 +965,7 @@ export default function Index({
                 {/* Enhanced Search and Filter Section */}
                 <div className="px-6 py-8 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
                     {/* Enhanced Search Bar */}
-                    <div className="flex gap-4 mb-6">
+                    <div className="flex flex-col gap-4 mb-6 sm:flex-row">
                         <div className="relative flex-1 group">
                             <div className="absolute inset-0 bg-gradient-to-r from-[#439454]/10 to-[#367a41]/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-105"></div>
                             <div className="relative">
@@ -838,36 +999,38 @@ export default function Index({
                             </div>
                         </div>
 
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`group inline-flex items-center gap-3 px-6 py-4 text-sm font-semibold border-2 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 ${
-                                showFilters || hasActiveFilters()
-                                    ? "text-white bg-gradient-to-r from-[#439454] to-[#367a41] border-[#439454] shadow-lg"
-                                    : "text-gray-700 bg-white border-gray-300 hover:bg-[#439454] hover:text-white hover:border-[#439454] shadow-sm hover:shadow-md"
-                            }`}
-                        >
-                            <Filter className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
-                            Filter
-                            {showFilters ? (
-                                <ChevronUp className="w-4 h-4 transition-transform duration-300" />
-                            ) : (
-                                <ChevronDown className="w-4 h-4 transition-transform duration-300" />
-                            )}
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className={`group inline-flex items-center gap-3 px-6 py-4 text-sm font-semibold border-2 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 ${
+                                    showFilters || hasActiveFilters()
+                                        ? "text-white bg-gradient-to-r from-[#439454] to-[#367a41] border-[#439454] shadow-lg"
+                                        : "text-gray-700 bg-white border-gray-300 hover:bg-[#439454] hover:text-white hover:border-[#439454] shadow-sm hover:shadow-md"
+                                }`}
+                            >
+                                <Filter className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                                Filter
+                                {showFilters ? (
+                                    <ChevronUp className="w-4 h-4 transition-transform duration-300" />
+                                ) : (
+                                    <ChevronDown className="w-4 h-4 transition-transform duration-300" />
+                                )}
+                            </button>
 
-                        {/* Clear All Button - Always visible */}
-                        <button
-                            onClick={clearAllFilters}
-                            className={`group inline-flex items-center gap-3 px-6 py-4 text-sm font-semibold border-2 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5 ${
-                                hasActiveFilters()
-                                    ? "text-red-600 bg-white border-red-300 hover:bg-red-50 hover:border-red-400 hover:text-red-700"
-                                    : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-700"
-                            }`}
-                            title="Hapus semua filter dan pencarian"
-                        >
-                            <X className="w-4 h-4 transition-transform duration-300 group-hover:rotate-90" />
-                            Clear All
-                        </button>
+                            {/* Clear All Button - Always visible */}
+                            <button
+                                onClick={clearAllFilters}
+                                className={`group inline-flex items-center gap-3 px-6 py-4 text-sm font-semibold border-2 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5 ${
+                                    hasActiveFilters()
+                                        ? "text-red-600 bg-white border-red-300 hover:bg-red-50 hover:border-red-400 hover:text-red-700"
+                                        : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-700"
+                                }`}
+                                title="Hapus semua filter dan pencarian"
+                            >
+                                <X className="w-4 h-4 transition-transform duration-300 group-hover:rotate-90" />
+                                Clear All
+                            </button>
+                        </div>
                     </div>
 
                     {/* Enhanced Advanced Filters with Smooth Animation */}
@@ -1155,7 +1318,7 @@ export default function Index({
                             </div>
 
                             {/* Enhanced Results Count */}
-                            <div className="flex items-center justify-between mt-4">
+                            <div className="flex flex-col gap-4 mt-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="space-y-1">
                                     <div className="inline-block px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg">
                                         Menampilkan{" "}
