@@ -261,6 +261,9 @@ export default function Create({
             no_bpjs_kesehatan: "",
             no_bpjs_ketenagakerjaan: "",
             seragam: "",
+            // Add fields yang ada di database tapi tidak di form sebelumnya
+            nik: "",
+            no_telepon: "",
         });
 
     const [activeSection, setActiveSection] = useState("personal");
@@ -319,8 +322,9 @@ export default function Create({
                 }
                 break;
             case "handphone":
+            case "no_telepon":
                 if (value && !/^[0-9+\-\s()]+$/.test(value)) {
-                    error = "Format nomor handphone tidak valid";
+                    error = "Format nomor telepon tidak valid";
                 }
                 break;
             case "nip":
@@ -328,6 +332,13 @@ export default function Create({
                     error = "NIP hanya boleh berisi angka";
                 } else if (value && value.length < 6) {
                     error = "NIP minimal 6 digit";
+                }
+                break;
+            case "nik":
+                if (value && !/^[0-9]+$/.test(value)) {
+                    error = "NIK hanya boleh berisi angka";
+                } else if (value && value.length !== 16) {
+                    error = "NIK harus 16 digit";
                 }
                 break;
             case "tahun_lulus":
@@ -350,6 +361,11 @@ export default function Create({
             case "weight":
                 if (value && (parseInt(value) < 30 || parseInt(value) > 200)) {
                     error = "Berat badan harus antara 30-200 kg";
+                }
+                break;
+            case "ukuran_sepatu":
+                if (value && (parseInt(value) < 30 || parseInt(value) > 50)) {
+                    error = "Ukuran sepatu harus antara 30-50";
                 }
                 break;
             case "tanggal_lahir":
@@ -381,7 +397,7 @@ export default function Create({
         setData(name, value);
 
         // Real-time validation for important fields
-        if (["nip", "email", "handphone"].includes(name)) {
+        if (["nip", "nik", "email", "handphone", "no_telepon"].includes(name)) {
             setTimeout(() => validateField(name, value), 500);
         }
     };
@@ -410,9 +426,14 @@ export default function Create({
         return newErrors;
     };
 
+    // FIXED: Enhanced form submission dengan better debugging
     const handleSubmit = (e) => {
         e.preventDefault();
         setIsSubmitting(true);
+
+        // Log form data untuk debugging
+        console.log("Form Data Submission:", data);
+        console.log("Gender Value:", data.jenis_kelamin);
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -441,8 +462,22 @@ export default function Create({
             return;
         }
 
+        // FIXED: Clean data before submission
+        const cleanData = { ...data };
+
+        // Remove empty strings dan convert ke null jika perlu
+        Object.keys(cleanData).forEach((key) => {
+            if (cleanData[key] === "") {
+                cleanData[key] = null;
+            }
+        });
+
+        console.log("Clean Data for Submission:", cleanData);
+
         post(route("employees.store"), {
-            onSuccess: () => {
+            data: cleanData,
+            onSuccess: (response) => {
+                console.log("Form submitted successfully:", response);
                 setNotification({
                     type: "success",
                     title: "Berhasil!",
@@ -456,15 +491,25 @@ export default function Create({
                 }, 2000);
             },
             onError: (errors) => {
+                console.log("Form submission errors:", errors);
+
                 let errorMessage = "Terjadi kesalahan saat menyimpan data";
 
                 if (errors.nip) {
                     errorMessage = "NIP sudah digunakan atau tidak valid";
                 } else if (errors.email) {
                     errorMessage = "Email sudah digunakan atau tidak valid";
+                } else if (errors.jenis_kelamin) {
+                    errorMessage = "Jenis kelamin tidak valid";
                 } else if (Object.keys(errors).length > 0) {
+                    // Show first error
+                    const firstError = Object.values(errors)[0];
                     errorMessage =
-                        "Data yang diisi tidak valid. Silakan periksa kembali.";
+                        typeof firstError === "string"
+                            ? firstError
+                            : Array.isArray(firstError)
+                            ? firstError[0]
+                            : "Data yang diisi tidak valid. Silakan periksa kembali.";
                 }
 
                 setNotification({
@@ -517,6 +562,17 @@ export default function Create({
                     onBlur={handleInputBlur}
                     error={errors.nip || formValidation.nip}
                     hint="Nomor Induk Pegawai (minimal 6 digit)"
+                />
+                <InputField
+                    name="nik"
+                    label="NIK"
+                    placeholder="Contoh: 1234567890123456"
+                    icon={User}
+                    value={data.nik}
+                    onChange={handleInputChange}
+                    onBlur={handleInputBlur}
+                    error={errors.nik || formValidation.nik}
+                    hint="Nomor Induk Kependudukan (16 digit)"
                 />
                 <InputField
                     name="nama_lengkap"
@@ -592,6 +648,17 @@ export default function Create({
                     error={errors.handphone || formValidation.handphone}
                 />
                 <InputField
+                    name="no_telepon"
+                    label="No. Telepon"
+                    placeholder="0361-123456"
+                    icon={Phone}
+                    value={data.no_telepon}
+                    onChange={handleInputChange}
+                    onBlur={handleInputBlur}
+                    error={errors.no_telepon || formValidation.no_telepon}
+                    hint="Nomor telepon rumah (opsional)"
+                />
+                <InputField
                     name="email"
                     label="Email"
                     type="email"
@@ -657,6 +724,7 @@ export default function Create({
                         "PEGAWAI TETAP",
                         "PEGAWAI KONTRAK",
                         "PEGAWAI MAGANG",
+                        "TAD",
                     ]}
                     icon={UserCheck}
                     value={data.status_pegawai}
@@ -773,8 +841,8 @@ export default function Create({
                     label="Seragam"
                     placeholder="Akan diisi nanti"
                     icon={Shield}
-                    value=""
-                    onChange={() => {}} // No-op function
+                    value={data.seragam}
+                    onChange={handleInputChange}
                     disabled={true}
                     error={errors.seragam}
                     hint="Field ini akan diisi oleh admin"
@@ -797,7 +865,9 @@ export default function Create({
                     icon={Shield}
                     value={data.ukuran_sepatu}
                     onChange={handleInputChange}
-                    error={errors.ukuran_sepatu}
+                    onBlur={handleInputBlur}
+                    error={errors.ukuran_sepatu || formValidation.ukuran_sepatu}
+                    hint="Ukuran sepatu (30-50)"
                 />
                 <InputField
                     name="height"

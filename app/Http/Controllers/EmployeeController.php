@@ -242,7 +242,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * ENHANCED: Advanced notification system with detailed tracking and logging
+     * FIXED: Gender field mapping dan database compatibility
      */
     public function store(Request $request)
     {
@@ -252,11 +252,12 @@ class EmployeeController extends Controller
                 'nip' => $request->nip,
                 'nama_lengkap' => $request->nama_lengkap,
                 'unit_organisasi' => $request->unit_organisasi,
+                'jenis_kelamin' => $request->jenis_kelamin,
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
             ]);
 
-            // Comprehensive validation dengan custom error messages
+            // FIXED: Comprehensive validation dengan database compatibility
             $validator = Validator::make($request->all(), [
                 // Required fields
                 'nip' => [
@@ -268,7 +269,8 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|max:255',
                 'unit_organisasi' => 'required|string|max:100',
                 'nama_jabatan' => 'required|string|max:255',
-                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
+                // FIXED: Accept both form format dan database format
+                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 
                 // Optional fields with validation
                 'nik' => 'nullable|string|max:20',
@@ -282,7 +284,7 @@ class EmployeeController extends Controller
                 
                 // Work related fields
                 'jabatan' => 'nullable|string|max:255',
-                'status_pegawai' => 'nullable|in:PEGAWAI TETAP,PEGAWAI KONTRAK,PEGAWAI MAGANG',
+                'status_pegawai' => 'nullable|in:PEGAWAI TETAP,PEGAWAI KONTRAK,PEGAWAI MAGANG,TAD',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_pensiun' => 'nullable|date|after:today',
@@ -294,13 +296,13 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Additional fields
-                'jenis_sepatu' => 'nullable|string|max:50',
-                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
-                'height' => 'nullable|integer|min:100|max:250',
-                'weight' => 'nullable|integer|min:30|max:200',
-                'no_bpjs_kesehatan' => 'nullable|string|max:20',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
+                // Additional fields - FIXED: sesuaikan dengan database
+                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
+                'ukuran_sepatu' => 'nullable|string|max:10',
+                'height' => 'nullable|numeric|between:100,250',
+                'weight' => 'nullable|numeric|between:30,200',
+                'no_bpjs_kesehatan' => 'nullable|string|max:50',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
                 'organization_id' => 'nullable|exists:organizations,id',
             ], [
                 // Custom error messages
@@ -310,6 +312,7 @@ class EmployeeController extends Controller
                 'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi',
                 'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
+                'jenis_kelamin.in' => 'Jenis kelamin tidak valid',
                 'email.unique' => 'Email sudah digunakan oleh karyawan lain',
                 'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini',
                 'tmt_pensiun.after' => 'Tanggal pensiun harus setelah hari ini',
@@ -339,18 +342,15 @@ class EmployeeController extends Controller
             DB::beginTransaction();
 
             try {
-                // Prepare data for insertion dengan validasi tambahan
-                $employeeData = $request->only([
-                    'nip', 'nik', 'nama_lengkap', 'jenis_kelamin',
-                    'tempat_lahir', 'tanggal_lahir', 'alamat', 'kota_domisili',
-                    'no_telepon', 'handphone', 'email',
-                    'unit_organisasi', 'nama_jabatan', 'jabatan', 'status_pegawai',
-                    'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun',
-                    'pendidikan_terakhir', 'pendidikan', 'instansi_pendidikan',
-                    'jurusan', 'tahun_lulus',
-                    'jenis_sepatu', 'ukuran_sepatu', 'height', 'weight',
-                    'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan', 'organization_id'
-                ]);
+                // Get validated data
+                $employeeData = $validator->validated();
+
+                // FIXED: Convert gender to database format (L/P)
+                if (in_array($employeeData['jenis_kelamin'], ['Laki-laki', 'L'])) {
+                    $employeeData['jenis_kelamin'] = 'L';
+                } else {
+                    $employeeData['jenis_kelamin'] = 'P';
+                }
 
                 // Set default values untuk GAPURA ANGKASA
                 $employeeData['status_pegawai'] = $employeeData['status_pegawai'] ?? 'PEGAWAI TETAP';
@@ -371,6 +371,28 @@ class EmployeeController extends Controller
                     $employeeData['usia'] = $birthDate->age;
                 }
 
+                // FIXED: Only keep fields that exist in database fillable
+                $allowedFields = [
+                    'nip', 'nik', 'nama_lengkap', 'lokasi_kerja', 'cabang', 'status_pegawai',
+                    'status_kerja', 'provider', 'kode_organisasi', 'unit_organisasi', 'nama_organisasi',
+                    'nama_jabatan', 'jabatan', 'unit_kerja_kontrak', 'tmt_mulai_kerja', 'tmt_mulai_jabatan',
+                    'tmt_berakhir_jabatan', 'tmt_berakhir_kerja', 'masa_kerja_bulan', 'masa_kerja_tahun',
+                    'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'tempat_lahir', 'tanggal_lahir',
+                    'usia', 'kota_domisili', 'alamat', 'pendidikan', 'pendidikan_terakhir', 'instansi_pendidikan',
+                    'jurusan', 'remarks_pendidikan', 'tahun_lulus', 'handphone', 'no_telepon', 'email',
+                    'kategori_karyawan', 'tmt_pensiun', 'grade', 'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan',
+                    'kelompok_jabatan', 'kelas_jabatan', 'weight', 'height', 'organization_id', 'status'
+                ];
+
+                // Filter data untuk hanya field yang ada di database
+                $employeeData = array_intersect_key($employeeData, array_flip($allowedFields));
+
+                // Log data yang akan disimpan untuk debugging
+                Log::info('Employee Data Before Save', [
+                    'data' => $employeeData,
+                    'jenis_kelamin' => $employeeData['jenis_kelamin']
+                ]);
+
                 // Create employee dengan error handling
                 $employee = Employee::create($employeeData);
 
@@ -387,6 +409,7 @@ class EmployeeController extends Controller
                     'nip' => $employee->nip,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
+                    'jenis_kelamin' => $employee->jenis_kelamin,
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
@@ -482,7 +505,7 @@ class EmployeeController extends Controller
 
     /**
      * Update the specified employee
-     * ENHANCED: Better notification system untuk update
+     * FIXED: Gender field conversion dan database compatibility
      */
     public function update(Request $request, Employee $employee)
     {
@@ -497,6 +520,7 @@ class EmployeeController extends Controller
                     Rule::unique('employees', 'nip')->ignore($employee->id)
                 ],
                 'nama_lengkap' => 'required|string|max:255',
+                // FIXED: Accept both formats dan convert properly
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
@@ -507,7 +531,7 @@ class EmployeeController extends Controller
                 'unit_organisasi' => 'required|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 'nama_jabatan' => 'required|string|max:255',
-                'status_pegawai' => 'required|in:PEGAWAI TETAP,TAD',
+                'status_pegawai' => 'required|in:PEGAWAI TETAP,TAD,PEGAWAI KONTRAK,PEGAWAI MAGANG',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_pensiun' => 'nullable|date|after:today',
@@ -542,11 +566,11 @@ class EmployeeController extends Controller
 
             $data = $validator->validated();
             
-            // Normalize gender field
+            // FIXED: Convert gender to database format (L/P) instead of display format
             if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
-                $data['jenis_kelamin'] = 'Laki-laki';
+                $data['jenis_kelamin'] = 'L';
             } else {
-                $data['jenis_kelamin'] = 'Perempuan';
+                $data['jenis_kelamin'] = 'P';
             }
 
             // Recalculate age if birth date is updated
@@ -698,8 +722,8 @@ class EmployeeController extends Controller
                 'inactive_employees' => Employee::where('status', 'inactive')->count(),
                 'pegawai_tetap' => Employee::where('status_pegawai', 'PEGAWAI TETAP')->count(),
                 'tad' => Employee::where('status_pegawai', 'TAD')->count(),
-                'male_employees' => Employee::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
-                'female_employees' => Employee::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
+                'male_employees' => Employee::where('jenis_kelamin', 'L')->count(),
+                'female_employees' => Employee::where('jenis_kelamin', 'P')->count(),
                 'shoe_statistics' => [
                     'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
                     'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
@@ -793,7 +817,7 @@ class EmployeeController extends Controller
                     fputcsv($file, [
                         $employee->nip,
                         $employee->nama_lengkap,
-                        $employee->jenis_kelamin,
+                        $employee->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan',
                         $employee->tempat_lahir,
                         $employee->tanggal_lahir ? Carbon::parse($employee->tanggal_lahir)->format('d/m/Y') : '',
                         $employee->alamat,
@@ -1175,7 +1199,7 @@ class EmployeeController extends Controller
                 'shoe_types' => ['Pantofel', 'Safety Shoes'],
                 'shoe_sizes' => $this->getShoeSizeOptions(),
                 'status_pegawai' => ['PEGAWAI TETAP', 'TAD'],
-                'genders' => ['Laki-laki', 'Perempuan'],
+                'genders' => ['L', 'P'], // FIXED: Use database format for consistency
             ];
         } catch (\Exception $e) {
             return [
@@ -1477,18 +1501,19 @@ class EmployeeController extends Controller
 
     /**
      * Normalize gender field
+     * FIXED: Return database compatible format (L/P)
      */
     private function normalizeGender($gender)
     {
         $gender = strtoupper(trim($gender));
         
         if (in_array($gender, ['L', 'LAKI-LAKI', 'LAKI', 'MALE', 'M'])) {
-            return 'Laki-laki';
+            return 'L';
         } elseif (in_array($gender, ['P', 'PEREMPUAN', 'WANITA', 'FEMALE', 'F'])) {
-            return 'Perempuan';
+            return 'P';
         }
         
-        return 'Laki-laki'; // Default
+        return 'L'; // Default
     }
 
     /**
@@ -1502,8 +1527,8 @@ class EmployeeController extends Controller
                 'active' => Employee::where('status', 'active')->count(),
                 'pegawai_tetap' => Employee::where('status_pegawai', 'PEGAWAI TETAP')->count(),
                 'tad' => Employee::where('status_pegawai', 'TAD')->count(),
-                'laki_laki' => Employee::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
-                'perempuan' => Employee::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
+                'laki_laki' => Employee::where('jenis_kelamin', 'L')->count(),
+                'perempuan' => Employee::where('jenis_kelamin', 'P')->count(),
                 'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
                 'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
             ];
@@ -1570,7 +1595,7 @@ class EmployeeController extends Controller
                             $employee->unit_organisasi,
                             $employee->jabatan ?: $employee->nama_jabatan,
                             $employee->tmt_mulai_jabatan ? Carbon::parse($employee->tmt_mulai_jabatan)->format('d/m/Y') : '',
-                            $employee->jenis_kelamin,
+                            $employee->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan',
                             $employee->handphone,
                             $employee->email ?: '-',
                             $employee->pendidikan_terakhir ?: $employee->pendidikan,
