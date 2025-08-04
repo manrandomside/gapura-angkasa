@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Organization;
+use App\Helpers\TimezoneHelper;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -16,7 +17,7 @@ class EmployeeController extends Controller
 {
     /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * ENHANCED: Added support for real-time new employee notifications with click-to-hide and auto-hide
+     * ENHANCED: Added support for real-time new employee notifications with WITA timezone support
      */
     public function index(Request $request)
     {
@@ -97,8 +98,8 @@ class EmployeeController extends Controller
                              ->paginate($perPage)
                              ->withQueryString(); // Preserve query parameters in pagination links
 
-            // Calculate statistics based on filtered results (not pagination)
-            $filteredStatistics = $this->calculateFilteredStatistics($statisticsQuery, $filterConditions);
+            // ENHANCED: Calculate statistics with WITA timezone support
+            $statistics = $this->getEnhancedStatistics($filterConditions);
 
             // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
@@ -106,14 +107,23 @@ class EmployeeController extends Controller
             // Get filter options for dropdowns
             $filterOptions = $this->getFilterOptions();
 
-            // ENHANCED: Get comprehensive notification data from session
+            // ENHANCED: Get new employees data for notifications (WITA timezone)
+            $newEmployeesToday = $this->getNewEmployeesToday();
+            $newEmployeesYesterday = $this->getNewEmployeesYesterday();
+            $newEmployeesThisWeek = $this->getNewEmployeesThisWeek();
+
+            // Get notification data from session (if exists)
             $notificationData = $this->getNotificationData();
+
+            // Get current WITA time information
+            $timeInfo = TimezoneHelper::getTimeBasedGreeting();
+            $businessHours = TimezoneHelper::getBusinessHoursStatus();
 
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
                 'organizations' => $organizations,
                 'filterOptions' => $filterOptions,
-                'statistics' => $filteredStatistics,
+                'statistics' => $statistics,
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
@@ -137,13 +147,33 @@ class EmployeeController extends Controller
                     'prev_page_url' => $employees->previousPageUrl(),
                     'links' => $employees->links()->elements[0] ?? []
                 ],
-                // ENHANCED: Comprehensive notification data
+                
+                // ENHANCED: Comprehensive notification data with WITA timezone
+                'notifications' => [
+                    'session' => $notificationData,
+                    'newToday' => $newEmployeesToday,
+                    'newYesterday' => count($newEmployeesYesterday),
+                    'newThisWeek' => $newEmployeesThisWeek,
+                    'timeInfo' => $timeInfo,
+                    'businessHours' => $businessHours,
+                    'witaTime' => TimezoneHelper::formatIndonesian(TimezoneHelper::getWitaDate()),
+                ],
+
+                // Legacy compatibility (keep existing)
                 'newEmployee' => $notificationData['newEmployee'],
                 'success' => $notificationData['success'],
                 'error' => $notificationData['error'],
                 'message' => $notificationData['message'],
                 'notification' => $notificationData['notification'],
                 'alerts' => $notificationData['alerts'],
+
+                // Page metadata
+                'title' => 'Management Karyawan',
+                'subtitle' => 'Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai',
+                'breadcrumbs' => [
+                    ['name' => 'Dashboard', 'route' => 'dashboard'],
+                    ['name' => 'Management Karyawan', 'route' => 'employees.index'],
+                ],
             ]);
 
         } catch (\Exception $e) {
@@ -161,7 +191,10 @@ class EmployeeController extends Controller
                     'total' => 0,
                     'pegawaiTetap' => 0,
                     'tad' => 0,
-                    'uniqueUnits' => 0
+                    'uniqueUnits' => 0,
+                    'newToday' => 0,
+                    'newYesterday' => 0,
+                    'newThisWeek' => 0,
                 ],
                 'filters' => $request->only([
                     'search', 
@@ -186,10 +219,18 @@ class EmployeeController extends Controller
                     'prev_page_url' => null,
                     'links' => []
                 ],
+                'notifications' => [
+                    'session' => null, 
+                    'newToday' => [], 
+                    'timeInfo' => TimezoneHelper::getTimeBasedGreeting(),
+                    'witaTime' => TimezoneHelper::formatIndonesian(TimezoneHelper::getWitaDate()),
+                ],
                 'newEmployee' => null,
                 'error' => 'Terjadi kesalahan saat memuat data karyawan: ' . $e->getMessage(),
                 'notification' => null,
                 'alerts' => [],
+                'title' => 'Management Karyawan',
+                'subtitle' => 'Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai',
             ]);
         }
     }
@@ -381,7 +422,7 @@ class EmployeeController extends Controller
                     'usia', 'kota_domisili', 'alamat', 'pendidikan', 'pendidikan_terakhir', 'instansi_pendidikan',
                     'jurusan', 'remarks_pendidikan', 'tahun_lulus', 'handphone', 'no_telepon', 'email',
                     'kategori_karyawan', 'tmt_pensiun', 'grade', 'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan',
-                    'kelompok_jabatan', 'kelas_jabatan', 'weight', 'height', 'organization_id', 'status'
+                    'kelompok_jabatan', 'kelas_jabatan', 'weight', 'height', 'organization_id', 'status', 'seragam'
                 ];
 
                 // Filter data untuk hanya field yang ada di database
@@ -413,7 +454,7 @@ class EmployeeController extends Controller
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
-                // ENHANCED: Comprehensive notification system
+                // ENHANCED: Comprehensive notification system with WITA timezone
                 $notificationData = $this->buildSuccessNotification($employee);
 
                 return redirect()->route('employees.index')
@@ -809,7 +850,7 @@ class EmployeeController extends Controller
                     'Alamat', 'No Telepon', 'Handphone', 'Email', 'Unit Organisasi', 
                     'Jabatan', 'Status Pegawai', 'TMT Mulai Jabatan', 'TMT Mulai Kerja',
                     'Pendidikan Terakhir', 'Instansi Pendidikan', 'Jurusan', 'Tahun Lulus',
-                    'Jenis Sepatu', 'Ukuran Sepatu', 'Kota Domisili', 'Usia', 'Status'
+                    'Jenis Sepatu', 'Ukuran Sepatu', 'Kota Domisili', 'Usia', 'Status', 'Seragam'
                 ]);
 
                 // CSV Data
@@ -838,6 +879,7 @@ class EmployeeController extends Controller
                         $employee->kota_domisili,
                         $employee->usia,
                         $employee->status_kerja ?: 'Aktif',
+                        $employee->seragam ?: '-',
                     ]);
                 }
 
@@ -1064,8 +1106,195 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // PRIVATE HELPER METHODS - ENHANCED
+    // ENHANCED PRIVATE HELPER METHODS WITH WITA SUPPORT
     // =====================================================
+
+    /**
+     * Get enhanced statistics with WITA timezone support
+     * ENHANCED: Includes new employee counts based on WITA timezone
+     */
+    private function getEnhancedStatistics($filterConditions = [])
+    {
+        try {
+            // If no filters applied, get global statistics
+            if (empty($filterConditions)) {
+                $total = Employee::where('status', 'active')->count();
+                $pegawaiTetap = Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count();
+                $tad = Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count();
+                $uniqueUnits = Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+            } else {
+                // If filters applied, calculate from filtered results
+                $query = Employee::where('status', 'active');
+                
+                // Apply the same filters as in index method
+                if (isset($filterConditions['search'])) {
+                    $searchTerm = $filterConditions['search'];
+                    $query->where(function($q) use ($searchTerm) {
+                        $q->where('nip', 'like', "%{$searchTerm}%")
+                          ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
+                          ->orWhere('jabatan', 'like', "%{$searchTerm}%")
+                          ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
+                          ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
+                          ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
+                    });
+                }
+
+                if (isset($filterConditions['status_pegawai'])) {
+                    $query->where('status_pegawai', $filterConditions['status_pegawai']);
+                }
+
+                if (isset($filterConditions['unit_organisasi'])) {
+                    $query->where('unit_organisasi', $filterConditions['unit_organisasi']);
+                }
+
+                if (isset($filterConditions['jenis_kelamin'])) {
+                    $query->where('jenis_kelamin', $filterConditions['jenis_kelamin']);
+                }
+
+                if (isset($filterConditions['jenis_sepatu'])) {
+                    $query->where('jenis_sepatu', $filterConditions['jenis_sepatu']);
+                }
+
+                if (isset($filterConditions['ukuran_sepatu'])) {
+                    $query->where('ukuran_sepatu', $filterConditions['ukuran_sepatu']);
+                }
+
+                $total = $query->count();
+                $pegawaiTetap = (clone $query)->where('status_pegawai', 'PEGAWAI TETAP')->count();
+                $tad = (clone $query)->where('status_pegawai', 'TAD')->count();
+                $uniqueUnits = (clone $query)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+            }
+            
+            // ENHANCED: New employees count with WITA timezone (global, not filtered)
+            $newToday = Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaTodayStart()->utc(),
+                TimezoneHelper::getWitaTodayEnd()->utc()
+            ])->count();
+
+            $newYesterday = Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaYesterdayStart()->utc(),
+                TimezoneHelper::getWitaYesterdayEnd()->utc()
+            ])->count();
+
+            $newThisWeek = Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaThisWeekStart()->utc(),
+                TimezoneHelper::getWitaDate()->utc()
+            ])->count();
+
+            $newThisMonth = Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaThisMonthStart()->utc(),
+                TimezoneHelper::getWitaDate()->utc()
+            ])->count();
+
+            return [
+                'total' => $total,
+                'pegawaiTetap' => $pegawaiTetap,
+                'tad' => $tad,
+                'uniqueUnits' => $uniqueUnits,
+                'newToday' => $newToday,
+                'newYesterday' => $newYesterday,
+                'newThisWeek' => $newThisWeek,
+                'newThisMonth' => $newThisMonth,
+                'activeFilters' => is_array($filterConditions) ? count($filterConditions) : 0
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Enhanced Statistics Error: ' . $e->getMessage());
+            return [
+                'total' => 0,
+                'pegawaiTetap' => 0,
+                'tad' => 0,
+                'uniqueUnits' => 0,
+                'newToday' => 0,
+                'newYesterday' => 0,
+                'newThisWeek' => 0,
+                'newThisMonth' => 0,
+                'activeFilters' => 0
+            ];
+        }
+    }
+
+    /**
+     * Get new employees added today in WITA timezone
+     * ENHANCED: Returns detailed employee data for notifications
+     */
+    private function getNewEmployeesToday()
+    {
+        try {
+            return Employee::select(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'created_at'])
+                ->whereBetween('created_at', [
+                    TimezoneHelper::getWitaTodayStart()->utc(),
+                    TimezoneHelper::getWitaTodayEnd()->utc()
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nip' => $employee->nip,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'nama_jabatan' => $employee->nama_jabatan,
+                        'created_at' => $employee->created_at,
+                        'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                        'time_diff' => TimezoneHelper::getHumanDiff($employee->created_at),
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('New Employees Today Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get new employees added yesterday in WITA timezone
+     * ENHANCED: Returns count for comparison
+     */
+    private function getNewEmployeesYesterday()
+    {
+        try {
+            return Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaYesterdayStart()->utc(),
+                TimezoneHelper::getWitaYesterdayEnd()->utc()
+            ])->count();
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get new employees added this week in WITA timezone
+     * ENHANCED: Returns detailed data for weekly summary
+     */
+    private function getNewEmployeesThisWeek()
+    {
+        try {
+            return Employee::select(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'created_at'])
+                ->whereBetween('created_at', [
+                    TimezoneHelper::getWitaThisWeekStart()->utc(),
+                    TimezoneHelper::getWitaDate()->utc()
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nip' => $employee->nip,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'created_at' => $employee->created_at,
+                        'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                        'is_today' => TimezoneHelper::isToday($employee->created_at),
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('New Employees This Week Error: ' . $e->getMessage());
+            return [];
+        }
+    }
 
     /**
      * Get comprehensive notification data from session
@@ -1092,10 +1321,12 @@ class EmployeeController extends Controller
 
     /**
      * Build comprehensive success notification data
-     * ENHANCED: Advanced notification system
+     * ENHANCED: Advanced notification system with WITA timezone
      */
     private function buildSuccessNotification(Employee $employee)
     {
+        $timeInfo = TimezoneHelper::getTimeBasedGreeting();
+        
         return [
             'success' => 'Karyawan berhasil ditambahkan!',
             'newEmployeeId' => $employee->id,
@@ -1104,73 +1335,29 @@ class EmployeeController extends Controller
             'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
             'notification' => [
                 'type' => 'success',
-                'title' => 'Karyawan Baru Ditambahkan!',
+                'title' => $timeInfo['greeting'] . ' - Karyawan Baru!',
                 'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
                 'employee_id' => $employee->id,
                 'employee_nip' => $employee->nip,
                 'employee_name' => $employee->nama_lengkap,
                 'unit_organisasi' => $employee->unit_organisasi,
+                'time_info' => $timeInfo,
+                'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
                 'auto_scroll' => true,
                 'show_highlight' => true,
-                'duration' => 5000,
+                'duration' => 6000,
                 'click_to_hide' => true,
-                'created_at' => now()->toDateTimeString(),
+                'created_at' => $employee->created_at->toDateTimeString(),
             ],
             'alerts' => [
                 [
-                    'type' => 'info',
-                    'message' => 'Data karyawan telah tersimpan dan akan muncul di daftar karyawan.',
-                    'duration' => 3000
+                    'type' => 'success',
+                    'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan notifikasi ' . strtolower($timeInfo['greeting']) . '.',
+                    'dismissible' => true,
+                    'duration' => 4000
                 ]
             ]
         ];
-    }
-
-    /**
-     * Calculate statistics based on filtered results (not pagination)
-     */
-    private function calculateFilteredStatistics($query, $filterConditions)
-    {
-        try {
-            // If no filters applied, get global statistics
-            if (empty($filterConditions)) {
-                return [
-                    'total' => Employee::where('status', 'active')->count(),
-                    'pegawaiTetap' => Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count(),
-                    'tad' => Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count(),
-                    'uniqueUnits' => Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi'),
-                ];
-            }
-            
-            // If filters applied, calculate from filtered query
-            $baseQuery = clone $query;
-            
-            $total = $baseQuery->count();
-            
-            $pegawaiTetapQuery = clone $query;
-            $pegawaiTetap = $pegawaiTetapQuery->where('status_pegawai', 'PEGAWAI TETAP')->count();
-            
-            $tadQuery = clone $query;
-            $tad = $tadQuery->where('status_pegawai', 'TAD')->count();
-            
-            $unitsQuery = clone $query;
-            $uniqueUnits = $unitsQuery->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
-            
-            return [
-                'total' => $total,
-                'pegawaiTetap' => $pegawaiTetap,
-                'tad' => $tad,
-                'uniqueUnits' => $uniqueUnits,
-            ];
-            
-        } catch (\Exception $e) {
-            return [
-                'total' => 0,
-                'pegawaiTetap' => 0,
-                'tad' => 0,
-                'uniqueUnits' => 0,
-            ];
-        }
     }
 
     /**
@@ -1452,6 +1639,7 @@ class EmployeeController extends Controller
                 'email' => $data['EMAIL'] ?? $data['Email'] ?? null,
                 'jenis_sepatu' => $data['JENIS SEPATU'] ?? $data['Jenis Sepatu'] ?? null,
                 'ukuran_sepatu' => $data['UKURAN SEPATU'] ?? $data['Ukuran Sepatu'] ?? null,
+                'seragam' => $data['SERAGAM'] ?? $data['Seragam'] ?? '-',
                 'provider' => 'PT Gapura Angkasa',
                 'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
                 'cabang' => 'DPS',
@@ -1583,7 +1771,7 @@ class EmployeeController extends Controller
                     fputcsv($file, [
                         'NIP', 'Nama Lengkap', 'Status Pegawai', 'Unit Organisasi',
                         'Jabatan', 'TMT Mulai Jabatan', 'Jenis Kelamin',
-                        'Handphone', 'Email', 'Pendidikan', 'Jurusan', 'Jenis Sepatu', 'Ukuran Sepatu'
+                        'Handphone', 'Email', 'Pendidikan', 'Jurusan', 'Jenis Sepatu', 'Ukuran Sepatu', 'Seragam'
                     ]);
 
                     // Data
@@ -1602,6 +1790,7 @@ class EmployeeController extends Controller
                             $employee->jurusan,
                             $employee->jenis_sepatu ?: '-',
                             $employee->ukuran_sepatu ?: '-',
+                            $employee->seragam ?: '-',
                         ]);
                     }
                     

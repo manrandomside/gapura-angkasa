@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Head, Link, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import EmployeeDetailModal from "@/Components/EmployeeDetailModal";
+import EmployeeNotification from "@/Components/EmployeeNotification";
+import EmployeeStatsCards from "@/Components/EmployeeStatsCards";
 import {
     Search,
     Plus,
@@ -177,12 +179,15 @@ export default function Index({
     filters = {},
     filterOptions = {},
     statistics = {},
+    notifications = {},
     newEmployee = null,
     success = null,
     error = null,
     message = null,
     notification = null,
     alerts = [],
+    title = "Management Karyawan",
+    subtitle = "Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai",
     auth,
 }) {
     // State management
@@ -216,14 +221,21 @@ export default function Index({
     const [activeNotification, setActiveNotification] = useState(null);
     const [alertQueue, setAlertQueue] = useState([]);
 
-    // Enhanced state untuk tracking karyawan baru dengan click-to-hide dan auto-hide
+    // Enhanced state untuk tracking karyawan baru dengan WITA timezone
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
     const [clickedEmployees, setClickedEmployees] = useState(new Set());
     const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
 
-    // Enhanced notification effect dengan support untuk notification object
+    // Enhanced notification for new employees with WITA timezone
+    const [showNewEmployeeNotification, setShowNewEmployeeNotification] =
+        useState(false);
+    const [dismissedNotifications, setDismissedNotifications] = useState(
+        new Set()
+    );
+
+    // Enhanced notification effect dengan support untuk notification object dan WITA timezone
     useEffect(() => {
-        // Handle notification object dari controller
+        // Handle notification object dari controller dengan WITA support
         if (notification) {
             setActiveNotification({
                 ...notification,
@@ -280,6 +292,32 @@ export default function Index({
         }
     }, [notification, success, error, message]);
 
+    // Enhanced notification for new employees today with WITA timezone
+    useEffect(() => {
+        if (notifications?.newToday && notifications.newToday.length > 0) {
+            // Show notification for new employees not yet dismissed
+            const newUndismissed = notifications.newToday.filter(
+                (emp) => !dismissedNotifications.has(emp.id)
+            );
+
+            if (newUndismissed.length > 0) {
+                setShowNewEmployeeNotification(true);
+            }
+        }
+    }, [notifications, dismissedNotifications]);
+
+    // Handle notification dismissal with enhanced WITA support
+    const handleNewEmployeeNotificationDismiss = (employeeId = null) => {
+        if (employeeId) {
+            setDismissedNotifications((prev) => new Set([...prev, employeeId]));
+        } else {
+            // Dismiss all notifications
+            const allIds = notifications?.newToday?.map((emp) => emp.id) || [];
+            setDismissedNotifications((prev) => new Set([...prev, ...allIds]));
+            setShowNewEmployeeNotification(false);
+        }
+    };
+
     // Handle alerts queue
     useEffect(() => {
         if (alerts && alerts.length > 0) {
@@ -287,7 +325,7 @@ export default function Index({
         }
     }, [alerts]);
 
-    // Enhanced effect untuk handle karyawan baru dengan auto-hide timer
+    // Enhanced effect untuk handle karyawan baru dengan auto-hide timer dan WITA timezone
     useEffect(() => {
         if (newEmployee) {
             // Tambahkan ID karyawan baru ke set
@@ -304,11 +342,19 @@ export default function Index({
         }
     }, [newEmployee]);
 
-    // Auto-hide untuk karyawan yang dibuat dalam rentang waktu tertentu
+    // Enhanced auto-hide untuk karyawan yang dibuat dalam rentang waktu tertentu dengan WITA consideration
     useEffect(() => {
         const newEmployeeIdsArray =
             employees.data
                 ?.filter((employee) => {
+                    // Enhanced check menggunakan WITA timezone info dari notifications
+                    if (notifications?.newToday) {
+                        return notifications.newToday.some(
+                            (newEmp) => newEmp.id === employee.id
+                        );
+                    }
+
+                    // Fallback ke client-side check
                     const createdAt = new Date(employee.created_at);
                     const now = new Date();
                     const diffInMinutes = (now - createdAt) / (1000 * 60);
@@ -329,9 +375,9 @@ export default function Index({
                 return () => clearTimeout(timer);
             });
         }
-    }, [employees.data]);
+    }, [employees.data, notifications]);
 
-    // Check if employee should show "Baru Ditambahkan" label
+    // Enhanced check if employee should show "Baru Ditambahkan" label dengan WITA support
     const isNewEmployee = (employee) => {
         // Don't show if user has clicked on this employee's profile
         if (clickedEmployees.has(employee.id)) {
@@ -353,7 +399,14 @@ export default function Index({
             return true;
         }
 
-        // Show if created within last 1 minute
+        // Enhanced: Check dari notifications.newToday (WITA timezone)
+        if (notifications?.newToday) {
+            return notifications.newToday.some(
+                (newEmp) => newEmp.id === employee.id
+            );
+        }
+
+        // Fallback: Show if created within last 1 minute (client-side)
         const createdAt = new Date(employee.created_at);
         const now = new Date();
         const diffInMinutes = (now - createdAt) / (1000 * 60);
@@ -620,30 +673,21 @@ export default function Index({
         return pages;
     };
 
-    // Statistics from backend - includes global or filtered results
+    // Enhanced statistics with WITA timezone support dari backend
     const stats = useMemo(() => {
-        const data = employees.data || [];
-
-        // Count new employees added today
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const newToday = data.filter((employee) => {
-            const createdAt = new Date(employee.created_at);
-            createdAt.setHours(0, 0, 0, 0);
-            return createdAt.getTime() === today.getTime();
-        }).length;
-
         return {
             total: statistics.total || 0,
             pegawaiTetap: statistics.pegawaiTetap || 0,
             tad: statistics.tad || 0,
             uniqueUnits: statistics.uniqueUnits || 0,
-            newToday: newToday,
+            newToday: statistics.newToday || 0,
+            newYesterday: statistics.newYesterday || 0,
+            newThisWeek: statistics.newThisWeek || 0,
         };
-    }, [statistics, employees.data]);
+    }, [statistics]);
 
     return (
-        <DashboardLayout title="Management Karyawan">
+        <DashboardLayout title={title}>
             <Head title="Management Karyawan - GAPURA ANGKASA SDM">
                 <style>{`
                     /* Enhanced real-time update animations */
@@ -824,19 +868,59 @@ export default function Index({
                 />
             )}
 
+            {/* Enhanced New Employee Notification dengan WITA timezone support */}
+            {showNewEmployeeNotification && notifications?.newToday && (
+                <EmployeeNotification
+                    newEmployees={notifications.newToday}
+                    onDismiss={handleNewEmployeeNotificationDismiss}
+                    timezone="Asia/Makassar"
+                />
+            )}
+
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-                {/* Header Section */}
+                {/* Header Section dengan WITA time info */}
                 <div className="sticky top-0 z-40 border-b border-gray-200 shadow-lg bg-white/95 backdrop-blur-sm">
                     <div className="px-6 py-8">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                             <div className="space-y-2">
                                 <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                                    Management Karyawan
+                                    {title}
                                 </h1>
                                 <p className="font-medium text-gray-600">
-                                    Kelola data karyawan PT Gapura Angkasa -
-                                    Bandar Udara Ngurah Rai
+                                    {subtitle}
                                 </p>
+
+                                {/* WITA Time and Business Hours Status */}
+                                {notifications?.witaTime && (
+                                    <div className="flex items-center mt-3 space-x-4">
+                                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                            <div className="w-2 h-2 bg-[#439454] rounded-full animate-pulse"></div>
+                                            <span>
+                                                {notifications.witaTime}
+                                            </span>
+                                        </div>
+
+                                        {notifications?.businessHours && (
+                                            <div
+                                                className={`business-hours-indicator px-3 py-1 rounded-full text-xs font-medium ${
+                                                    notifications.businessHours
+                                                        .is_business_hours
+                                                        ? "bg-green-100 text-green-800"
+                                                        : notifications
+                                                              .businessHours
+                                                              .is_weekend
+                                                        ? "bg-blue-100 text-blue-800"
+                                                        : "bg-gray-100 text-gray-800"
+                                                }`}
+                                            >
+                                                {
+                                                    notifications.businessHours
+                                                        .status
+                                                }
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div className="flex flex-wrap gap-3 mt-6 md:mt-0">
                                 <Link
@@ -863,102 +947,12 @@ export default function Index({
                             </div>
                         </div>
 
-                        {/* Enhanced Statistics Cards */}
-                        <div className="grid grid-cols-1 gap-6 mt-8 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-blue-200 group bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl hover:border-blue-300 hover:shadow-lg hover:-translate-y-1">
-                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-blue-400/10 to-blue-600/10 group-hover:opacity-100"></div>
-                                <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl group-hover:scale-110">
-                                        <Users className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-blue-800">
-                                            Total Karyawan
-                                        </p>
-                                        <p className="text-3xl font-bold text-blue-700 transition-transform duration-300 group-hover:scale-105">
-                                            {stats.total}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-green-200 group bg-gradient-to-br from-green-50 to-green-100 rounded-2xl hover:border-green-300 hover:shadow-lg hover:-translate-y-1">
-                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-green-400/10 to-green-600/10 group-hover:opacity-100"></div>
-                                <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-green-500 to-green-600 rounded-xl group-hover:scale-110">
-                                        <UserCheck className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-green-800">
-                                            Pegawai Tetap
-                                        </p>
-                                        <p className="text-3xl font-bold text-green-700 transition-transform duration-300 group-hover:scale-105">
-                                            {stats.pegawaiTetap}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-yellow-200 group bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl hover:border-yellow-300 hover:shadow-lg hover:-translate-y-1">
-                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-yellow-400/10 to-yellow-600/10 group-hover:opacity-100"></div>
-                                <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl group-hover:scale-110">
-                                        <Calendar className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-yellow-800">
-                                            TAD
-                                        </p>
-                                        <p className="text-3xl font-bold text-yellow-700 transition-transform duration-300 group-hover:scale-105">
-                                            {stats.tad}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-purple-200 group bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl hover:border-purple-300 hover:shadow-lg hover:-translate-y-1">
-                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-purple-400/10 to-purple-600/10 group-hover:opacity-100"></div>
-                                <div className="relative flex items-center">
-                                    <div
-                                        className={`p-3 transition-transform duration-300 shadow-lg rounded-xl group-hover:scale-110 ${
-                                            stats.newToday > 0
-                                                ? "bg-gradient-to-br from-orange-500 to-orange-600"
-                                                : "bg-gradient-to-br from-purple-500 to-purple-600"
-                                        }`}
-                                    >
-                                        {stats.newToday > 0 ? (
-                                            <Star className="w-6 h-6 text-white" />
-                                        ) : (
-                                            <Building2 className="w-6 h-6 text-white" />
-                                        )}
-                                    </div>
-                                    <div className="ml-4">
-                                        <p
-                                            className={`text-sm font-semibold ${
-                                                stats.newToday > 0
-                                                    ? "text-orange-800"
-                                                    : "text-purple-800"
-                                            }`}
-                                        >
-                                            {stats.newToday > 0
-                                                ? "Baru Hari Ini"
-                                                : "Unit Organisasi"}
-                                        </p>
-                                        <p
-                                            className={`text-3xl font-bold transition-transform duration-300 group-hover:scale-105 ${
-                                                stats.newToday > 0
-                                                    ? "text-orange-700"
-                                                    : "text-purple-700"
-                                            }`}
-                                        >
-                                            {stats.newToday > 0
-                                                ? stats.newToday
-                                                : stats.uniqueUnits}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Enhanced Statistics Cards dengan WITA timezone support */}
+                        <EmployeeStatsCards
+                            statistics={stats}
+                            employees={employees}
+                            timezone="Asia/Makassar"
+                        />
                     </div>
                 </div>
 
@@ -1374,7 +1368,7 @@ export default function Index({
                     )}
                 </div>
 
-                {/* Enhanced Employee Table dengan Click-to-Hide Badge */}
+                {/* Enhanced Employee Table dengan Click-to-Hide Badge dan WITA timezone support */}
                 <div className="px-6 pb-8">
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
@@ -1409,7 +1403,7 @@ export default function Index({
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {employees.data.map(
                                             (employee, index) => {
-                                                // Enhanced check if this is a new employee
+                                                // Enhanced check if this is a new employee dengan WITA timezone support
                                                 const isNew =
                                                     isNewEmployee(employee);
 
@@ -1476,7 +1470,7 @@ export default function Index({
                                                                             {employee.nip ||
                                                                                 "-"}
                                                                         </div>
-                                                                        {/* Enhanced Badge NEW dengan click-to-hide */}
+                                                                        {/* Enhanced Badge NEW dengan click-to-hide dan WITA support */}
                                                                         {isNew && (
                                                                             <span
                                                                                 className="inline-flex items-center px-2 py-1 mt-1 text-xs font-bold text-white rounded-full new-badge"
