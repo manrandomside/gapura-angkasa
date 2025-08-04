@@ -22,7 +22,9 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
-    CheckCircle, // ENHANCED: Added for new employee notification
+    CheckCircle,
+    Sparkles,
+    Star,
 } from "lucide-react";
 
 export default function Index({
@@ -30,8 +32,10 @@ export default function Index({
     pagination = {},
     filters = {},
     filterOptions = {},
-    statistics = {}, // Add statistics from backend
-    newEmployee = null, // ENHANCED: New employee data from session
+    statistics = {},
+    newEmployee = null,
+    success,
+    message,
     auth,
 }) {
     // State management
@@ -61,12 +65,14 @@ export default function Index({
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
 
-    // ENHANCED: State untuk tracking karyawan baru
+    // Enhanced state untuk tracking karyawan baru dengan click-to-hide dan auto-hide
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
+    const [clickedEmployees, setClickedEmployees] = useState(new Set());
+    const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
     const [showNewEmployeeNotification, setShowNewEmployeeNotification] =
         useState(false);
 
-    // ENHANCED: Effect untuk handle karyawan baru
+    // Enhanced effect untuk handle karyawan baru dengan auto-hide timer
     useEffect(() => {
         if (newEmployee) {
             // Tambahkan ID karyawan baru ke set
@@ -97,10 +103,101 @@ export default function Index({
             setTimeout(() => {
                 setShowNewEmployeeNotification(false);
             }, 5000);
+
+            // Auto-hide "Baru Ditambahkan" label setelah 1 menit
+            setTimeout(() => {
+                setAutoHiddenEmployees((prev) => {
+                    const updated = new Set(prev);
+                    updated.add(newEmployee.id);
+                    return updated;
+                });
+            }, 60000); // 1 minute = 60000ms
         }
     }, [newEmployee]);
 
-    // ENHANCED: Function untuk handle klik pada karyawan baru (menghilangkan badge NEW)
+    // Auto-hide untuk karyawan yang dibuat dalam rentang waktu tertentu
+    useEffect(() => {
+        const newEmployeeIdsArray =
+            employees.data
+                ?.filter((employee) => {
+                    const createdAt = new Date(employee.created_at);
+                    const now = new Date();
+                    const diffInMinutes = (now - createdAt) / (1000 * 60);
+                    return diffInMinutes <= 1 && diffInMinutes > 0;
+                })
+                .map((employee) => employee.id) || [];
+
+        if (newEmployeeIdsArray.length > 0) {
+            newEmployeeIdsArray.forEach((employeeId) => {
+                const timer = setTimeout(() => {
+                    setAutoHiddenEmployees((prev) => {
+                        const updated = new Set(prev);
+                        updated.add(employeeId);
+                        return updated;
+                    });
+                }, 60000); // 1 minute
+
+                return () => clearTimeout(timer);
+            });
+        }
+    }, [employees.data]);
+
+    // Check if employee should show "Baru Ditambahkan" label
+    const isNewEmployee = (employee) => {
+        // Don't show if user has clicked on this employee's profile
+        if (clickedEmployees.has(employee.id)) {
+            return false;
+        }
+
+        // Don't show if auto-hidden after 1 minute
+        if (autoHiddenEmployees.has(employee.id)) {
+            return false;
+        }
+
+        // Show if this is the newly created employee from session
+        if (newEmployee && employee.id === newEmployee.id) {
+            return true;
+        }
+
+        // Show if this employee is in the newEmployeeIds set
+        if (newEmployeeIds.has(employee.id)) {
+            return true;
+        }
+
+        // Show if created within last 1 minute
+        const createdAt = new Date(employee.created_at);
+        const now = new Date();
+        const diffInMinutes = (now - createdAt) / (1000 * 60);
+        return diffInMinutes <= 1 && diffInMinutes > 0;
+    };
+
+    // Handle click on employee profile elements
+    const handleEmployeeProfileClick = (
+        employeeId,
+        event,
+        action = "hide-label"
+    ) => {
+        // Prevent event bubbling to table row
+        event.stopPropagation();
+
+        if (action === "hide-label") {
+            // Add to clicked employees to hide "Baru Ditambahkan" label
+            setClickedEmployees((prev) => {
+                const updated = new Set(prev);
+                updated.add(employeeId);
+                return updated;
+            });
+
+            // Also remove from newEmployeeIds if present
+            setNewEmployeeIds((prev) => {
+                const updated = new Set(prev);
+                updated.delete(employeeId);
+                return updated;
+            });
+        }
+    };
+
+    // Enhanced function untuk handle klik pada karyawan
     const handleEmployeeClick = (employeeId, action = "view") => {
         // Hapus dari daftar karyawan baru
         if (newEmployeeIds.has(employeeId)) {
@@ -110,6 +207,13 @@ export default function Index({
                 return updated;
             });
         }
+
+        // Add to clicked employees
+        setClickedEmployees((prev) => {
+            const updated = new Set(prev);
+            updated.add(employeeId);
+            return updated;
+        });
 
         // Jalankan aksi sesuai parameter
         if (action === "view") {
@@ -125,7 +229,7 @@ export default function Index({
         }
     };
 
-    // ENHANCED: Komponen NewEmployeeNotification
+    // Enhanced komponen NewEmployeeNotification
     const NewEmployeeNotification = () => {
         if (!showNewEmployeeNotification || !newEmployee) return null;
 
@@ -140,7 +244,11 @@ export default function Index({
                             Karyawan Baru Ditambahkan!
                         </h4>
                         <p className="text-xs text-gray-600">
-                            {newEmployee.name} ({newEmployee.nip})
+                            {newEmployee.nama_lengkap} ({newEmployee.nip})
+                        </p>
+                        <p className="mt-1 text-xs text-green-600">
+                            Label akan hilang dalam 1 menit atau klik profile
+                            karyawan
                         </p>
                     </div>
                     <button
@@ -301,7 +409,6 @@ export default function Index({
 
     // Show employee details modal
     const showEmployeeDetails = (employee) => {
-        // ENHANCED: Handle new employee click
         handleEmployeeClick(employee.id, "view");
     };
 
@@ -359,19 +466,31 @@ export default function Index({
 
     // Statistics from backend - includes global or filtered results
     const stats = useMemo(() => {
+        const data = employees.data || [];
+
+        // Count new employees added today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const newToday = data.filter((employee) => {
+            const createdAt = new Date(employee.created_at);
+            createdAt.setHours(0, 0, 0, 0);
+            return createdAt.getTime() === today.getTime();
+        }).length;
+
         return {
             total: statistics.total || 0,
             pegawaiTetap: statistics.pegawaiTetap || 0,
             tad: statistics.tad || 0,
             uniqueUnits: statistics.uniqueUnits || 0,
+            newToday: newToday,
         };
-    }, [statistics]);
+    }, [statistics, employees.data]);
 
     return (
         <DashboardLayout title="Management Karyawan">
             <Head title="Management Karyawan - GAPURA ANGKASA SDM">
                 <style>{`
-                    /* ENHANCED: Real-time update animations */
+                    /* Enhanced real-time update animations */
                     @keyframes slide-in-right {
                         from {
                             transform: translateX(100%);
@@ -422,6 +541,13 @@ export default function Index({
                         animation: bounce-new 2s infinite;
                         background: linear-gradient(135deg, #ef4444 0%, #ec4899 100%);
                         box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                    }
+
+                    .new-badge:hover {
+                        transform: scale(1.1);
+                        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
                     }
 
                     @keyframes shimmer {
@@ -449,6 +575,20 @@ export default function Index({
                         background: linear-gradient(90deg, rgba(67, 148, 84, 0.1) 0%, transparent 50%);
                         animation: shimmer 2s infinite;
                         pointer-events: none;
+                    }
+
+                    /* Clickable profile elements */
+                    .profile-clickable {
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        border-radius: 6px;
+                        padding: 2px 4px;
+                    }
+
+                    .profile-clickable:hover {
+                        background-color: rgba(67, 148, 84, 0.1);
+                        color: #439454;
+                        transform: scale(1.02);
                     }
 
                     /* Custom dropdown styling */
@@ -480,25 +620,6 @@ export default function Index({
                         100% { transform: scale(1.02); }
                     }
                     
-                    /* Custom scrollbar for dropdown */
-                    select::-webkit-scrollbar {
-                        width: 6px;
-                    }
-                    
-                    select::-webkit-scrollbar-track {
-                        background: #f1f5f9;
-                        border-radius: 10px;
-                    }
-                    
-                    select::-webkit-scrollbar-thumb {
-                        background: #439454;
-                        border-radius: 10px;
-                    }
-                    
-                    select::-webkit-scrollbar-thumb:hover {
-                        background: #367a41;
-                    }
-
                     /* Pagination animations */
                     @keyframes fadeIn {
                         from { opacity: 0; transform: translateY(10px); }
@@ -539,7 +660,7 @@ export default function Index({
                 `}</style>
             </Head>
 
-            {/* ENHANCED: Notifikasi karyawan baru */}
+            {/* Enhanced Notifikasi karyawan baru */}
             <NewEmployeeNotification />
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
@@ -637,15 +758,41 @@ export default function Index({
                             <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-purple-200 group bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl hover:border-purple-300 hover:shadow-lg hover:-translate-y-1">
                                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-purple-400/10 to-purple-600/10 group-hover:opacity-100"></div>
                                 <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl group-hover:scale-110">
-                                        <Building2 className="w-6 h-6 text-white" />
+                                    <div
+                                        className={`p-3 transition-transform duration-300 shadow-lg rounded-xl group-hover:scale-110 ${
+                                            stats.newToday > 0
+                                                ? "bg-gradient-to-br from-orange-500 to-orange-600"
+                                                : "bg-gradient-to-br from-purple-500 to-purple-600"
+                                        }`}
+                                    >
+                                        {stats.newToday > 0 ? (
+                                            <Star className="w-6 h-6 text-white" />
+                                        ) : (
+                                            <Building2 className="w-6 h-6 text-white" />
+                                        )}
                                     </div>
                                     <div className="ml-4">
-                                        <p className="text-sm font-semibold text-purple-800">
-                                            Unit Organisasi
+                                        <p
+                                            className={`text-sm font-semibold ${
+                                                stats.newToday > 0
+                                                    ? "text-orange-800"
+                                                    : "text-purple-800"
+                                            }`}
+                                        >
+                                            {stats.newToday > 0
+                                                ? "Baru Hari Ini"
+                                                : "Unit Organisasi"}
                                         </p>
-                                        <p className="text-3xl font-bold text-purple-700 transition-transform duration-300 group-hover:scale-105">
-                                            {stats.uniqueUnits}
+                                        <p
+                                            className={`text-3xl font-bold transition-transform duration-300 group-hover:scale-105 ${
+                                                stats.newToday > 0
+                                                    ? "text-orange-700"
+                                                    : "text-purple-700"
+                                            }`}
+                                        >
+                                            {stats.newToday > 0
+                                                ? stats.newToday
+                                                : stats.uniqueUnits}
                                         </p>
                                     </div>
                                 </div>
@@ -1064,7 +1211,7 @@ export default function Index({
                     )}
                 </div>
 
-                {/* ENHANCED: Employee Table dengan Badge NEW */}
+                {/* Enhanced Employee Table dengan Click-to-Hide Badge */}
                 <div className="px-6 pb-8">
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
@@ -1099,11 +1246,9 @@ export default function Index({
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {employees.data.map(
                                             (employee, index) => {
-                                                // ENHANCED: Check if this is a new employee
+                                                // Enhanced check if this is a new employee
                                                 const isNew =
-                                                    newEmployeeIds.has(
-                                                        employee.id
-                                                    );
+                                                    isNewEmployee(employee);
 
                                                 return (
                                                     <tr
@@ -1134,7 +1279,18 @@ export default function Index({
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <div className="flex items-center">
                                                                 <div className="flex-shrink-0 w-10 h-10">
-                                                                    <div className="w-10 h-10 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                                                    <div
+                                                                        className="w-10 h-10 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-300 profile-clickable"
+                                                                        onClick={(
+                                                                            e
+                                                                        ) =>
+                                                                            handleEmployeeProfileClick(
+                                                                                employee.id,
+                                                                                e
+                                                                            )
+                                                                        }
+                                                                        title="Klik untuk menyembunyikan label baru"
+                                                                    >
                                                                         {getInitials(
                                                                             employee.nama_lengkap
                                                                         )}
@@ -1142,14 +1298,38 @@ export default function Index({
                                                                 </div>
                                                                 <div className="ml-4">
                                                                     <div className="flex flex-col">
-                                                                        <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
+                                                                        <div
+                                                                            className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
+                                                                            onClick={(
+                                                                                e
+                                                                            ) =>
+                                                                                handleEmployeeProfileClick(
+                                                                                    employee.id,
+                                                                                    e
+                                                                                )
+                                                                            }
+                                                                            title="Klik untuk menyembunyikan label baru"
+                                                                        >
                                                                             {employee.nip ||
                                                                                 "-"}
                                                                         </div>
-                                                                        {/* ENHANCED: Badge NEW */}
+                                                                        {/* Enhanced Badge NEW dengan click-to-hide */}
                                                                         {isNew && (
-                                                                            <span className="inline-flex items-center px-2 py-1 mt-1 text-xs font-bold text-white rounded-full new-badge">
-                                                                                NEW
+                                                                            <span
+                                                                                className="inline-flex items-center px-2 py-1 mt-1 text-xs font-bold text-white rounded-full new-badge"
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleEmployeeProfileClick(
+                                                                                        employee.id,
+                                                                                        e
+                                                                                    )
+                                                                                }
+                                                                                title="Klik untuk menyembunyikan"
+                                                                            >
+                                                                                <Sparkles className="w-3 h-3 mr-1" />
+                                                                                Baru
+                                                                                Ditambahkan
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -1157,11 +1337,29 @@ export default function Index({
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-5 whitespace-nowrap">
-                                                            <div className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300">
+                                                            <div
+                                                                className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
+                                                                onClick={(e) =>
+                                                                    handleEmployeeProfileClick(
+                                                                        employee.id,
+                                                                        e
+                                                                    )
+                                                                }
+                                                                title="Klik untuk menyembunyikan label baru"
+                                                            >
                                                                 {employee.nama_lengkap ||
                                                                     "-"}
                                                             </div>
-                                                            <div className="text-sm font-medium text-gray-500">
+                                                            <div
+                                                                className="text-sm font-medium text-gray-500 profile-clickable"
+                                                                onClick={(e) =>
+                                                                    handleEmployeeProfileClick(
+                                                                        employee.id,
+                                                                        e
+                                                                    )
+                                                                }
+                                                                title="Klik untuk menyembunyikan label baru"
+                                                            >
                                                                 {employee.nama_jabatan ||
                                                                     employee.jabatan ||
                                                                     "-"}
@@ -1169,18 +1367,34 @@ export default function Index({
                                                         </td>
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <span
-                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 ${
+                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
                                                                     employee.status_pegawai ===
                                                                     "PEGAWAI TETAP"
                                                                         ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
                                                                         : "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
                                                                 }`}
+                                                                onClick={(e) =>
+                                                                    handleEmployeeProfileClick(
+                                                                        employee.id,
+                                                                        e
+                                                                    )
+                                                                }
+                                                                title="Klik untuk menyembunyikan label baru"
                                                             >
                                                                 {employee.status_pegawai ||
                                                                     "-"}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
+                                                        <td
+                                                            className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
+                                                            onClick={(e) =>
+                                                                handleEmployeeProfileClick(
+                                                                    employee.id,
+                                                                    e
+                                                                )
+                                                            }
+                                                            title="Klik untuk menyembunyikan label baru"
+                                                        >
                                                             {formatDate(
                                                                 employee.tmt_mulai_jabatan
                                                             )}

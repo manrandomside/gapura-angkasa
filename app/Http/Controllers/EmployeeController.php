@@ -10,12 +10,13 @@ use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class EmployeeController extends Controller
 {
     /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * ENHANCED: Added support for real-time new employee notifications
+     * ENHANCED: Added support for real-time new employee notifications with click-to-hide and auto-hide
      */
     public function index(Request $request)
     {
@@ -90,8 +91,8 @@ class EmployeeController extends Controller
                 $perPage = 20;
             }
 
-            // ENHANCED: Order by ID desc to show newest first (for real-time update)
-            $employees = $query->orderBy('id', 'desc')
+            // ENHANCED: Order by created_at desc to show newest first (for real-time update)
+            $employees = $query->orderBy('created_at', 'desc')
                              ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
                              ->withQueryString(); // Preserve query parameters in pagination links
@@ -106,11 +107,11 @@ class EmployeeController extends Controller
             $filterOptions = $this->getFilterOptions();
 
             // ENHANCED: Get new employee data from session if exists
-            $newEmployee = session('new_employee');
+            $newEmployeeId = session('newEmployeeId');
+            $newEmployee = null;
             
-            // Clear the session data after retrieving it
-            if ($newEmployee) {
-                session()->forget('new_employee');
+            if ($newEmployeeId) {
+                $newEmployee = Employee::find($newEmployeeId);
             }
 
             return Inertia::render('Employees/Index', [
@@ -145,12 +146,17 @@ class EmployeeController extends Controller
                 'newEmployee' => $newEmployee,
                 'success' => session('success'),
                 'error' => session('error'),
-                'info' => session('info'),
+                'message' => session('message'),
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Employee Index Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return Inertia::render('Employees/Index', [
-                'employees' => collect(),
+                'employees' => collect([]),
                 'organizations' => [],
                 'filterOptions' => [],
                 'statistics' => [
@@ -183,7 +189,7 @@ class EmployeeController extends Controller
                     'links' => []
                 ],
                 'newEmployee' => null,
-                'error' => 'Error loading employees: ' . $e->getMessage(),
+                'error' => 'Terjadi kesalahan saat memuat data karyawan: ' . $e->getMessage(),
             ]);
         }
     }
@@ -230,12 +236,17 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * ENHANCED: Added real-time update support with session flash data
+     * ENHANCED: NIP sebagai primary identifier, real-time update support with session flash data
      */
     public function store(Request $request)
     {
         try {
+            // Log request data untuk debugging
+            Log::info('Employee Store Request', $request->all());
+
+            // Comprehensive validation dengan custom error messages
             $validator = Validator::make($request->all(), [
+                // Required fields
                 'nip' => [
                     'required',
                     'string',
@@ -243,84 +254,140 @@ class EmployeeController extends Controller
                     Rule::unique('employees', 'nip')
                 ],
                 'nama_lengkap' => 'required|string|max:255',
-                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
+                'unit_organisasi' => 'required|string|max:100',
+                'nama_jabatan' => 'required|string|max:255',
+                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
+                
+                // Optional fields with validation
+                'nik' => 'nullable|string|max:20',
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
+                'kota_domisili' => 'nullable|string|max:100',
                 'no_telepon' => 'nullable|string|max:20',
                 'handphone' => 'nullable|string|max:20',
                 'email' => 'nullable|email|max:255|unique:employees,email',
-                'unit_organisasi' => 'required|string|max:100',
+                
+                // Work related fields
                 'jabatan' => 'nullable|string|max:255',
-                'nama_jabatan' => 'required|string|max:255',
-                'status_pegawai' => 'required|in:PEGAWAI TETAP,TAD',
+                'status_pegawai' => 'nullable|in:PEGAWAI TETAP,PEGAWAI KONTRAK,PEGAWAI MAGANG',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_pensiun' => 'nullable|date|after:today',
+                
+                // Education fields
                 'pendidikan_terakhir' => 'nullable|string|max:50',
                 'pendidikan' => 'nullable|string|max:50',
                 'instansi_pendidikan' => 'nullable|string|max:255',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|string|max:10',
-                'kota_domisili' => 'nullable|string|max:100',
+                
+                // Additional fields
+                'jenis_sepatu' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'height' => 'nullable|integer|min:100|max:250',
+                'weight' => 'nullable|integer|min:30|max:200',
+                'no_bpjs_kesehatan' => 'nullable|string|max:20',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
                 'organization_id' => 'nullable|exists:organizations,id',
-                'no_bpjs_kesehatan' => 'nullable|string|max:50',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
-                'height' => 'nullable|numeric|between:100,250',
-                'weight' => 'nullable|numeric|between:30,200',
+            ], [
+                // Custom error messages
+                'nip.required' => 'NIP wajib diisi',
+                'nip.unique' => 'NIP sudah digunakan oleh karyawan lain',
+                'nama_lengkap.required' => 'Nama lengkap wajib diisi',
+                'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
+                'nama_jabatan.required' => 'Nama jabatan wajib diisi',
+                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
+                'email.unique' => 'Email sudah digunakan oleh karyawan lain',
+                'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini',
+                'tmt_pensiun.after' => 'Tanggal pensiun harus setelah hari ini',
             ]);
 
             if ($validator->fails()) {
+                Log::warning('Employee Store Validation Failed', $validator->errors()->toArray());
                 return redirect()->back()
                     ->withErrors($validator)
                     ->withInput();
             }
 
-            $data = $validator->validated();
-            
-            // Normalize gender field
-            if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
-                $data['jenis_kelamin'] = 'Laki-laki';
-            } else {
-                $data['jenis_kelamin'] = 'Perempuan';
+            // Begin database transaction
+            DB::beginTransaction();
+
+            try {
+                // Prepare data for insertion
+                $employeeData = $request->only([
+                    'nip', 'nik', 'nama_lengkap', 'jenis_kelamin',
+                    'tempat_lahir', 'tanggal_lahir', 'alamat', 'kota_domisili',
+                    'no_telepon', 'handphone', 'email',
+                    'unit_organisasi', 'nama_jabatan', 'jabatan', 'status_pegawai',
+                    'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun',
+                    'pendidikan_terakhir', 'pendidikan', 'instansi_pendidikan',
+                    'jurusan', 'tahun_lulus',
+                    'jenis_sepatu', 'ukuran_sepatu', 'height', 'weight',
+                    'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan', 'organization_id'
+                ]);
+
+                // Set default values for GAPURA ANGKASA
+                $employeeData['status_pegawai'] = $employeeData['status_pegawai'] ?? 'PEGAWAI TETAP';
+                $employeeData['status_kerja'] = 'Aktif';
+                $employeeData['provider'] = 'PT Gapura Angkasa';
+                $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
+                $employeeData['cabang'] = 'DPS';
+                $employeeData['status'] = 'active';
+
+                // Handle jabatan field consistency
+                if (!isset($employeeData['jabatan']) && isset($employeeData['nama_jabatan'])) {
+                    $employeeData['jabatan'] = $employeeData['nama_jabatan'];
+                }
+
+                // Calculate age if birth date provided
+                if (!empty($employeeData['tanggal_lahir'])) {
+                    $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
+                    $employeeData['usia'] = $birthDate->age;
+                }
+
+                // Create employee
+                $employee = Employee::create($employeeData);
+
+                if (!$employee) {
+                    throw new \Exception('Failed to create employee record');
+                }
+
+                // Commit transaction
+                DB::commit();
+
+                Log::info('Employee Created Successfully', [
+                    'employee_id' => $employee->id,
+                    'nip' => $employee->nip,
+                    'nama_lengkap' => $employee->nama_lengkap
+                ]);
+
+                // ENHANCED: Set session flash data for real-time update notification
+                return redirect()->route('employees.index')
+                    ->with([
+                        'success' => 'Karyawan berhasil ditambahkan!',
+                        'newEmployeeId' => $employee->id,
+                        'newEmployeeNip' => $employee->nip,
+                        'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem."
+                    ]);
+
+            } catch (\Exception $e) {
+                DB::rollback();
+                Log::error('Employee Creation Database Error', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                throw $e;
             }
-
-            // Calculate age if birth date is provided
-            if (isset($data['tanggal_lahir'])) {
-                $data['usia'] = Carbon::parse($data['tanggal_lahir'])->age;
-            }
-
-            // Set default values for GAPURA ANGKASA
-            $data['status'] = 'active';
-            $data['status_kerja'] = 'Aktif';
-            $data['provider'] = 'PT Gapura Angkasa';
-            $data['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
-            $data['cabang'] = 'DPS';
-
-            // Handle jabatan field consistency
-            if (!isset($data['jabatan']) && isset($data['nama_jabatan'])) {
-                $data['jabatan'] = $data['nama_jabatan'];
-            }
-
-            // ENHANCED: Create the employee and get the created instance
-            $employee = Employee::create($data);
-
-            // ENHANCED: Set session flash data for real-time update
-            session()->flash('new_employee', [
-                'id' => $employee->id,
-                'name' => $employee->nama_lengkap,
-                'nip' => $employee->nip,
-                'created_at' => $employee->created_at->toISOString()
-            ]);
-
-            return redirect()->route('employees.index')
-                ->with('success', 'Karyawan berhasil ditambahkan! Data akan muncul dengan indikator NEW.');
 
         } catch (\Exception $e) {
+            Log::error('Employee Store General Error', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
             return redirect()->back()
-                ->with('error', 'Error creating employee: ' . $e->getMessage())
+                ->with('error', 'Terjadi kesalahan saat menyimpan data karyawan: ' . $e->getMessage())
                 ->withInput();
         }
     }
