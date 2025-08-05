@@ -152,7 +152,7 @@ class EmployeeController extends Controller
                 'notifications' => [
                     'session' => $notificationData,
                     'newToday' => $newEmployeesToday,
-                    'newYesterday' => count($newEmployeesYesterday),
+                    'newYesterday' => $newEmployeesYesterday, // FIXED: Removed count() - already returns integer
                     'newThisWeek' => $newEmployeesThisWeek,
                     'timeInfo' => $timeInfo,
                     'businessHours' => $businessHours,
@@ -222,6 +222,8 @@ class EmployeeController extends Controller
                 'notifications' => [
                     'session' => null, 
                     'newToday' => [], 
+                    'newYesterday' => 0, // FIXED: Use integer directly, not array
+                    'newThisWeek' => [], 
                     'timeInfo' => TimezoneHelper::getTimeBasedGreeting(),
                     'witaTime' => TimezoneHelper::formatIndonesian(TimezoneHelper::getWitaDate()),
                 ],
@@ -1112,10 +1114,16 @@ class EmployeeController extends Controller
     /**
      * Get enhanced statistics with WITA timezone support
      * ENHANCED: Includes new employee counts based on WITA timezone
+     * FIXED: Resolved count() error by ensuring proper array handling and filter validation
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
         try {
+            // FIXED: Ensure $filterConditions is always an array
+            if (!is_array($filterConditions)) {
+                $filterConditions = [];
+            }
+
             // If no filters applied, get global statistics
             if (empty($filterConditions)) {
                 $total = Employee::where('status', 'active')->count();
@@ -1196,7 +1204,10 @@ class EmployeeController extends Controller
                 'newYesterday' => $newYesterday,
                 'newThisWeek' => $newThisWeek,
                 'newThisMonth' => $newThisMonth,
-                'activeFilters' => is_array($filterConditions) ? count($filterConditions) : 0
+                // FIXED: Safely count array elements with proper validation and filtering
+                'activeFilters' => is_array($filterConditions) ? count(array_filter($filterConditions, function($value) {
+                    return !is_null($value) && $value !== '' && $value !== 'all';
+                })) : 0
             ];
 
         } catch (\Exception $e) {
@@ -1322,42 +1333,70 @@ class EmployeeController extends Controller
     /**
      * Build comprehensive success notification data
      * ENHANCED: Advanced notification system with WITA timezone
+     * FIXED: Added error handling to prevent issues with TimezoneHelper
      */
     private function buildSuccessNotification(Employee $employee)
     {
-        $timeInfo = TimezoneHelper::getTimeBasedGreeting();
-        
-        return [
-            'success' => 'Karyawan berhasil ditambahkan!',
-            'newEmployeeId' => $employee->id,
-            'newEmployeeNip' => $employee->nip,
-            'newEmployeeName' => $employee->nama_lengkap,
-            'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
-            'notification' => [
-                'type' => 'success',
-                'title' => $timeInfo['greeting'] . ' - Karyawan Baru!',
+        try {
+            $timeInfo = TimezoneHelper::getTimeBasedGreeting();
+            
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'newEmployeeId' => $employee->id,
+                'newEmployeeNip' => $employee->nip,
+                'newEmployeeName' => $employee->nama_lengkap,
                 'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
-                'employee_id' => $employee->id,
-                'employee_nip' => $employee->nip,
-                'employee_name' => $employee->nama_lengkap,
-                'unit_organisasi' => $employee->unit_organisasi,
-                'time_info' => $timeInfo,
-                'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
-                'auto_scroll' => true,
-                'show_highlight' => true,
-                'duration' => 6000,
-                'click_to_hide' => true,
-                'created_at' => $employee->created_at->toDateTimeString(),
-            ],
-            'alerts' => [
-                [
+                'notification' => [
                     'type' => 'success',
-                    'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan notifikasi ' . strtolower($timeInfo['greeting']) . '.',
-                    'dismissible' => true,
-                    'duration' => 4000
+                    'title' => $timeInfo['greeting'] . ' - Karyawan Baru!',
+                    'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                    'employee_id' => $employee->id,
+                    'employee_nip' => $employee->nip,
+                    'employee_name' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'time_info' => $timeInfo,
+                    'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                    'auto_scroll' => true,
+                    'show_highlight' => true,
+                    'duration' => 6000,
+                    'click_to_hide' => true,
+                    'created_at' => $employee->created_at->toDateTimeString(),
+                ],
+                'alerts' => [
+                    [
+                        'type' => 'success',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan notifikasi ' . strtolower($timeInfo['greeting']) . '.',
+                        'dismissible' => true,
+                        'duration' => 4000
+                    ]
                 ]
-            ]
-        ];
+            ];
+        } catch (\Exception $e) {
+            Log::error('Build Success Notification Error: ' . $e->getMessage());
+            
+            // Return safe fallback notification
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'newEmployeeId' => $employee->id,
+                'newEmployeeNip' => $employee->nip,
+                'newEmployeeName' => $employee->nama_lengkap,
+                'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                'notification' => [
+                    'type' => 'success',
+                    'title' => 'Karyawan Baru!',
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan.",
+                    'employee_id' => $employee->id,
+                    'duration' => 5000,
+                ],
+                'alerts' => [
+                    [
+                        'type' => 'success',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar.',
+                        'duration' => 4000
+                    ]
+                ]
+            ];
+        }
     }
 
     /**
