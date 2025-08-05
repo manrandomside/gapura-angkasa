@@ -261,7 +261,6 @@ export default function Create({
             no_bpjs_kesehatan: "",
             no_bpjs_ketenagakerjaan: "",
             seragam: "",
-            // Add fields yang ada di database tapi tidak di form sebelumnya
             nik: "",
             no_telepon: "",
         });
@@ -393,8 +392,22 @@ export default function Create({
         return error;
     };
 
+    // FIXED: Enhanced handleInputChange dengan error clearing
     const handleInputChange = (name, value) => {
         setData(name, value);
+
+        // FIXED: Clear errors saat user mulai mengetik
+        if (errors[name]) {
+            clearErrors(name);
+        }
+
+        // FIXED: Clear local validation error
+        if (formValidation[name]) {
+            setFormValidation((prev) => ({
+                ...prev,
+                [name]: "",
+            }));
+        }
 
         // Real-time validation for important fields
         if (["nip", "nik", "email", "handphone", "no_telepon"].includes(name)) {
@@ -426,12 +439,11 @@ export default function Create({
         return newErrors;
     };
 
-    // FIXED: Enhanced form submission dengan better debugging
+    // FIXED: Enhanced form submission dengan better error handling
     const handleSubmit = (e) => {
         e.preventDefault();
         setIsSubmitting(true);
 
-        // Log form data untuk debugging
         console.log("Form Data Submission:", data);
         console.log("Gender Value:", data.jenis_kelamin);
 
@@ -462,7 +474,7 @@ export default function Create({
             return;
         }
 
-        // FIXED: Clean data before submission
+        // Clean data before submission
         const cleanData = { ...data };
 
         // Remove empty strings dan convert ke null jika perlu
@@ -517,11 +529,28 @@ export default function Create({
                     title: "Gagal Menyimpan",
                     message: errorMessage,
                 });
+
+                // FIXED: Form tetap dapat diedit setelah error
                 setIsSubmitting(false);
+
+                // FIXED: Focus ke field pertama yang error
+                const firstErrorField = Object.keys(errors)[0];
+                if (firstErrorField) {
+                    setTimeout(() => {
+                        const element = document.querySelector(
+                            `[name="${firstErrorField}"]`
+                        );
+                        if (element) {
+                            element.focus();
+                            element.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                            });
+                        }
+                    }, 100);
+                }
             },
-            onFinish: () => {
-                setIsSubmitting(false);
-            },
+            // REMOVED: onFinish untuk menghindari conflict
         });
     };
 
