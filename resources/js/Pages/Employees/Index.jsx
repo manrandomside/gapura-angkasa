@@ -22,8 +22,6 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
-    CheckCircle,
-    Sparkles,
     Star,
 } from "lucide-react";
 
@@ -71,21 +69,16 @@ export default function Index({
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
 
-    // Enhanced state untuk tracking karyawan baru dengan click-to-hide dan auto-hide
+    // Simplified state untuk tracking karyawan baru
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
     const [clickedEmployees, setClickedEmployees] = useState(new Set());
     const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
-    const [showNewEmployeeNotification, setShowNewEmployeeNotification] =
-        useState(false);
 
-    // Enhanced effect untuk handle karyawan baru dengan auto-hide timer
+    // MODIFIED: Effect untuk handle karyawan baru dengan auto-hide 24 jam
     useEffect(() => {
         if (newEmployee) {
             // Tambahkan ID karyawan baru ke set
             setNewEmployeeIds((prev) => new Set([...prev, newEmployee.id]));
-
-            // Tampilkan notifikasi
-            setShowNewEmployeeNotification(true);
 
             // Auto-scroll ke karyawan baru setelah data dimuat
             setTimeout(() => {
@@ -97,27 +90,17 @@ export default function Index({
                         behavior: "smooth",
                         block: "center",
                     });
-                    // Highlight efek
-                    newEmployeeRow.classList.add("animate-pulse");
-                    setTimeout(() => {
-                        newEmployeeRow.classList.remove("animate-pulse");
-                    }, 2000);
                 }
             }, 500);
 
-            // Hilangkan notifikasi setelah 5 detik
-            setTimeout(() => {
-                setShowNewEmployeeNotification(false);
-            }, 5000);
-
-            // Auto-hide "Baru Ditambahkan" label setelah 1 menit
+            // MODIFIED: Auto-hide "Baru Ditambahkan" label setelah 24 jam
             setTimeout(() => {
                 setAutoHiddenEmployees((prev) => {
                     const updated = new Set(prev);
                     updated.add(newEmployee.id);
                     return updated;
                 });
-            }, 60000); // 1 minute = 60000ms
+            }, 86400000); // 24 jam = 86400000ms
         }
     }, [newEmployee]);
 
@@ -137,29 +120,41 @@ export default function Index({
         }
     }, [notification, success, error, message]);
 
-    // Auto-hide untuk karyawan yang dibuat dalam rentang waktu tertentu
+    // MODIFIED: Auto-hide untuk karyawan yang dibuat dalam rentang waktu 24 jam
     useEffect(() => {
         const newEmployeeIdsArray =
             employees.data
                 ?.filter((employee) => {
                     const createdAt = new Date(employee.created_at);
                     const now = new Date();
-                    const diffInMinutes = (now - createdAt) / (1000 * 60);
-                    return diffInMinutes <= 1 && diffInMinutes > 0;
+                    const diffInHours = (now - createdAt) / (1000 * 60 * 60);
+                    return diffInHours <= 24 && diffInHours > 0;
                 })
                 .map((employee) => employee.id) || [];
 
         if (newEmployeeIdsArray.length > 0) {
             newEmployeeIdsArray.forEach((employeeId) => {
-                const timer = setTimeout(() => {
-                    setAutoHiddenEmployees((prev) => {
-                        const updated = new Set(prev);
-                        updated.add(employeeId);
-                        return updated;
-                    });
-                }, 60000); // 1 minute
+                // Set timer untuk auto-hide setelah 24 jam dari created_at
+                const employee = employees.data.find(
+                    (emp) => emp.id === employeeId
+                );
+                if (employee) {
+                    const createdAt = new Date(employee.created_at);
+                    const now = new Date();
+                    const remainingTime = 86400000 - (now - createdAt); // 24 jam - waktu yang sudah lewat
 
-                return () => clearTimeout(timer);
+                    if (remainingTime > 0) {
+                        const timer = setTimeout(() => {
+                            setAutoHiddenEmployees((prev) => {
+                                const updated = new Set(prev);
+                                updated.add(employeeId);
+                                return updated;
+                            });
+                        }, remainingTime);
+
+                        return () => clearTimeout(timer);
+                    }
+                }
             });
         }
     }, [employees.data]);
@@ -171,7 +166,7 @@ export default function Index({
             return false;
         }
 
-        // Don't show if auto-hidden after 1 minute
+        // Don't show if auto-hidden after 24 hours
         if (autoHiddenEmployees.has(employee.id)) {
             return false;
         }
@@ -186,18 +181,18 @@ export default function Index({
             return true;
         }
 
-        // Enhanced: Check dari notifications.newToday (tanpa timezone complexity)
+        // Enhanced: Check dari notifications.newToday
         if (notifications?.newToday && Array.isArray(notifications.newToday)) {
             return notifications.newToday.some(
                 (newEmp) => newEmp.id === employee.id
             );
         }
 
-        // Show if created within last 1 minute
+        // Show if created within last 24 hours
         const createdAt = new Date(employee.created_at);
         const now = new Date();
-        const diffInMinutes = (now - createdAt) / (1000 * 60);
-        return diffInMinutes <= 1 && diffInMinutes > 0;
+        const diffInHours = (now - createdAt) / (1000 * 60 * 60);
+        return diffInHours <= 24 && diffInHours > 0;
     };
 
     // Handle click on employee profile elements
@@ -258,36 +253,23 @@ export default function Index({
         }
     };
 
-    // Simplified komponen NewEmployeeNotification
-    const NewEmployeeNotification = () => {
-        if (!showNewEmployeeNotification || !newEmployee) return null;
+    // MODIFIED: Simplified komponen untuk label "baru ditambahkan" - diperkecil dan clickable
+    const SimplifiedNewEmployeeLabel = ({ employee }) => {
+        if (!isNewEmployee(employee)) return null;
 
         return (
-            <div className="fixed z-50 max-w-sm top-4 right-4 animate-slide-in-right">
-                <div className="flex items-center gap-3 px-4 py-3 bg-white border-2 border-[#439454] rounded-xl shadow-xl">
-                    <div className="flex items-center justify-center w-8 h-8 bg-[#439454] rounded-full">
-                        <CheckCircle className="w-5 h-5 text-white animate-checkmark" />
-                    </div>
-                    <div className="flex-1">
-                        <h4 className="text-sm font-bold text-gray-900">
-                            Karyawan Baru Ditambahkan!
-                        </h4>
-                        <p className="text-xs text-gray-600">
-                            {newEmployee.nama_lengkap} ({newEmployee.nip})
-                        </p>
-                        <p className="mt-1 text-xs text-green-600">
-                            Label akan hilang dalam 1 menit atau klik profile
-                            karyawan
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => setShowNewEmployeeNotification(false)}
-                        className="text-gray-400 transition-colors duration-300 hover:text-gray-600"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
+            <span
+                className="absolute -top-1 left-1/2 transform -translate-x-1/2 px-1.5 py-0.5 text-2xs font-medium text-white bg-[#439454] rounded-full cursor-pointer hover:bg-[#367a41] transition-colors duration-200 whitespace-nowrap z-10 shadow-sm"
+                style={{ fontSize: "10px" }}
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleEmployeeProfileClick(employee.id, e);
+                }}
+                title="Klik untuk menyembunyikan"
+            >
+                baru ditambahkan
+            </span>
         );
     };
 
@@ -519,92 +501,7 @@ export default function Index({
         <DashboardLayout title={title}>
             <Head title="Management Karyawan - GAPURA ANGKASA SDM">
                 <style>{`
-                    /* Enhanced real-time update animations */
-                    @keyframes slide-in-right {
-                        from {
-                            transform: translateX(100%);
-                            opacity: 0;
-                        }
-                        to {
-                            transform: translateX(0);
-                            opacity: 1;
-                        }
-                    }
-
-                    .animate-slide-in-right {
-                        animation: slide-in-right 0.3s ease-out;
-                    }
-
-                    @keyframes checkmark {
-                        0% {
-                            transform: scale(0) rotate(0deg);
-                        }
-                        50% {
-                            transform: scale(1.2) rotate(180deg);
-                        }
-                        100% {
-                            transform: scale(1) rotate(360deg);
-                        }
-                    }
-
-                    .animate-checkmark {
-                        animation: checkmark 0.6s ease-out;
-                    }
-
-                    @keyframes bounce-new {
-                        0%, 20%, 53%, 80%, 100% {
-                            transform: translate3d(0, 0, 0);
-                        }
-                        40%, 43% {
-                            transform: translate3d(0, -8px, 0);
-                        }
-                        70% {
-                            transform: translate3d(0, -4px, 0);
-                        }
-                        90% {
-                            transform: translate3d(0, -2px, 0);
-                        }
-                    }
-
-                    .new-badge {
-                        animation: bounce-new 2s infinite;
-                        background: linear-gradient(135deg, #ef4444 0%, #ec4899 100%);
-                        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                    }
-
-                    .new-badge:hover {
-                        transform: scale(1.1);
-                        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-                    }
-
-                    @keyframes shimmer {
-                        0% {
-                            transform: translateX(-100%);
-                        }
-                        100% {
-                            transform: translateX(100%);
-                        }
-                    }
-
-                    .employee-row-new {
-                        position: relative;
-                        background: linear-gradient(90deg, rgba(67, 148, 84, 0.1) 0%, rgba(67, 148, 84, 0.05) 100%);
-                        border-left: 4px solid #439454;
-                    }
-
-                    .employee-row-new::before {
-                        content: '';
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        bottom: 0;
-                        background: linear-gradient(90deg, rgba(67, 148, 84, 0.1) 0%, transparent 50%);
-                        animation: shimmer 2s infinite;
-                        pointer-events: none;
-                    }
+                    /* Simplified CSS - No animations */
 
                     /* Clickable profile elements */
                     .profile-clickable {
@@ -688,9 +585,6 @@ export default function Index({
                     }
                 `}</style>
             </Head>
-
-            {/* Simplified Notifikasi karyawan baru */}
-            <NewEmployeeNotification />
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
                 {/* Header Section - Simplified */}
@@ -1239,7 +1133,7 @@ export default function Index({
                     )}
                 </div>
 
-                {/* Enhanced Employee Table dengan Click-to-Hide Badge */}
+                {/* MODIFIED: Enhanced Employee Table dengan Simplified Click-to-Hide Badge */}
                 <div className="px-6 pb-8">
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
@@ -1288,25 +1182,36 @@ export default function Index({
                                                         data-employee-id={
                                                             employee.id
                                                         }
-                                                        className={`
-                                                            group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5 
-                                                            ${
-                                                                isNew
-                                                                    ? "employee-row-new"
-                                                                    : ""
-                                                            }
-                                                        `}
+                                                        className="group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5"
                                                     >
-                                                        <td className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300">
+                                                        {/* MODIFIED: No Column tanpa label */}
+                                                        <td
+                                                            className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
+                                                            onClick={(e) =>
+                                                                handleEmployeeProfileClick(
+                                                                    employee.id,
+                                                                    e
+                                                                )
+                                                            }
+                                                            title="Klik untuk menyembunyikan label baru"
+                                                        >
                                                             {(pagination.current_page -
                                                                 1) *
                                                                 pagination.per_page +
                                                                 index +
                                                                 1}
                                                         </td>
+
+                                                        {/* MODIFIED: NIP Column dengan label hanya di atas profile photo */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <div className="flex items-center">
-                                                                <div className="flex-shrink-0 w-10 h-10">
+                                                                <div className="relative flex-shrink-0 w-10 h-10">
+                                                                    {/* MODIFIED: Label hanya di atas avatar */}
+                                                                    <SimplifiedNewEmployeeLabel
+                                                                        employee={
+                                                                            employee
+                                                                        }
+                                                                    />
                                                                     <div
                                                                         className="w-10 h-10 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg group-hover:scale-110 transition-transform duration-300 profile-clickable"
                                                                         onClick={(
@@ -1341,29 +1246,12 @@ export default function Index({
                                                                             {employee.nip ||
                                                                                 "-"}
                                                                         </div>
-                                                                        {/* Enhanced Badge NEW dengan click-to-hide */}
-                                                                        {isNew && (
-                                                                            <span
-                                                                                className="inline-flex items-center px-2 py-1 mt-1 text-xs font-bold text-white rounded-full new-badge"
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) =>
-                                                                                    handleEmployeeProfileClick(
-                                                                                        employee.id,
-                                                                                        e
-                                                                                    )
-                                                                                }
-                                                                                title="Klik untuk menyembunyikan"
-                                                                            >
-                                                                                <Sparkles className="w-3 h-3 mr-1" />
-                                                                                Baru
-                                                                                Ditambahkan
-                                                                            </span>
-                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </td>
+
+                                                        {/* MODIFIED: Nama Lengkap Column tanpa label */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <div
                                                                 className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
@@ -1393,6 +1281,8 @@ export default function Index({
                                                                     "-"}
                                                             </div>
                                                         </td>
+
+                                                        {/* MODIFIED: Status Pegawai Column tanpa label */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <span
                                                                 className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
@@ -1413,6 +1303,7 @@ export default function Index({
                                                                     "-"}
                                                             </span>
                                                         </td>
+
                                                         <td
                                                             className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
                                                             onClick={(e) =>
