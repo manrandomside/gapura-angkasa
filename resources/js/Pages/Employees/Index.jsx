@@ -23,6 +23,7 @@ import {
     ChevronsLeft,
     ChevronsRight,
     Star,
+    Clock,
 } from "lucide-react";
 
 export default function Index({
@@ -58,6 +59,10 @@ export default function Index({
     );
     const [shoeSizeFilter, setShoeSizeFilter] = useState(
         filters.ukuran_sepatu || "all"
+    );
+    // FITUR BARU: Filter kelompok jabatan
+    const [kelompokJabatanFilter, setKelompokJabatanFilter] = useState(
+        filters.kelompok_jabatan || "all"
     );
     const [perPage, setPerPage] = useState(pagination.per_page || 20);
     const [showFilters, setShowFilters] = useState(false);
@@ -294,6 +299,9 @@ export default function Index({
         if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
         if (shoeTypeFilter !== "all") params.jenis_sepatu = shoeTypeFilter;
         if (shoeSizeFilter !== "all") params.ukuran_sepatu = shoeSizeFilter;
+        // FITUR BARU: Tambah filter kelompok jabatan
+        if (kelompokJabatanFilter !== "all")
+            params.kelompok_jabatan = kelompokJabatanFilter;
 
         router.visit(route("employees.index"), {
             data: params,
@@ -339,6 +347,9 @@ export default function Index({
             case "shoeSize":
                 setShoeSizeFilter(value);
                 break;
+            case "kelompokJabatan":
+                setKelompokJabatanFilter(value);
+                break;
         }
 
         applyFilters(1); // Reset to page 1 on filter change
@@ -363,6 +374,7 @@ export default function Index({
         setGenderFilter("all");
         setShoeTypeFilter("all");
         setShoeSizeFilter("all");
+        setKelompokJabatanFilter("all");
 
         router.visit(route("employees.index"), {
             preserveState: true,
@@ -378,7 +390,8 @@ export default function Index({
             unitFilter !== "all" ||
             genderFilter !== "all" ||
             shoeTypeFilter !== "all" ||
-            shoeSizeFilter !== "all"
+            shoeSizeFilter !== "all" ||
+            kelompokJabatanFilter !== "all"
         );
     };
 
@@ -475,7 +488,7 @@ export default function Index({
         return pages;
     };
 
-    // Statistics from backend - simplified version like old design
+    // UPDATED: Statistics from backend - dengan TAD Split dan support kelompok jabatan
     const stats = useMemo(() => {
         const data = employees.data || [];
 
@@ -491,7 +504,11 @@ export default function Index({
         return {
             total: statistics.total || 0,
             pegawaiTetap: statistics.pegawaiTetap || 0,
-            tad: statistics.tad || 0,
+            pkwt: statistics.pkwt || 0,
+            // FITUR BARU: TAD dengan breakdown
+            tadTotal: statistics.tad_total || statistics.tad || 0,
+            tadPaketSDM: statistics.tad_paket_sdm || 0,
+            tadPaketPekerjaan: statistics.tad_paket_pekerjaan || 0,
             uniqueUnits: statistics.uniqueUnits || 0,
             newToday: newToday,
         };
@@ -515,6 +532,12 @@ export default function Index({
                         background-color: rgba(67, 148, 84, 0.1);
                         color: #439454;
                         transform: scale(1.02);
+                    }
+
+                    /* Extra small text for TAD breakdown */
+                    .text-2xs {
+                        font-size: 0.625rem;
+                        line-height: 0.75rem;
                     }
 
                     /* Custom dropdown styling */
@@ -587,11 +610,11 @@ export default function Index({
             </Head>
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-                {/* Header Section - Simplified */}
+                {/* Header Section - Compact */}
                 <div className="sticky top-0 z-40 border-b border-gray-200 shadow-lg bg-white/95 backdrop-blur-sm">
-                    <div className="px-6 py-8">
+                    <div className="px-6 py-5">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                                 <h1 className="text-3xl font-bold tracking-tight text-gray-900">
                                     {title}
                                 </h1>
@@ -599,7 +622,7 @@ export default function Index({
                                     {subtitle}
                                 </p>
                             </div>
-                            <div className="flex gap-3 mt-6 md:mt-0">
+                            <div className="flex gap-3 mt-3 md:mt-0">
                                 <Link
                                     href={route("employees.import")}
                                     className="group inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
@@ -624,78 +647,112 @@ export default function Index({
                             </div>
                         </div>
 
-                        {/* Statistics Cards - Back to Original Simple Design */}
-                        <div className="grid grid-cols-1 gap-6 mt-8 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-blue-200 group bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl hover:border-blue-300 hover:shadow-lg hover:-translate-y-1">
+                        {/* UPDATED: Statistics Cards dengan TAD Split - Compact Design */}
+                        <div className="grid grid-cols-1 gap-3 mt-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <div className="relative p-4 overflow-hidden transition-all duration-300 border-2 border-blue-200 group bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl hover:border-blue-300 hover:shadow-lg hover:-translate-y-1">
                                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-blue-400/10 to-blue-600/10 group-hover:opacity-100"></div>
                                 <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl group-hover:scale-110">
-                                        <Users className="w-6 h-6 text-white" />
+                                    <div className="p-2 transition-transform duration-300 rounded-lg shadow-md bg-gradient-to-br from-blue-500 to-blue-600 group-hover:scale-110">
+                                        <Users className="w-5 h-5 text-white" />
                                     </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-blue-800">
+                                    <div className="ml-3">
+                                        <p className="text-xs font-semibold text-blue-800">
                                             Total Karyawan
                                         </p>
-                                        <p className="text-3xl font-bold text-blue-700 transition-transform duration-300 group-hover:scale-105">
+                                        <p className="text-2xl font-bold text-blue-700 transition-transform duration-300 group-hover:scale-105">
                                             {stats.total}
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-green-200 group bg-gradient-to-br from-green-50 to-green-100 rounded-2xl hover:border-green-300 hover:shadow-lg hover:-translate-y-1">
+                            <div className="relative p-4 overflow-hidden transition-all duration-300 border-2 border-green-200 group bg-gradient-to-br from-green-50 to-green-100 rounded-xl hover:border-green-300 hover:shadow-lg hover:-translate-y-1">
                                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-green-400/10 to-green-600/10 group-hover:opacity-100"></div>
                                 <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-green-500 to-green-600 rounded-xl group-hover:scale-110">
-                                        <UserCheck className="w-6 h-6 text-white" />
+                                    <div className="p-2 transition-transform duration-300 shadow-md bg-gradient-to-br from-[#439454] to-green-600 rounded-lg group-hover:scale-110">
+                                        <UserCheck className="w-5 h-5 text-white" />
                                     </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-green-800">
+                                    <div className="ml-3">
+                                        <p className="text-xs font-semibold text-green-800">
                                             Pegawai Tetap
                                         </p>
-                                        <p className="text-3xl font-bold text-green-700 transition-transform duration-300 group-hover:scale-105">
+                                        <p className="text-2xl font-bold text-green-700 transition-transform duration-300 group-hover:scale-105">
                                             {stats.pegawaiTetap}
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-yellow-200 group bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl hover:border-yellow-300 hover:shadow-lg hover:-translate-y-1">
-                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-yellow-400/10 to-yellow-600/10 group-hover:opacity-100"></div>
+                            <div className="relative p-4 overflow-hidden transition-all duration-300 border-2 border-blue-200 group bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl hover:border-blue-300 hover:shadow-lg hover:-translate-y-1">
+                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-blue-400/10 to-blue-600/10 group-hover:opacity-100"></div>
                                 <div className="relative flex items-center">
-                                    <div className="p-3 transition-transform duration-300 shadow-lg bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl group-hover:scale-110">
-                                        <Calendar className="w-6 h-6 text-white" />
+                                    <div className="p-2 transition-transform duration-300 rounded-lg shadow-md bg-gradient-to-br from-blue-500 to-blue-600 group-hover:scale-110">
+                                        <Calendar className="w-5 h-5 text-white" />
                                     </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-semibold text-yellow-800">
-                                            TAD
+                                    <div className="ml-3">
+                                        <p className="text-xs font-semibold text-blue-800">
+                                            PKWT
                                         </p>
-                                        <p className="text-3xl font-bold text-yellow-700 transition-transform duration-300 group-hover:scale-105">
-                                            {stats.tad}
+                                        <p className="text-2xl font-bold text-blue-700 transition-transform duration-300 group-hover:scale-105">
+                                            {stats.pkwt}
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="relative p-6 overflow-hidden transition-all duration-300 border-2 border-purple-200 group bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl hover:border-purple-300 hover:shadow-lg hover:-translate-y-1">
+                            {/* FITUR BARU: TAD Card dengan Breakdown - Compact */}
+                            <div className="relative p-4 overflow-hidden transition-all duration-300 border-2 border-orange-200 group bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl hover:border-orange-300 hover:shadow-lg hover:-translate-y-1">
+                                <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-orange-400/10 to-orange-600/10 group-hover:opacity-100"></div>
+                                <div className="relative">
+                                    <div className="flex items-center mb-1">
+                                        <div className="p-2 transition-transform duration-300 rounded-lg shadow-md bg-gradient-to-br from-orange-500 to-orange-600 group-hover:scale-110">
+                                            <Clock className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div className="ml-3">
+                                            <p className="text-xs font-semibold text-orange-800">
+                                                TAD
+                                            </p>
+                                            <p className="text-2xl font-bold text-orange-700 transition-transform duration-300 group-hover:scale-105">
+                                                {stats.tadTotal}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-0.5 text-2xs text-orange-700">
+                                        <div className="flex justify-between">
+                                            <span>Paket SDM:</span>
+                                            <span className="font-semibold">
+                                                {stats.tadPaketSDM}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Paket Pekerjaan:</span>
+                                            <span className="font-semibold">
+                                                {stats.tadPaketPekerjaan}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="relative p-4 overflow-hidden transition-all duration-300 border-2 border-purple-200 group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl hover:border-purple-300 hover:shadow-lg hover:-translate-y-1">
                                 <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-br from-purple-400/10 to-purple-600/10 group-hover:opacity-100"></div>
                                 <div className="relative flex items-center">
                                     <div
-                                        className={`p-3 transition-transform duration-300 shadow-lg rounded-xl group-hover:scale-110 ${
+                                        className={`p-2 transition-transform duration-300 shadow-md rounded-lg group-hover:scale-110 ${
                                             stats.newToday > 0
                                                 ? "bg-gradient-to-br from-orange-500 to-orange-600"
                                                 : "bg-gradient-to-br from-purple-500 to-purple-600"
                                         }`}
                                     >
                                         {stats.newToday > 0 ? (
-                                            <Star className="w-6 h-6 text-white" />
+                                            <Star className="w-5 h-5 text-white" />
                                         ) : (
-                                            <Building2 className="w-6 h-6 text-white" />
+                                            <Building2 className="w-5 h-5 text-white" />
                                         )}
                                     </div>
-                                    <div className="ml-4">
+                                    <div className="ml-3">
                                         <p
-                                            className={`text-sm font-semibold ${
+                                            className={`text-xs font-semibold ${
                                                 stats.newToday > 0
                                                     ? "text-orange-800"
                                                     : "text-purple-800"
@@ -706,7 +763,7 @@ export default function Index({
                                                 : "Unit Organisasi"}
                                         </p>
                                         <p
-                                            className={`text-3xl font-bold transition-transform duration-300 group-hover:scale-105 ${
+                                            className={`text-2xl font-bold transition-transform duration-300 group-hover:scale-105 ${
                                                 stats.newToday > 0
                                                     ? "text-orange-700"
                                                     : "text-purple-700"
@@ -723,8 +780,8 @@ export default function Index({
                     </div>
                 </div>
 
-                {/* Enhanced Search and Filter Section */}
-                <div className="px-6 py-8 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+                {/* Enhanced Search and Filter Section - Compact */}
+                <div className="px-6 py-5 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
                     {/* Enhanced Search Bar */}
                     <div className="flex gap-4 mb-6">
                         <div className="relative flex-1 group">
@@ -792,7 +849,7 @@ export default function Index({
                         </button>
                     </div>
 
-                    {/* Enhanced Advanced Filters with Smooth Animation */}
+                    {/* UPDATED: Enhanced Advanced Filters dengan Kelompok Jabatan */}
                     <div
                         className={`overflow-hidden transition-all duration-500 ease-in-out ${
                             showFilters
@@ -808,8 +865,8 @@ export default function Index({
                             }`}
                         >
                             <div className="p-6 border-2 border-gray-200 shadow-inner bg-gradient-to-br from-gray-50 to-white rounded-2xl">
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-                                    {/* Enhanced Filter Dropdowns */}
+                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-6">
+                                    {/* UPDATED: Status Pegawai Filter dengan TAD Split */}
                                     <div className="relative group">
                                         <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
                                             Status Pegawai
@@ -835,7 +892,58 @@ export default function Index({
                                                 <option value="PEGAWAI TETAP">
                                                     Pegawai Tetap
                                                 </option>
-                                                <option value="TAD">TAD</option>
+                                                <option value="PKWT">
+                                                    PKWT
+                                                </option>
+                                                <option value="TAD PAKET SDM">
+                                                    TAD Paket SDM
+                                                </option>
+                                                <option value="TAD PAKET PEKERJAAN">
+                                                    TAD Paket Pekerjaan
+                                                </option>
+                                            </select>
+                                            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
+                                        </div>
+                                    </div>
+
+                                    {/* FITUR BARU: Kelompok Jabatan Filter */}
+                                    <div className="relative group">
+                                        <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
+                                            Kelompok Jabatan
+                                        </label>
+                                        <div className="relative">
+                                            <div className="absolute inset-0 bg-gradient-to-r from-[#439454]/5 to-[#367a41]/5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
+                                            <select
+                                                value={kelompokJabatanFilter}
+                                                onChange={(e) =>
+                                                    handleFilterChange(
+                                                        "kelompokJabatan",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02]"
+                                                style={{
+                                                    backgroundImage: "none",
+                                                }}
+                                            >
+                                                <option value="all">
+                                                    Semua Kelompok
+                                                </option>
+                                                <option value="SUPERVISOR">
+                                                    Supervisor
+                                                </option>
+                                                <option value="STAFF">
+                                                    Staff
+                                                </option>
+                                                <option value="MANAGER">
+                                                    Manager
+                                                </option>
+                                                <option value="EXECUTIVE GENERAL MANAGER">
+                                                    Executive General Manager
+                                                </option>
+                                                <option value="ACCOUNT EXECUTIVE/AE">
+                                                    Account Executive/AE
+                                                </option>
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -1004,7 +1112,7 @@ export default function Index({
                         </div>
                     </div>
 
-                    {/* Enhanced Active Filters Display */}
+                    {/* UPDATED: Enhanced Active Filters Display dengan Kelompok Jabatan */}
                     {hasActiveFilters() && (
                         <div className="mt-6 animate-fadeIn">
                             <div className="flex flex-wrap items-center gap-3">
@@ -1019,6 +1127,19 @@ export default function Index({
                                                 removeFilter("status")
                                             }
                                             className="text-green-600 transition-colors duration-300 hover:text-red-600"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                )}
+                                {kelompokJabatanFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold transition-all duration-300 transform border rounded-full text-emerald-800 bg-emerald-100 border-emerald-200 group hover:bg-emerald-200 hover:scale-105">
+                                        Kelompok: {kelompokJabatanFilter}
+                                        <button
+                                            onClick={() =>
+                                                removeFilter("kelompokJabatan")
+                                            }
+                                            className="transition-colors duration-300 text-emerald-600 hover:text-red-600"
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
@@ -1133,8 +1254,8 @@ export default function Index({
                     )}
                 </div>
 
-                {/* MODIFIED: Enhanced Employee Table dengan Simplified Click-to-Hide Badge */}
-                <div className="px-6 pb-8">
+                {/* UPDATED: Enhanced Employee Table dengan Status Pegawai Split dan Kelompok Jabatan - Compact */}
+                <div className="px-6 pb-6">
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
                             <div
@@ -1156,6 +1277,9 @@ export default function Index({
                                             </th>
                                             <th className="px-6 py-4 text-xs font-bold tracking-wider text-left text-gray-600 uppercase">
                                                 Status Pegawai
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold tracking-wider text-left text-gray-600 uppercase">
+                                                Kelompok Jabatan
                                             </th>
                                             <th className="px-6 py-4 text-xs font-bold tracking-wider text-left text-gray-600 uppercase">
                                                 TMT Mulai Jabatan
@@ -1184,7 +1308,7 @@ export default function Index({
                                                         }
                                                         className="group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5"
                                                     >
-                                                        {/* MODIFIED: No Column tanpa label */}
+                                                        {/* No Column */}
                                                         <td
                                                             className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
                                                             onClick={(e) =>
@@ -1202,11 +1326,10 @@ export default function Index({
                                                                 1}
                                                         </td>
 
-                                                        {/* MODIFIED: NIP Column dengan label hanya di atas profile photo */}
+                                                        {/* NIP Column dengan label hanya di atas profile photo */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <div className="flex items-center">
                                                                 <div className="relative flex-shrink-0 w-10 h-10">
-                                                                    {/* MODIFIED: Label hanya di atas avatar */}
                                                                     <SimplifiedNewEmployeeLabel
                                                                         employee={
                                                                             employee
@@ -1251,7 +1374,7 @@ export default function Index({
                                                             </div>
                                                         </td>
 
-                                                        {/* MODIFIED: Nama Lengkap Column tanpa label */}
+                                                        {/* Nama Lengkap Column */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <div
                                                                 className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
@@ -1282,14 +1405,23 @@ export default function Index({
                                                             </div>
                                                         </td>
 
-                                                        {/* MODIFIED: Status Pegawai Column tanpa label */}
+                                                        {/* UPDATED: Status Pegawai Column dengan TAD Split */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <span
                                                                 className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
                                                                     employee.status_pegawai ===
                                                                     "PEGAWAI TETAP"
                                                                         ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
-                                                                        : "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
+                                                                        : employee.status_pegawai ===
+                                                                          "PKWT"
+                                                                        ? "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300"
+                                                                        : employee.status_pegawai ===
+                                                                          "TAD PAKET SDM"
+                                                                        ? "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
+                                                                        : employee.status_pegawai ===
+                                                                          "TAD PAKET PEKERJAAN"
+                                                                        ? "bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-300"
+                                                                        : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
                                                                 }`}
                                                                 onClick={(e) =>
                                                                     handleEmployeeProfileClick(
@@ -1300,6 +1432,40 @@ export default function Index({
                                                                 title="Klik untuk menyembunyikan label baru"
                                                             >
                                                                 {employee.status_pegawai ||
+                                                                    "-"}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* FITUR BARU: Kelompok Jabatan Column */}
+                                                        <td className="px-6 py-5 whitespace-nowrap">
+                                                            <span
+                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
+                                                                    employee.kelompok_jabatan ===
+                                                                    "MANAGER"
+                                                                        ? "bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 border border-purple-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "SUPERVISOR"
+                                                                        ? "bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 border border-indigo-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "STAFF"
+                                                                        ? "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "EXECUTIVE GENERAL MANAGER"
+                                                                        ? "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "ACCOUNT EXECUTIVE/AE"
+                                                                        ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
+                                                                        : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
+                                                                }`}
+                                                                onClick={(e) =>
+                                                                    handleEmployeeProfileClick(
+                                                                        employee.id,
+                                                                        e
+                                                                    )
+                                                                }
+                                                                title="Klik untuk menyembunyikan label baru"
+                                                            >
+                                                                {employee.kelompok_jabatan ||
                                                                     "-"}
                                                             </span>
                                                         </td>

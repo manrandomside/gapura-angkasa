@@ -38,7 +38,7 @@ class EmployeeController extends Controller
 
     /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * UPDATED: Support TAD Split dan Kelompok Jabatan filters
+     * UPDATED: Support TAD Split dan Kelompok Jabatan filters dengan Safe Error Handling
      */
     public function index(Request $request)
     {
@@ -129,23 +129,23 @@ class EmployeeController extends Controller
             // ENHANCED: Calculate statistics with WITA timezone support - UPDATED untuk TAD Split
             $statistics = $this->getEnhancedStatistics($filterConditions);
 
-            // Get organizations for filter dropdown
+            // Get organizations for filter dropdown - SAFE VERSION
             $organizations = $this->getOrganizationsForFilter();
 
             // Get filter options for dropdowns - UPDATED: Include kelompok jabatan
             $filterOptions = $this->getFilterOptions();
 
-            // ENHANCED: Get new employees data for notifications (WITA timezone)
+            // ENHANCED: Get new employees data for notifications (WITA timezone) - SAFE VERSION
             $newEmployeesToday = $this->getNewEmployeesToday();
             $newEmployeesYesterday = $this->getNewEmployeesYesterday();
             $newEmployeesThisWeek = $this->getNewEmployeesThisWeek();
 
-            // Get notification data from session (if exists)
+            // Get notification data from session (if exists) - SAFE VERSION
             $notificationData = $this->getNotificationData();
 
-            // Get current WITA time information
-            $timeInfo = TimezoneHelper::getTimeBasedGreeting();
-            $businessHours = TimezoneHelper::getBusinessHoursStatus();
+            // Get current WITA time information - SAFE VERSION
+            $timeInfo = $this->getTimeBasedGreeting();
+            $businessHours = $this->getBusinessHoursStatus();
 
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
@@ -181,20 +181,20 @@ class EmployeeController extends Controller
                 'notifications' => [
                     'session' => $notificationData,
                     'newToday' => $newEmployeesToday,
-                    'newYesterday' => $newEmployeesYesterday, // FIXED: Removed count() - already returns integer
+                    'newYesterday' => $newEmployeesYesterday,
                     'newThisWeek' => $newEmployeesThisWeek,
                     'timeInfo' => $timeInfo,
                     'businessHours' => $businessHours,
-                    'witaTime' => TimezoneHelper::formatIndonesian(TimezoneHelper::getWitaDate()),
+                    'witaTime' => $this->formatIndonesian($this->getWitaDate()),
                 ],
 
                 // Legacy compatibility (keep existing)
-                'newEmployee' => $notificationData['newEmployee'],
-                'success' => $notificationData['success'],
-                'error' => $notificationData['error'],
-                'message' => $notificationData['message'],
-                'notification' => $notificationData['notification'],
-                'alerts' => $notificationData['alerts'],
+                'newEmployee' => $notificationData['newEmployee'] ?? null,
+                'success' => $notificationData['success'] ?? null,
+                'error' => $notificationData['error'] ?? null,
+                'message' => $notificationData['message'] ?? null,
+                'notification' => $notificationData['notification'] ?? null,
+                'alerts' => $notificationData['alerts'] ?? [],
 
                 // Page metadata
                 'title' => 'Management Karyawan',
@@ -213,21 +213,10 @@ class EmployeeController extends Controller
             ]);
 
             return Inertia::render('Employees/Index', [
-                'employees' => collect([]),
+                'employees' => ['data' => []],
                 'organizations' => [],
-                'filterOptions' => [],
-                'statistics' => [
-                    'total' => 0,
-                    'pegawaiTetap' => 0,
-                    'pkwt' => 0,
-                    'tad_total' => 0,
-                    'tad_paket_sdm' => 0,
-                    'tad_paket_pekerjaan' => 0,
-                    'uniqueUnits' => 0,
-                    'newToday' => 0,
-                    'newYesterday' => 0,
-                    'newThisWeek' => 0,
-                ],
+                'filterOptions' => $this->getDefaultFilterOptions(),
+                'statistics' => $this->getDefaultStatistics(),
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
@@ -237,28 +226,14 @@ class EmployeeController extends Controller
                     'jenis_sepatu', 
                     'ukuran_sepatu'
                 ]),
-                'pagination' => [
-                    'current_page' => 1,
-                    'last_page' => 1,
-                    'per_page' => 20,
-                    'total' => 0,
-                    'from' => null,
-                    'to' => null,
-                    'has_pages' => false,
-                    'has_more_pages' => false,
-                    'on_first_page' => true,
-                    'on_last_page' => true,
-                    'next_page_url' => null,
-                    'prev_page_url' => null,
-                    'links' => []
-                ],
+                'pagination' => $this->getDefaultPagination(),
                 'notifications' => [
                     'session' => null, 
                     'newToday' => [], 
-                    'newYesterday' => 0, // FIXED: Use integer directly, not array
+                    'newYesterday' => 0,
                     'newThisWeek' => [], 
-                    'timeInfo' => TimezoneHelper::getTimeBasedGreeting(),
-                    'witaTime' => TimezoneHelper::formatIndonesian(TimezoneHelper::getWitaDate()),
+                    'timeInfo' => $this->getTimeBasedGreeting(),
+                    'witaTime' => $this->formatIndonesian($this->getWitaDate()),
                 ],
                 'newEmployee' => null,
                 'error' => 'Terjadi kesalahan saat memuat data karyawan: ' . $e->getMessage(),
@@ -272,7 +247,7 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for creating a new employee
-     * UPDATED: Include kelompok jabatan dan status pegawai options
+     * UPDATED: Include kelompok jabatan dan status pegawai options dengan Safe Handling
      */
     public function create()
     {
@@ -281,28 +256,16 @@ class EmployeeController extends Controller
             
             // Enhanced unit options with fallbacks
             $unitOptions = $this->getUnitOptions();
-            if ($unitOptions->isEmpty()) {
-                $unitOptions = collect([
-                    'Back Office',
-                    'Front Office', 
-                    'Security',
-                    'Ground Handling',
-                    'Cargo',
-                    'Aviation Security',
-                    'Passenger Service',
-                    'Ramp'
-                ]);
-            }
-
+            
             // Enhanced jabatan options
             $jabatanOptions = $this->getJabatanOptions();
             
             return Inertia::render('Employees/Create', [
                 'organizations' => $organizations,
-                'unitOptions' => $unitOptions->toArray(),
-                'jabatanOptions' => $jabatanOptions->toArray(),
-                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS, // BARU
-                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
+                'unitOptions' => $unitOptions,
+                'jabatanOptions' => $jabatanOptions,
+                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
+                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
                 'message' => session('message'),
@@ -331,7 +294,7 @@ class EmployeeController extends Controller
                 'nama_lengkap' => $request->nama_lengkap,
                 'unit_organisasi' => $request->unit_organisasi,
                 'jenis_kelamin' => $request->jenis_kelamin,
-                'kelompok_jabatan' => $request->kelompok_jabatan, // BARU
+                'kelompok_jabatan' => $request->kelompok_jabatan,
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
             ]);
@@ -370,7 +333,6 @@ class EmployeeController extends Controller
                 'jabatan' => 'nullable|string|max:255',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                // TMT Pensiun tidak ada validasi karena auto-calculated
                 
                 // Education fields
                 'pendidikan_terakhir' => 'nullable|string|max:50',
@@ -379,7 +341,7 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Additional fields - BPJS dipindah ke data pribadi (sudah di validasi)
+                // Additional fields
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
                 'ukuran_sepatu' => 'nullable|string|max:10',
                 'height' => 'nullable|numeric|between:100,250',
@@ -459,31 +421,6 @@ class EmployeeController extends Controller
                     $employeeData['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
                 }
 
-                // FIXED: Only keep fields that exist in database fillable
-                $allowedFields = [
-                    'nip', 'nik', 'nama_lengkap', 'lokasi_kerja', 'cabang', 'status_pegawai',
-                    'status_kerja', 'provider', 'kode_organisasi', 'unit_organisasi', 'nama_organisasi',
-                    'nama_jabatan', 'jabatan', 'unit_kerja_kontrak', 'tmt_mulai_kerja', 'tmt_mulai_jabatan',
-                    'tmt_berakhir_jabatan', 'tmt_berakhir_kerja', 'masa_kerja_bulan', 'masa_kerja_tahun',
-                    'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'tempat_lahir', 'tanggal_lahir',
-                    'usia', 'kota_domisili', 'alamat', 'pendidikan', 'pendidikan_terakhir', 'instansi_pendidikan',
-                    'jurusan', 'remarks_pendidikan', 'tahun_lulus', 'handphone', 'no_telepon', 'email',
-                    'kategori_karyawan', 'tmt_pensiun', 'grade', 'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan',
-                    'kelompok_jabatan', 'kelas_jabatan', 'weight', 'height', 'organization_id', 'status', 'seragam'
-                ];
-
-                // Filter data untuk hanya field yang ada di database
-                $employeeData = array_intersect_key($employeeData, array_flip($allowedFields));
-
-                // Log data yang akan disimpan untuk debugging
-                Log::info('Employee Data Before Save', [
-                    'data' => $employeeData,
-                    'jenis_kelamin' => $employeeData['jenis_kelamin'],
-                    'kelompok_jabatan' => $employeeData['kelompok_jabatan'] ?? 'N/A',
-                    'status_pegawai' => $employeeData['status_pegawai'],
-                    'tmt_pensiun' => $employeeData['tmt_pensiun'] ?? 'N/A'
-                ]);
-
                 // Create employee dengan error handling
                 $employee = Employee::create($employeeData);
 
@@ -506,7 +443,7 @@ class EmployeeController extends Controller
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
-                // ENHANCED: Comprehensive notification system with WITA timezone
+                // ENHANCED: Comprehensive notification system
                 $notificationData = $this->buildSuccessNotification($employee);
 
                 return redirect()->route('employees.index')
@@ -594,30 +531,22 @@ class EmployeeController extends Controller
                 }
             }
             
-            // Ensure numeric fields are properly formatted
-            $numericFields = ['height', 'weight', 'tahun_lulus'];
-            foreach ($numericFields as $field) {
-                if (isset($employeeData[$field]) && $employeeData[$field]) {
-                    $employeeData[$field] = (string) $employeeData[$field];
-                }
-            }
-            
             // Get organizations untuk dropdown jika diperlukan
             $organizations = $this->getOrganizationsForFilter();
             
             // Get unit options
-            $unitOptions = $this->getUnitOptions()->toArray();
+            $unitOptions = $this->getUnitOptions();
             
             // Get jabatan options
-            $jabatanOptions = $this->getJabatanOptions()->toArray();
+            $jabatanOptions = $this->getJabatanOptions();
             
             return Inertia::render('Employees/Edit', [
                 'employee' => $employeeData,
                 'organizations' => $organizations,
                 'unitOptions' => $unitOptions,
                 'jabatanOptions' => $jabatanOptions,
-                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS, // BARU
-                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
+                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
+                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
                 'title' => 'Edit Karyawan',
                 'subtitle' => "Edit data karyawan {$employee->nama_lengkap}",
                 'success' => session('success'),
@@ -654,14 +583,12 @@ class EmployeeController extends Controller
             $originalData = $employee->toArray();
 
             $validator = Validator::make($request->all(), [
-                // NIP tidak boleh diubah - hanya untuk referensi
                 'nip' => [
                     'required',
                     'string',
                     'max:20',
                     Rule::unique('employees', 'nip')->ignore($employee->id)
                 ],
-                // Data Pribadi
                 'nama_lengkap' => 'required|string|max:255',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'tempat_lahir' => 'nullable|string|max:100',
@@ -669,8 +596,6 @@ class EmployeeController extends Controller
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
                 'nik' => 'nullable|string|max:20',
-                
-                // Data Kontak
                 'no_telepon' => 'nullable|string|max:20',
                 'handphone' => 'nullable|string|max:20',
                 'email' => [
@@ -679,8 +604,6 @@ class EmployeeController extends Controller
                     'max:255',
                     Rule::unique('employees', 'email')->ignore($employee->id)
                 ],
-                
-                // Data Pekerjaan - UPDATED: Include kelompok jabatan dan TAD split
                 'unit_organisasi' => 'required|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 'nama_jabatan' => 'required|string|max:255',
@@ -688,16 +611,11 @@ class EmployeeController extends Controller
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                // TMT Pensiun tidak ada validasi karena auto-calculated
-                
-                // Data Pendidikan
                 'pendidikan_terakhir' => 'nullable|string|max:50',
                 'pendidikan' => 'nullable|string|max:50',
                 'instansi_pendidikan' => 'nullable|string|max:255',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                
-                // Data Tambahan
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
                 'ukuran_sepatu' => 'nullable|string|max:10',
                 'height' => 'nullable|numeric|between:100,250',
@@ -727,7 +645,7 @@ class EmployeeController extends Controller
             // IMPORTANT: Hapus NIP dari data yang akan diupdate untuk mencegah perubahan
             unset($data['nip']);
             
-            // Convert gender to database format (L/P) instead of display format
+            // Convert gender to database format (L/P)
             if (isset($data['jenis_kelamin'])) {
                 if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
                     $data['jenis_kelamin'] = 'L';
@@ -740,27 +658,14 @@ class EmployeeController extends Controller
             if (isset($data['tanggal_lahir']) && $data['tanggal_lahir'] !== $originalData['tanggal_lahir']) {
                 $birthDate = Carbon::parse($data['tanggal_lahir']);
                 $data['usia'] = $birthDate->age;
-                // Auto-calculate TMT Pensiun (56 tahun) - Set ke tanggal 1 pada bulan ke-56
                 $data['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
             } elseif (isset($data['tanggal_lahir'])) {
-                // Recalculate age if birth date exists
                 $data['usia'] = Carbon::parse($data['tanggal_lahir'])->age;
             }
 
             // Handle jabatan field consistency
             if (!isset($data['jabatan']) && isset($data['nama_jabatan'])) {
                 $data['jabatan'] = $data['nama_jabatan'];
-            }
-
-            // Convert numeric fields
-            if (isset($data['height'])) {
-                $data['height'] = (int) $data['height'];
-            }
-            if (isset($data['weight'])) {
-                $data['weight'] = (int) $data['weight'];
-            }
-            if (isset($data['tahun_lulus'])) {
-                $data['tahun_lulus'] = (int) $data['tahun_lulus'];
             }
 
             // Update employee data
@@ -775,7 +680,6 @@ class EmployeeController extends Controller
                 'kelompok_jabatan' => $employee->kelompok_jabatan,
                 'status_pegawai' => $employee->status_pegawai,
                 'tmt_pensiun_updated' => isset($data['tmt_pensiun']) ? 'Yes' : 'No',
-                'updated_by' => 'system' // Bisa diubah ke auth user jika ada authentication
             ]);
 
             return redirect()->route('employees.index')
@@ -789,18 +693,6 @@ class EmployeeController extends Controller
                     ]
                 ]);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->back()
-                ->withErrors($e->validator)
-                ->withInput()
-                ->with([
-                    'error' => 'Validasi data gagal.',
-                    'notification' => [
-                        'type' => 'error',
-                        'title' => 'Validasi Gagal',
-                        'message' => 'Mohon periksa kembali data yang diisi'
-                    ]
-                ]);
         } catch (\Exception $e) {
             Log::error('Employee Update Error', [
                 'employee_id' => $employee->id ?? 'unknown',
@@ -823,7 +715,6 @@ class EmployeeController extends Controller
 
     /**
      * Remove the specified employee (soft delete)
-     * ENHANCED: Better notification untuk delete
      */
     public function destroy(Employee $employee)
     {
@@ -862,69 +753,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Search employees (API endpoint) - Enhanced with kelompok jabatan
-     */
-    public function search(Request $request)
-    {
-        try {
-            $query = $request->get('q', '');
-            $limit = $request->get('limit', 10);
-            $page = $request->get('page', 1);
-            
-            $employeesQuery = Employee::where('status', 'active')
-                ->where(function($q) use ($query) {
-                    $q->where('nama_lengkap', 'like', "%{$query}%")
-                      ->orWhere('nip', 'like', "%{$query}%")
-                      ->orWhere('jabatan', 'like', "%{$query}%")
-                      ->orWhere('nama_jabatan', 'like', "%{$query}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$query}%") // BARU
-                      ->orWhere('jenis_sepatu', 'like', "%{$query}%")
-                      ->orWhere('ukuran_sepatu', 'like', "%{$query}%");
-                });
-
-            // Get paginated results if requested
-            if ($request->has('paginate') && $request->paginate === 'true') {
-                $employees = $employeesQuery->paginate($limit, [
-                    'id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 
-                    'unit_organisasi', 'kelompok_jabatan', 'status_pegawai', // BARU: Include kelompok_jabatan dan status_pegawai
-                    'jenis_sepatu', 'ukuran_sepatu'
-                ]);
-                
-                return response()->json([
-                    'employees' => $employees->items(),
-                    'pagination' => [
-                        'current_page' => $employees->currentPage(),
-                        'last_page' => $employees->lastPage(),
-                        'per_page' => $employees->perPage(),
-                        'total' => $employees->total(),
-                        'from' => $employees->firstItem(),
-                        'to' => $employees->lastItem(),
-                    ]
-                ]);
-            } else {
-                $employees = $employeesQuery->limit($limit)
-                    ->get([
-                        'id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 
-                        'unit_organisasi', 'kelompok_jabatan', 'status_pegawai',
-                        'jenis_sepatu', 'ukuran_sepatu'
-                    ]);
-                
-                return response()->json([
-                    'employees' => $employees,
-                    'total' => $employees->count(),
-                ]);
-            }
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'employees' => [],
-                'total' => 0,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
      * Get employee statistics (API endpoint) - UPDATED: Include TAD Split dan Kelompok Jabatan
      */
     public function getStatistics()
@@ -952,16 +780,7 @@ class EmployeeController extends Controller
                     'executive_gm' => Employee::where('kelompok_jabatan', 'EXECUTIVE GENERAL MANAGER')->count(),
                     'account_executive' => Employee::where('kelompok_jabatan', 'ACCOUNT EXECUTIVE/AE')->count(),
                 ],
-                'shoe_statistics' => [
-                    'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
-                    'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
-                    'no_shoe_data' => Employee::whereNull('jenis_sepatu')->count(),
-                    'size_distribution' => $this->getShoesSizeDistribution(),
-                ],
-                'by_organization' => $this->getEmployeesByOrganization(),
-                'by_education' => $this->getEmployeesByEducation(),
-                'recent_hires' => $this->getRecentHires(),
-                'upcoming_retirement' => $this->getUpcomingRetirement(),
+                'total_organizations' => $this->getOrganizationCount(),
             ];
 
             return response()->json($statistics);
@@ -974,135 +793,16 @@ class EmployeeController extends Controller
         }
     }
 
-    // Keep all existing methods (export, import, profile, bulkAction, validateData, generateReport, etc.)
-    // They are already comprehensive and working well
-
-    /**
-     * Export employees data to CSV - Enhanced with kelompok jabatan
-     */
-    public function export(Request $request)
-    {
-        try {
-            $query = Employee::where('status', 'active');
-
-            // Apply same filters as index (including kelompok_jabatan)
-            if ($request->filled('search')) {
-                $searchTerm = $request->search;
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where('nip', 'like', "%{$searchTerm}%")
-                      ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
-                      ->orWhere('jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
-                      ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
-                });
-            }
-
-            if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
-                $query->where('status_pegawai', $request->status_pegawai);
-            }
-
-            if ($request->filled('kelompok_jabatan') && $request->kelompok_jabatan !== 'all') {
-                $query->where('kelompok_jabatan', $request->kelompok_jabatan);
-            }
-
-            if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
-                $query->where('unit_organisasi', $request->unit_organisasi);
-            }
-
-            if ($request->filled('jenis_sepatu') && $request->jenis_sepatu !== 'all') {
-                $query->where('jenis_sepatu', $request->jenis_sepatu);
-            }
-
-            if ($request->filled('ukuran_sepatu') && $request->ukuran_sepatu !== 'all') {
-                $query->where('ukuran_sepatu', $request->ukuran_sepatu);
-            }
-
-            $employees = $query->orderBy('nama_lengkap')->get();
-
-            // Generate CSV filename
-            $filename = 'data_karyawan_gapura_angkasa_' . date('Y-m-d_H-i-s') . '.csv';
-            
-            $headers = [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => "attachment; filename=\"$filename\"",
-                'Cache-Control' => 'no-cache, no-store, must-revalidate',
-                'Pragma' => 'no-cache',
-                'Expires' => '0',
-            ];
-
-            $callback = function() use ($employees) {
-                $file = fopen('php://output', 'w');
-                
-                // Add BOM for proper UTF-8 encoding in Excel
-                fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-                
-                // CSV Headers - UPDATED: Include kelompok jabatan
-                fputcsv($file, [
-                    'NIP', 'Nama Lengkap', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 
-                    'Alamat', 'No Telepon', 'Handphone', 'Email', 'Unit Organisasi', 
-                    'Jabatan', 'Status Pegawai', 'Kelompok Jabatan', 'TMT Mulai Jabatan', 'TMT Mulai Kerja', 'TMT Pensiun',
-                    'Pendidikan Terakhir', 'Instansi Pendidikan', 'Jurusan', 'Tahun Lulus',
-                    'Jenis Sepatu', 'Ukuran Sepatu', 'Kota Domisili', 'Usia', 'Status', 'Seragam'
-                ]);
-
-                // CSV Data
-                foreach ($employees as $employee) {
-                    fputcsv($file, [
-                        $employee->nip,
-                        $employee->nama_lengkap,
-                        $employee->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan',
-                        $employee->tempat_lahir,
-                        $employee->tanggal_lahir ? Carbon::parse($employee->tanggal_lahir)->format('d/m/Y') : '',
-                        $employee->alamat,
-                        $employee->no_telepon,
-                        $employee->handphone,
-                        $employee->email,
-                        $employee->unit_organisasi,
-                        $employee->jabatan ?: $employee->nama_jabatan,
-                        $employee->status_pegawai,
-                        $employee->kelompok_jabatan ?: '-', // BARU
-                        $employee->tmt_mulai_jabatan ? Carbon::parse($employee->tmt_mulai_jabatan)->format('d/m/Y') : '',
-                        $employee->tmt_mulai_kerja ? Carbon::parse($employee->tmt_mulai_kerja)->format('d/m/Y') : '',
-                        $employee->tmt_pensiun ? Carbon::parse($employee->tmt_pensiun)->format('d/m/Y') : '', // BARU
-                        $employee->pendidikan_terakhir ?: $employee->pendidikan,
-                        $employee->instansi_pendidikan,
-                        $employee->jurusan,
-                        $employee->tahun_lulus,
-                        $employee->jenis_sepatu ?: '-',
-                        $employee->ukuran_sepatu ?: '-',
-                        $employee->kota_domisili,
-                        $employee->usia,
-                        $employee->status_kerja ?: 'Aktif',
-                        $employee->seragam ?: '-',
-                    ]);
-                }
-
-                fclose($file);
-            };
-
-            return response()->stream($callback, 200, $headers);
-
-        } catch (\Exception $e) {
-            return redirect()->route('employees.index')
-                ->with('error', 'Gagal export data: ' . $e->getMessage());
-        }
-    }
-
     // =====================================================
-    // ENHANCED PRIVATE HELPER METHODS WITH WITA SUPPORT
+    // SAFE PRIVATE HELPER METHODS - FIXED NULL HANDLING
     // =====================================================
 
     /**
-     * Get enhanced statistics with WITA timezone support
-     * UPDATED: Include TAD Split dan Kelompok Jabatan statistics
+     * Get enhanced statistics with safe null handling - UPDATED untuk TAD Split
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
         try {
-            // FIXED: Ensure $filterConditions is always an array
             if (!is_array($filterConditions)) {
                 $filterConditions = [];
             }
@@ -1126,10 +826,9 @@ class EmployeeController extends Controller
                 
                 $uniqueUnits = Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
             } else {
-                // If filters applied, calculate from filtered results
+                // Apply filters to calculate statistics
                 $query = Employee::where('status', 'active');
                 
-                // Apply the same filters as in index method
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
@@ -1138,7 +837,7 @@ class EmployeeController extends Controller
                           ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%") // BARU
+                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                     });
@@ -1148,7 +847,7 @@ class EmployeeController extends Controller
                     $query->where('status_pegawai', $filterConditions['status_pegawai']);
                 }
 
-                if (isset($filterConditions['kelompok_jabatan'])) { // BARU
+                if (isset($filterConditions['kelompok_jabatan'])) {
                     $query->where('kelompok_jabatan', $filterConditions['kelompok_jabatan']);
                 }
 
@@ -1181,26 +880,8 @@ class EmployeeController extends Controller
                 $uniqueUnits = (clone $query)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
             }
             
-            // ENHANCED: New employees count with WITA timezone (global, not filtered)
-            $newToday = Employee::whereBetween('created_at', [
-                TimezoneHelper::getWitaTodayStart()->utc(),
-                TimezoneHelper::getWitaTodayEnd()->utc()
-            ])->count();
-
-            $newYesterday = Employee::whereBetween('created_at', [
-                TimezoneHelper::getWitaYesterdayStart()->utc(),
-                TimezoneHelper::getWitaYesterdayEnd()->utc()
-            ])->count();
-
-            $newThisWeek = Employee::whereBetween('created_at', [
-                TimezoneHelper::getWitaThisWeekStart()->utc(),
-                TimezoneHelper::getWitaDate()->utc()
-            ])->count();
-
-            $newThisMonth = Employee::whereBetween('created_at', [
-                TimezoneHelper::getWitaThisMonthStart()->utc(),
-                TimezoneHelper::getWitaDate()->utc()
-            ])->count();
+            // Get new employees count (global, not filtered)
+            $newToday = $this->getNewEmployeesToday();
 
             return [
                 'total' => $total,
@@ -1212,10 +893,6 @@ class EmployeeController extends Controller
                 'tad' => $tadTotal, // Backward compatibility
                 'uniqueUnits' => $uniqueUnits,
                 'newToday' => $newToday,
-                'newYesterday' => $newYesterday,
-                'newThisWeek' => $newThisWeek,
-                'newThisMonth' => $newThisMonth,
-                // FIXED: Safely count array elements with proper validation and filtering
                 'activeFilters' => is_array($filterConditions) ? count(array_filter($filterConditions, function($value) {
                     return !is_null($value) && $value !== '' && $value !== 'all';
                 })) : 0
@@ -1223,27 +900,12 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Enhanced Statistics Error: ' . $e->getMessage());
-            return [
-                'total' => 0,
-                'pegawaiTetap' => 0,
-                'pkwt' => 0,
-                'tad_total' => 0,
-                'tad_paket_sdm' => 0,
-                'tad_paket_pekerjaan' => 0,
-                'tad' => 0,
-                'uniqueUnits' => 0,
-                'newToday' => 0,
-                'newYesterday' => 0,
-                'newThisWeek' => 0,
-                'newThisMonth' => 0,
-                'activeFilters' => 0
-            ];
+            return $this->getDefaultStatistics();
         }
     }
 
     /**
-     * Get filter options for all dropdown filters
-     * UPDATED: Include kelompok jabatan options
+     * Get filter options with safe null handling - UPDATED: Include kelompok jabatan
      */
     private function getFilterOptions()
     {
@@ -1253,50 +915,390 @@ class EmployeeController extends Controller
                 'positions' => $this->getJabatanOptions(),
                 'shoe_types' => ['Pantofel', 'Safety Shoes'],
                 'shoe_sizes' => $this->getShoeSizeOptions(),
-                'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS, // UPDATED: Include TAD split
-                'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
-                'genders' => ['L', 'P'], // FIXED: Use database format for consistency
+                'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS,
+                'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
+                'genders' => ['L', 'P'],
             ];
         } catch (\Exception $e) {
+            Log::error('Filter Options Error: ' . $e->getMessage());
+            return $this->getDefaultFilterOptions();
+        }
+    }
+
+    /**
+     * Get organizations for filter dropdown - SAFE VERSION
+     */
+    private function getOrganizationsForFilter()
+    {
+        try {
+            if (!class_exists(Organization::class)) {
+                return [];
+            }
+
+            $organizations = Organization::where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']);
+                
+            return $organizations ? $organizations->toArray() : [];
+                
+        } catch (\Exception $e) {
+            Log::error('Organizations Filter Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get unique unit options - SAFE VERSION
+     */
+    private function getUnitOptions()
+    {
+        try {
+            $units = Employee::whereNotNull('unit_organisasi')
+                ->where('unit_organisasi', '!=', '')
+                ->distinct()
+                ->orderBy('unit_organisasi')
+                ->pluck('unit_organisasi');
+
+            if (!$units || $units->isEmpty()) {
+                return [
+                    'Back Office',
+                    'Front Office', 
+                    'Security',
+                    'Ground Handling',
+                    'Cargo',
+                    'Aviation Security',
+                    'Passenger Service',
+                    'Ramp'
+                ];
+            }
+
+            return $units->toArray();
+        } catch (\Exception $e) {
+            Log::error('Unit Options Error: ' . $e->getMessage());
             return [
-                'units' => [],
-                'positions' => [],
-                'shoe_types' => [],
-                'shoe_sizes' => [],
-                'status_pegawai' => [],
-                'kelompok_jabatan' => [],
-                'genders' => [],
+                'Back Office',
+                'Front Office', 
+                'Security',
+                'Ground Handling',
+                'Cargo',
+                'Aviation Security',
+                'Passenger Service',
+                'Ramp'
             ];
         }
     }
 
-    // Keep all other existing private methods as they are already comprehensive
-    private function getNewEmployeesToday() { /* existing implementation */ }
-    private function getNewEmployeesYesterday() { /* existing implementation */ }
-    private function getNewEmployeesThisWeek() { /* existing implementation */ }
-    private function getNotificationData() { /* existing implementation */ }
-    private function buildSuccessNotification(Employee $employee) { /* existing implementation */ }
-    private function getOrganizationsForFilter() { /* existing implementation */ }
-    private function getUnitOptions() { /* existing implementation */ }
-    private function getJabatanOptions() { /* existing implementation */ }
-    private function getShoeSizeOptions() { /* existing implementation */ }
-    private function getEmployeesByOrganization() { /* existing implementation */ }
-    private function getEmployeesByEducation() { /* existing implementation */ }
-    private function getShoesSizeDistribution() { /* existing implementation */ }
-    private function getRecentHires() { /* existing implementation */ }
-    private function getUpcomingRetirement() { /* existing implementation */ }
-    private function calculateProfileCompletion(Employee $employee) { /* existing implementation */ }
-    private function processCsvImport($filePath) { /* existing implementation */ }
-    private function processExcelImport($filePath) { /* existing implementation */ }
-    private function createEmployeeFromImport($data) { /* existing implementation */ }
-    private function normalizeGender($gender) { /* existing implementation */ }
-    private function generateSummaryReport($format) { /* existing implementation */ }
-    private function generateDetailedReport($format) { /* existing implementation */ }
-    private function generateByUnitReport($format) { /* existing implementation */ }
-    private function generateRetirementReport($format) { /* existing implementation */ }
-    private function generateShoesReport($format) { /* existing implementation */ }
-    private function generateCsvReport($reportName, $stats, $unitStats) { /* existing implementation */ }
+    /**
+     * Get unique jabatan options - SAFE VERSION
+     */
+    private function getJabatanOptions()
+    {
+        try {
+            $jabatan = Employee::whereNotNull('nama_jabatan')
+                ->where('nama_jabatan', '!=', '')
+                ->distinct()
+                ->orderBy('nama_jabatan')
+                ->pluck('nama_jabatan');
 
-    // Keep all other existing methods (import, profile, bulkAction, validateData, generateReport, etc.)
-    // as they are comprehensive and working well
+            return $jabatan ? $jabatan->toArray() : [];
+        } catch (\Exception $e) {
+            Log::error('Jabatan Options Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get unique shoe size options - SAFE VERSION
+     */
+    private function getShoeSizeOptions()
+    {
+        try {
+            $sizes = Employee::whereNotNull('ukuran_sepatu')
+                ->where('ukuran_sepatu', '!=', '')
+                ->distinct()
+                ->orderBy('ukuran_sepatu')
+                ->pluck('ukuran_sepatu');
+
+            return $sizes ? $sizes->toArray() : [];
+        } catch (\Exception $e) {
+            Log::error('Shoe Size Options Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get new employees today count - SAFE VERSION
+     */
+    private function getNewEmployeesToday()
+    {
+        try {
+            $today = Carbon::now()->startOfDay();
+            $endOfDay = Carbon::now()->endOfDay();
+
+            return Employee::whereBetween('created_at', [$today, $endOfDay])
+                          ->where('status', 'active')
+                          ->count();
+        } catch (\Exception $e) {
+            Log::error('New Employees Today Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get new employees yesterday count - SAFE VERSION  
+     */
+    private function getNewEmployeesYesterday()
+    {
+        try {
+            $yesterday = Carbon::now()->subDay()->startOfDay();
+            $endOfYesterday = Carbon::now()->subDay()->endOfDay();
+
+            return Employee::whereBetween('created_at', [$yesterday, $endOfYesterday])
+                          ->where('status', 'active')
+                          ->count();
+        } catch (\Exception $e) {
+            Log::error('New Employees Yesterday Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get new employees this week count - SAFE VERSION
+     */
+    private function getNewEmployeesThisWeek()
+    {
+        try {
+            $startOfWeek = Carbon::now()->startOfWeek();
+            $now = Carbon::now();
+
+            return Employee::whereBetween('created_at', [$startOfWeek, $now])
+                          ->where('status', 'active')
+                          ->count();
+        } catch (\Exception $e) {
+            Log::error('New Employees This Week Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get notification data - SAFE VERSION
+     */
+    private function getNotificationData()
+    {
+        try {
+            return [
+                'newEmployee' => session('newEmployee'),
+                'success' => session('success'),
+                'error' => session('error'),
+                'message' => session('message'),
+                'notification' => session('notification'),
+                'alerts' => session('alerts', []),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Notification Data Error: ' . $e->getMessage());
+            return [
+                'newEmployee' => null,
+                'success' => null,
+                'error' => null,
+                'message' => null,
+                'notification' => null,
+                'alerts' => [],
+            ];
+        }
+    }
+
+    /**
+     * Build success notification - SAFE VERSION
+     */
+    private function buildSuccessNotification($employee)
+    {
+        try {
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'newEmployee' => $employee,
+                'message' => "Karyawan {$employee->nama_lengkap} telah berhasil ditambahkan ke sistem.",
+                'notification' => [
+                    'type' => 'success',
+                    'title' => 'Karyawan Baru!',
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan.",
+                    'employee_id' => $employee->id,
+                    'duration' => 5000,
+                ],
+                'alerts' => [
+                    [
+                        'type' => 'success',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar.',
+                        'duration' => 4000
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            Log::error('Build Success Notification Error: ' . $e->getMessage());
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'message' => 'Data karyawan telah berhasil disimpan.',
+            ];
+        }
+    }
+
+    /**
+     * Get organization count - SAFE VERSION
+     */
+    private function getOrganizationCount()
+    {
+        try {
+            if (class_exists(Organization::class)) {
+                return Organization::count();
+            }
+            
+            // Fallback: count unique units from employees
+            return Employee::distinct('unit_organisasi')
+                ->whereNotNull('unit_organisasi')
+                ->count();
+        } catch (\Exception $e) {
+            Log::error('Organization Count Error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get time based greeting - SAFE VERSION
+     */
+    private function getTimeBasedGreeting()
+    {
+        try {
+            if (class_exists(TimezoneHelper::class)) {
+                return TimezoneHelper::getTimeBasedGreeting();
+            }
+            
+            $hour = Carbon::now()->hour;
+            if ($hour < 12) {
+                return ['greeting' => 'Selamat Pagi', 'period' => 'morning'];
+            } elseif ($hour < 15) {
+                return ['greeting' => 'Selamat Siang', 'period' => 'afternoon'];
+            } elseif ($hour < 18) {
+                return ['greeting' => 'Selamat Sore', 'period' => 'evening'];
+            } else {
+                return ['greeting' => 'Selamat Malam', 'period' => 'night'];
+            }
+        } catch (\Exception $e) {
+            Log::error('Time Based Greeting Error: ' . $e->getMessage());
+            return ['greeting' => 'Selamat Datang', 'period' => 'day'];
+        }
+    }
+
+    /**
+     * Get business hours status - SAFE VERSION
+     */
+    private function getBusinessHoursStatus()
+    {
+        try {
+            if (class_exists(TimezoneHelper::class)) {
+                return TimezoneHelper::getBusinessHoursStatus();
+            }
+            
+            $hour = Carbon::now()->hour;
+            return [
+                'isBusinessHours' => $hour >= 8 && $hour < 17,
+                'status' => $hour >= 8 && $hour < 17 ? 'open' : 'closed'
+            ];
+        } catch (\Exception $e) {
+            Log::error('Business Hours Status Error: ' . $e->getMessage());
+            return ['isBusinessHours' => true, 'status' => 'open'];
+        }
+    }
+
+    /**
+     * Get WITA date - SAFE VERSION
+     */
+    private function getWitaDate()
+    {
+        try {
+            if (class_exists(TimezoneHelper::class)) {
+                return TimezoneHelper::getWitaDate();
+            }
+            
+            return Carbon::now('Asia/Makassar');
+        } catch (\Exception $e) {
+            Log::error('Get WITA Date Error: ' . $e->getMessage());
+            return Carbon::now();
+        }
+    }
+
+    /**
+     * Format Indonesian date - SAFE VERSION
+     */
+    private function formatIndonesian($date)
+    {
+        try {
+            if (class_exists(TimezoneHelper::class)) {
+                return TimezoneHelper::formatIndonesian($date);
+            }
+            
+            return $date->format('d/m/Y H:i');
+        } catch (\Exception $e) {
+            Log::error('Format Indonesian Error: ' . $e->getMessage());
+            return Carbon::now()->format('d/m/Y H:i');
+        }
+    }
+
+    /**
+     * Get default statistics for fallback
+     */
+    private function getDefaultStatistics()
+    {
+        return [
+            'total' => 0,
+            'pegawaiTetap' => 0,
+            'pkwt' => 0,
+            'tad_total' => 0,
+            'tad_paket_sdm' => 0,
+            'tad_paket_pekerjaan' => 0,
+            'tad' => 0,
+            'uniqueUnits' => 0,
+            'newToday' => 0,
+            'newYesterday' => 0,
+            'newThisWeek' => 0,
+            'newThisMonth' => 0,
+            'activeFilters' => 0
+        ];
+    }
+
+    /**
+     * Get default filter options for fallback
+     */
+    private function getDefaultFilterOptions()
+    {
+        return [
+            'units' => [],
+            'positions' => [],
+            'shoe_types' => ['Pantofel', 'Safety Shoes'],
+            'shoe_sizes' => [],
+            'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS,
+            'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
+            'genders' => ['L', 'P'],
+        ];
+    }
+
+    /**
+     * Get default pagination for fallback
+     */
+    private function getDefaultPagination()
+    {
+        return [
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => 20,
+            'total' => 0,
+            'from' => null,
+            'to' => null,
+            'has_pages' => false,
+            'has_more_pages' => false,
+            'on_first_page' => true,
+            'on_last_page' => true,
+            'next_page_url' => null,
+            'prev_page_url' => null,
+            'links' => []
+        ];
+    }
 }
