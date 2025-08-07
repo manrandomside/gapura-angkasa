@@ -88,8 +88,34 @@ class Employee extends Model
      * ALTER TABLE employees ADD INDEX idx_jenis_kelamin (jenis_kelamin);
      * ALTER TABLE employees ADD INDEX idx_jenis_sepatu (jenis_sepatu);
      * ALTER TABLE employees ADD INDEX idx_ukuran_sepatu (ukuran_sepatu);
+     * ALTER TABLE employees ADD INDEX idx_kelompok_jabatan (kelompok_jabatan);
      * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, unit_organisasi);
      */
+
+    // =====================================================
+    // CONSTANTS - FITUR BARU
+    // =====================================================
+
+    /**
+     * KELOMPOK JABATAN CONSTANTS
+     */
+    const KELOMPOK_JABATAN = [
+        'SUPERVISOR',
+        'STAFF', 
+        'MANAGER',
+        'EXECUTIVE GENERAL MANAGER',
+        'ACCOUNT EXECUTIVE/AE'
+    ];
+
+    /**
+     * STATUS PEGAWAI CONSTANTS dengan TAD Split
+     */
+    const STATUS_PEGAWAI = [
+        'PEGAWAI TETAP',
+        'PKWT',
+        'TAD PAKET SDM',
+        'TAD PAKET PEKERJAAN'
+    ];
 
     // =====================================================
     // RELATIONSHIPS
@@ -104,7 +130,7 @@ class Employee extends Model
     }
 
     // =====================================================
-    // SCOPES - OPTIMIZED FOR PAGINATION
+    // SCOPES - OPTIMIZED FOR PAGINATION + FITUR BARU
     // =====================================================
 
     /**
@@ -113,6 +139,42 @@ class Employee extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope untuk TAD employees (semua jenis) - FITUR BARU
+     */
+    public function scopeTAD($query)
+    {
+        return $query->whereIn('status_pegawai', ['TAD PAKET SDM', 'TAD PAKET PEKERJAAN']);
+    }
+
+    /**
+     * Scope untuk Pegawai Tetap - FITUR BARU
+     */
+    public function scopePegawaiTetap($query)
+    {
+        return $query->where('status_pegawai', 'PEGAWAI TETAP');
+    }
+
+    /**
+     * Scope untuk PKWT - FITUR BARU
+     */
+    public function scopePKWT($query)
+    {
+        return $query->where('status_pegawai', 'PKWT');
+    }
+
+    /**
+     * Scope untuk filter berdasarkan kelompok jabatan - FITUR BARU
+     */
+    public function scopeByKelompokJabatan($query, $kelompokJabatan)
+    {
+        if ($kelompokJabatan === 'all' || empty($kelompokJabatan)) {
+            return $query;
+        }
+        
+        return $query->where('kelompok_jabatan', $kelompokJabatan);
     }
 
     /**
@@ -135,6 +197,7 @@ class Employee extends Model
               ->orWhere('nama_jabatan', 'like', $searchTerm)
               ->orWhere('unit_organisasi', 'like', $searchTerm)
               ->orWhere('nama_organisasi', 'like', $searchTerm)
+              ->orWhere('kelompok_jabatan', 'like', $searchTerm)
               ->orWhere('jenis_sepatu', 'like', $searchTerm)
               ->orWhere('ukuran_sepatu', 'like', $searchTerm)
               ->orWhere('seragam', 'like', $searchTerm)
@@ -251,6 +314,7 @@ class Employee extends Model
 
     /**
      * Scope untuk karyawan yang akan pensiun dalam rentang waktu tertentu
+     * UPDATED: 56 tahun
      */
     public function scopeUpcomingRetirement(Builder $query, $months = 12)
     {
@@ -275,6 +339,7 @@ class Employee extends Model
 
     /**
      * Comprehensive filter scope untuk pagination - handles semua filter sekaligus
+     * UPDATED: Tambah filter kelompok jabatan
      */
     public function scopeApplyFilters(Builder $query, array $filters)
     {
@@ -296,6 +361,11 @@ class Employee extends Model
         // Jenis kelamin filter
         if (!empty($filters['jenis_kelamin'])) {
             $query->byJenisKelamin($filters['jenis_kelamin']);
+        }
+
+        // Kelompok jabatan filter - FITUR BARU
+        if (!empty($filters['kelompok_jabatan'])) {
+            $query->byKelompokJabatan($filters['kelompok_jabatan']);
         }
 
         // Jenis sepatu filter
@@ -324,6 +394,21 @@ class Employee extends Model
     // =====================================================
     // ACCESSORS & MUTATORS
     // =====================================================
+
+    /**
+     * Auto-calculate TMT Pensiun when tanggal_lahir is set (56 tahun) - FITUR BARU
+     */
+    public function setTanggalLahirAttribute($value)
+    {
+        $this->attributes['tanggal_lahir'] = $value;
+        
+        // Auto calculate TMT Pensiun (56 tahun) dan umur
+        if ($value) {
+            $birthDate = Carbon::parse($value);
+            $this->attributes['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
+            $this->attributes['usia'] = $birthDate->age;
+        }
+    }
 
     /**
      * Accessor untuk mendapatkan nama lengkap dengan format title case
@@ -524,20 +609,55 @@ class Employee extends Model
     }
 
     // =====================================================
+    // STATIC METHODS - TAD STATISTICS (FITUR BARU)
+    // =====================================================
+
+    /**
+     * Get Total TAD (menggabungkan TAD Paket SDM + TAD Paket Pekerjaan) - FITUR BARU
+     */
+    public static function getTotalTAD()
+    {
+        return self::whereIn('status_pegawai', ['TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])->count();
+    }
+
+    /**
+     * Get TAD Paket SDM count - FITUR BARU
+     */
+    public static function getTADPaketSDM()
+    {
+        return self::where('status_pegawai', 'TAD PAKET SDM')->count();
+    }
+
+    /**
+     * Get TAD Paket Pekerjaan count - FITUR BARU
+     */
+    public static function getTADPaketPekerjaan()
+    {
+        return self::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
+    }
+
+    // =====================================================
     // STATIC METHODS - OPTIMIZED FOR DASHBOARD & PAGINATION
     // =====================================================
 
     /**
      * Get comprehensive statistics untuk dashboard
+     * UPDATED: Tambah TAD Split dan Kelompok Jabatan
      */
     public static function getComprehensiveStatistics()
     {
+        $tadPaketSDM = self::getTADPaketSDM();
+        $tadPaketPekerjaan = self::getTADPaketPekerjaan();
+        
         return [
             'total_employees' => self::count(),
             'active_employees' => self::active()->count(),
             'inactive_employees' => self::where('status', 'inactive')->count(),
             'pegawai_tetap' => self::where('status_pegawai', 'PEGAWAI TETAP')->count(),
-            'tad' => self::where('status_pegawai', 'TAD')->count(),
+            'pkwt' => self::where('status_pegawai', 'PKWT')->count(),
+            'tad_total' => $tadPaketSDM + $tadPaketPekerjaan,
+            'tad_paket_sdm' => $tadPaketSDM,
+            'tad_paket_pekerjaan' => $tadPaketPekerjaan,
             'male_employees' => self::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
             'female_employees' => self::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
             'shoe_statistics' => [
@@ -551,6 +671,7 @@ class Employee extends Model
             ],
             'by_organization' => self::getByUnitOrganisasi(),
             'by_education' => self::getByEducation(),
+            'by_kelompok_jabatan' => self::getByKelompokJabatan(),
             'recent_hires_count' => self::recentHires()->count(),
             'upcoming_retirement_count' => self::upcomingRetirement()->count(),
         ];
@@ -558,6 +679,7 @@ class Employee extends Model
 
     /**
      * Get filter options untuk dropdown - optimized untuk pagination
+     * UPDATED: Tambah kelompok jabatan options
      */
     public static function getFilterOptions()
     {
@@ -609,6 +731,14 @@ class Employee extends Model
                               ->pluck('position')
                               ->filter()
                               ->values(),
+
+            'kelompok_jabatan' => self::whereNotNull('kelompok_jabatan')
+                                     ->where('kelompok_jabatan', '!=', '')
+                                     ->distinct()
+                                     ->orderBy('kelompok_jabatan')
+                                     ->pluck('kelompok_jabatan')
+                                     ->filter()
+                                     ->values(),
         ];
     }
 
@@ -649,6 +779,26 @@ class Employee extends Model
                    ->map(function ($item) {
                        return [
                            'name' => $item->education,
+                           'count' => $item->total,
+                       ];
+                   });
+    }
+
+    /**
+     * Get employees by kelompok jabatan dengan count - FITUR BARU
+     */
+    public static function getByKelompokJabatan()
+    {
+        return self::select('kelompok_jabatan', \DB::raw('count(*) as total'))
+                   ->whereNotNull('kelompok_jabatan')
+                   ->where('kelompok_jabatan', '!=', '')
+                   ->where('status', 'active')
+                   ->groupBy('kelompok_jabatan')
+                   ->orderBy('total', 'desc')
+                   ->get()
+                   ->map(function ($item) {
+                       return [
+                           'name' => $item->kelompok_jabatan,
                            'count' => $item->total,
                        ];
                    });
@@ -781,7 +931,7 @@ class Employee extends Model
         $fields = [
             'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
             'tanggal_lahir', 'alamat', 'handphone', 'email',
-            'unit_organisasi', 'nama_jabatan', 'status_pegawai',
+            'unit_organisasi', 'nama_jabatan', 'status_pegawai', 'kelompok_jabatan',
             'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 
             'ukuran_sepatu', 'seragam'
         ];
@@ -809,7 +959,7 @@ class Employee extends Model
     }
 
     /**
-     * Get years to retirement
+     * Get years to retirement - UPDATED: 56 tahun
      */
     public function getYearsToRetirement()
     {
@@ -818,6 +968,16 @@ class Employee extends Model
         }
         
         return Carbon::now()->diffInYears(Carbon::parse($this->tmt_pensiun));
+    }
+
+    /**
+     * Check if employee is approaching retirement (dalam 1 tahun) - FITUR BARU
+     */
+    public function isApproachingRetirement()
+    {
+        if (!$this->tmt_pensiun) return false;
+        
+        return $this->tmt_pensiun <= Carbon::now()->addYear();
     }
 
     /**
@@ -830,6 +990,7 @@ class Employee extends Model
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
             'unit_organisasi' => $this->unit_organisasi,
+            'kelompok_jabatan' => $this->kelompok_jabatan,
             'initials' => $this->initials,
             'foto_url' => null, // Placeholder for future photo implementation
         ];

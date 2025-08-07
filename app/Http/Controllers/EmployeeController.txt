@@ -16,29 +16,8 @@ use Illuminate\Support\Facades\Log;
 class EmployeeController extends Controller
 {
     /**
-     * STATUS PEGAWAI CONSTANTS dengan TAD Split - FITUR BARU
-     */
-    const STATUS_PEGAWAI_OPTIONS = [
-        'PEGAWAI TETAP',
-        'PKWT',
-        'TAD PAKET SDM',
-        'TAD PAKET PEKERJAAN'
-    ];
-
-    /**
-     * KELOMPOK JABATAN CONSTANTS - FITUR BARU
-     */
-    const KELOMPOK_JABATAN_OPTIONS = [
-        'SUPERVISOR',
-        'STAFF', 
-        'MANAGER',
-        'EXECUTIVE GENERAL MANAGER',
-        'ACCOUNT EXECUTIVE/AE'
-    ];
-
-    /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * UPDATED: Support TAD Split dan Kelompok Jabatan filters
+     * ENHANCED: Added support for real-time new employee notifications with WITA timezone support
      */
     public function index(Request $request)
     {
@@ -66,23 +45,16 @@ class EmployeeController extends Controller
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%") // BARU: Search kelompok jabatan
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                 });
                 $filterConditions['search'] = $searchTerm;
             }
 
-            // Filter by status pegawai - UPDATED: Support TAD Split
+            // Filter by status pegawai
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
                 $filterConditions['status_pegawai'] = $request->status_pegawai;
-            }
-
-            // Filter by kelompok jabatan - FITUR BARU
-            if ($request->filled('kelompok_jabatan') && $request->kelompok_jabatan !== 'all') {
-                $query->where('kelompok_jabatan', $request->kelompok_jabatan);
-                $filterConditions['kelompok_jabatan'] = $request->kelompok_jabatan;
             }
 
             // Filter by unit organisasi
@@ -126,13 +98,13 @@ class EmployeeController extends Controller
                              ->paginate($perPage)
                              ->withQueryString(); // Preserve query parameters in pagination links
 
-            // ENHANCED: Calculate statistics with WITA timezone support - UPDATED untuk TAD Split
+            // ENHANCED: Calculate statistics with WITA timezone support
             $statistics = $this->getEnhancedStatistics($filterConditions);
 
             // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
 
-            // Get filter options for dropdowns - UPDATED: Include kelompok jabatan
+            // Get filter options for dropdowns
             $filterOptions = $this->getFilterOptions();
 
             // ENHANCED: Get new employees data for notifications (WITA timezone)
@@ -155,7 +127,6 @@ class EmployeeController extends Controller
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
-                    'kelompok_jabatan', // BARU: Filter kelompok jabatan
                     'unit_organisasi', 
                     'jenis_kelamin', 
                     'jenis_sepatu', 
@@ -219,10 +190,7 @@ class EmployeeController extends Controller
                 'statistics' => [
                     'total' => 0,
                     'pegawaiTetap' => 0,
-                    'pkwt' => 0,
-                    'tad_total' => 0,
-                    'tad_paket_sdm' => 0,
-                    'tad_paket_pekerjaan' => 0,
+                    'tad' => 0,
                     'uniqueUnits' => 0,
                     'newToday' => 0,
                     'newYesterday' => 0,
@@ -231,7 +199,6 @@ class EmployeeController extends Controller
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
-                    'kelompok_jabatan',
                     'unit_organisasi', 
                     'jenis_kelamin', 
                     'jenis_sepatu', 
@@ -272,7 +239,7 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for creating a new employee
-     * UPDATED: Include kelompok jabatan dan status pegawai options
+     * ENHANCED: Better unit and jabatan options with fallbacks
      */
     public function create()
     {
@@ -301,8 +268,6 @@ class EmployeeController extends Controller
                 'organizations' => $organizations,
                 'unitOptions' => $unitOptions->toArray(),
                 'jabatanOptions' => $jabatanOptions->toArray(),
-                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS, // BARU
-                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
                 'success' => session('success'),
                 'error' => session('error'),
                 'message' => session('message'),
@@ -320,7 +285,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * UPDATED: Include kelompok jabatan validation dan auto-calculate TMT Pensiun (56 tahun)
+     * FIXED: Gender field mapping dan database compatibility
      */
     public function store(Request $request)
     {
@@ -331,12 +296,11 @@ class EmployeeController extends Controller
                 'nama_lengkap' => $request->nama_lengkap,
                 'unit_organisasi' => $request->unit_organisasi,
                 'jenis_kelamin' => $request->jenis_kelamin,
-                'kelompok_jabatan' => $request->kelompok_jabatan, // BARU
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
             ]);
 
-            // UPDATED: Comprehensive validation dengan TAD Split dan Kelompok Jabatan
+            // FIXED: Comprehensive validation dengan database compatibility
             $validator = Validator::make($request->all(), [
                 // Required fields
                 'nip' => [
@@ -348,13 +312,8 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|max:255',
                 'unit_organisasi' => 'required|string|max:100',
                 'nama_jabatan' => 'required|string|max:255',
+                // FIXED: Accept both form format dan database format
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
-                
-                // BARU: Status pegawai dengan TAD Split
-                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
-                
-                // BARU: Kelompok jabatan (required)
-                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 
                 // Optional fields with validation
                 'nik' => 'nullable|string|max:20',
@@ -368,9 +327,10 @@ class EmployeeController extends Controller
                 
                 // Work related fields
                 'jabatan' => 'nullable|string|max:255',
+                'status_pegawai' => 'nullable|in:PEGAWAI TETAP,PEGAWAI KONTRAK,PEGAWAI MAGANG,TAD',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                // TMT Pensiun tidak ada validasi karena auto-calculated
+                'tmt_pensiun' => 'nullable|date|after:today',
                 
                 // Education fields
                 'pendidikan_terakhir' => 'nullable|string|max:50',
@@ -379,7 +339,7 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Additional fields - BPJS dipindah ke data pribadi (sudah di validasi)
+                // Additional fields - FIXED: sesuaikan dengan database
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
                 'ukuran_sepatu' => 'nullable|string|max:10',
                 'height' => 'nullable|numeric|between:100,250',
@@ -397,12 +357,9 @@ class EmployeeController extends Controller
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi',
                 'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
                 'jenis_kelamin.in' => 'Jenis kelamin tidak valid',
-                'status_pegawai.required' => 'Status pegawai wajib dipilih',
-                'status_pegawai.in' => 'Status pegawai tidak valid',
-                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih',
-                'kelompok_jabatan.in' => 'Kelompok jabatan tidak valid',
                 'email.unique' => 'Email sudah digunakan oleh karyawan lain',
                 'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini',
+                'tmt_pensiun.after' => 'Tanggal pensiun harus setelah hari ini',
             ]);
 
             if ($validator->fails()) {
@@ -440,6 +397,7 @@ class EmployeeController extends Controller
                 }
 
                 // Set default values untuk GAPURA ANGKASA
+                $employeeData['status_pegawai'] = $employeeData['status_pegawai'] ?? 'PEGAWAI TETAP';
                 $employeeData['status_kerja'] = 'Aktif';
                 $employeeData['provider'] = 'PT Gapura Angkasa';
                 $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
@@ -451,12 +409,10 @@ class EmployeeController extends Controller
                     $employeeData['jabatan'] = $employeeData['nama_jabatan'];
                 }
 
-                // FITUR BARU: Auto-calculate TMT Pensiun dan umur (56 tahun)
+                // Calculate age if birth date provided
                 if (!empty($employeeData['tanggal_lahir'])) {
                     $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
                     $employeeData['usia'] = $birthDate->age;
-                    // Auto-calculate TMT Pensiun (56 tahun) - Set ke tanggal 1 pada bulan ke-56
-                    $employeeData['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
                 }
 
                 // FIXED: Only keep fields that exist in database fillable
@@ -478,10 +434,7 @@ class EmployeeController extends Controller
                 // Log data yang akan disimpan untuk debugging
                 Log::info('Employee Data Before Save', [
                     'data' => $employeeData,
-                    'jenis_kelamin' => $employeeData['jenis_kelamin'],
-                    'kelompok_jabatan' => $employeeData['kelompok_jabatan'] ?? 'N/A',
-                    'status_pegawai' => $employeeData['status_pegawai'],
-                    'tmt_pensiun' => $employeeData['tmt_pensiun'] ?? 'N/A'
+                    'jenis_kelamin' => $employeeData['jenis_kelamin']
                 ]);
 
                 // Create employee dengan error handling
@@ -500,9 +453,7 @@ class EmployeeController extends Controller
                     'nip' => $employee->nip,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
-                    'kelompok_jabatan' => $employee->kelompok_jabatan,
-                    'status_pegawai' => $employee->status_pegawai,
-                    'tmt_pensiun' => $employee->tmt_pensiun?->format('Y-m-d'),
+                    'jenis_kelamin' => $employee->jenis_kelamin,
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
@@ -573,7 +524,7 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for editing the specified employee
-     * UPDATED: Include kelompok jabatan dan status pegawai options
+     * ENHANCED: Format data dengan benar untuk React component
      */
     public function edit(Employee $employee)
     {
@@ -616,8 +567,6 @@ class EmployeeController extends Controller
                 'organizations' => $organizations,
                 'unitOptions' => $unitOptions,
                 'jabatanOptions' => $jabatanOptions,
-                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS, // BARU
-                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
                 'title' => 'Edit Karyawan',
                 'subtitle' => "Edit data karyawan {$employee->nama_lengkap}",
                 'success' => session('success'),
@@ -646,7 +595,7 @@ class EmployeeController extends Controller
 
     /**
      * Update the specified employee
-     * UPDATED: Include kelompok jabatan validation dan auto-recalculate TMT Pensiun jika tanggal lahir berubah
+     * ENHANCED: Validasi lengkap untuk semua field yang bisa diedit (kecuali NIP)
      */
     public function update(Request $request, Employee $employee)
     {
@@ -680,15 +629,14 @@ class EmployeeController extends Controller
                     Rule::unique('employees', 'email')->ignore($employee->id)
                 ],
                 
-                // Data Pekerjaan - UPDATED: Include kelompok jabatan dan TAD split
+                // Data Pekerjaan
                 'unit_organisasi' => 'required|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 'nama_jabatan' => 'required|string|max:255',
-                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
-                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
+                'status_pegawai' => 'required|in:PEGAWAI TETAP,TAD,PEGAWAI KONTRAK,PEGAWAI MAGANG',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                // TMT Pensiun tidak ada validasi karena auto-calculated
+                'tmt_pensiun' => 'nullable|date|after:today',
                 
                 // Data Pendidikan
                 'pendidikan_terakhir' => 'nullable|string|max:50',
@@ -736,14 +684,8 @@ class EmployeeController extends Controller
                 }
             }
 
-            // FITUR BARU: Recalculate TMT Pensiun dan umur jika tanggal lahir berubah (56 tahun)
-            if (isset($data['tanggal_lahir']) && $data['tanggal_lahir'] !== $originalData['tanggal_lahir']) {
-                $birthDate = Carbon::parse($data['tanggal_lahir']);
-                $data['usia'] = $birthDate->age;
-                // Auto-calculate TMT Pensiun (56 tahun) - Set ke tanggal 1 pada bulan ke-56
-                $data['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
-            } elseif (isset($data['tanggal_lahir'])) {
-                // Recalculate age if birth date exists
+            // Recalculate age if birth date is updated
+            if (isset($data['tanggal_lahir'])) {
                 $data['usia'] = Carbon::parse($data['tanggal_lahir'])->age;
             }
 
@@ -772,9 +714,6 @@ class EmployeeController extends Controller
                 'nip' => $employee->nip,
                 'nama_lengkap' => $employee->nama_lengkap,
                 'updated_fields' => array_keys(array_diff_assoc($data, $originalData)),
-                'kelompok_jabatan' => $employee->kelompok_jabatan,
-                'status_pegawai' => $employee->status_pegawai,
-                'tmt_pensiun_updated' => isset($data['tmt_pensiun']) ? 'Yes' : 'No',
                 'updated_by' => 'system' // Bisa diubah ke auth user jika ada authentication
             ]);
 
@@ -862,7 +801,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Search employees (API endpoint) - Enhanced with kelompok jabatan
+     * Search employees (API endpoint) - Enhanced with shoe data and pagination
      */
     public function search(Request $request)
     {
@@ -877,18 +816,13 @@ class EmployeeController extends Controller
                       ->orWhere('nip', 'like', "%{$query}%")
                       ->orWhere('jabatan', 'like', "%{$query}%")
                       ->orWhere('nama_jabatan', 'like', "%{$query}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$query}%") // BARU
                       ->orWhere('jenis_sepatu', 'like', "%{$query}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$query}%");
                 });
 
             // Get paginated results if requested
             if ($request->has('paginate') && $request->paginate === 'true') {
-                $employees = $employeesQuery->paginate($limit, [
-                    'id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 
-                    'unit_organisasi', 'kelompok_jabatan', 'status_pegawai', // BARU: Include kelompok_jabatan dan status_pegawai
-                    'jenis_sepatu', 'ukuran_sepatu'
-                ]);
+                $employees = $employeesQuery->paginate($limit, ['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
                 
                 return response()->json([
                     'employees' => $employees->items(),
@@ -903,11 +837,7 @@ class EmployeeController extends Controller
                 ]);
             } else {
                 $employees = $employeesQuery->limit($limit)
-                    ->get([
-                        'id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 
-                        'unit_organisasi', 'kelompok_jabatan', 'status_pegawai',
-                        'jenis_sepatu', 'ukuran_sepatu'
-                    ]);
+                    ->get(['id', 'nip', 'nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'jenis_sepatu', 'ukuran_sepatu']);
                 
                 return response()->json([
                     'employees' => $employees,
@@ -925,7 +855,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get employee statistics (API endpoint) - UPDATED: Include TAD Split dan Kelompok Jabatan
+     * Get employee statistics (API endpoint) - Enhanced with shoe statistics
      */
     public function getStatistics()
     {
@@ -935,23 +865,9 @@ class EmployeeController extends Controller
                 'active_employees' => Employee::where('status', 'active')->count(),
                 'inactive_employees' => Employee::where('status', 'inactive')->count(),
                 'pegawai_tetap' => Employee::where('status_pegawai', 'PEGAWAI TETAP')->count(),
-                'pkwt' => Employee::where('status_pegawai', 'PKWT')->count(),
-                // TAD Statistics dengan split - FITUR BARU
-                'tad_total' => Employee::whereIn('status_pegawai', ['TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])->count(),
-                'tad_paket_sdm' => Employee::where('status_pegawai', 'TAD PAKET SDM')->count(),
-                'tad_paket_pekerjaan' => Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count(),
-                // Backward compatibility
-                'tad' => Employee::whereIn('status_pegawai', ['TAD', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])->count(),
+                'tad' => Employee::where('status_pegawai', 'TAD')->count(),
                 'male_employees' => Employee::where('jenis_kelamin', 'L')->count(),
                 'female_employees' => Employee::where('jenis_kelamin', 'P')->count(),
-                // Kelompok Jabatan statistics - FITUR BARU
-                'kelompok_jabatan' => [
-                    'supervisor' => Employee::where('kelompok_jabatan', 'SUPERVISOR')->count(),
-                    'staff' => Employee::where('kelompok_jabatan', 'STAFF')->count(),
-                    'manager' => Employee::where('kelompok_jabatan', 'MANAGER')->count(),
-                    'executive_gm' => Employee::where('kelompok_jabatan', 'EXECUTIVE GENERAL MANAGER')->count(),
-                    'account_executive' => Employee::where('kelompok_jabatan', 'ACCOUNT EXECUTIVE/AE')->count(),
-                ],
                 'shoe_statistics' => [
                     'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
                     'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
@@ -974,18 +890,15 @@ class EmployeeController extends Controller
         }
     }
 
-    // Keep all existing methods (export, import, profile, bulkAction, validateData, generateReport, etc.)
-    // They are already comprehensive and working well
-
     /**
-     * Export employees data to CSV - Enhanced with kelompok jabatan
+     * Export employees data to CSV - Enhanced with shoe data and pagination support
      */
     public function export(Request $request)
     {
         try {
             $query = Employee::where('status', 'active');
 
-            // Apply same filters as index (including kelompok_jabatan)
+            // Apply same filters as index
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
@@ -994,7 +907,6 @@ class EmployeeController extends Controller
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                 });
@@ -1002,10 +914,6 @@ class EmployeeController extends Controller
 
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
-            }
-
-            if ($request->filled('kelompok_jabatan') && $request->kelompok_jabatan !== 'all') {
-                $query->where('kelompok_jabatan', $request->kelompok_jabatan);
             }
 
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
@@ -1039,11 +947,11 @@ class EmployeeController extends Controller
                 // Add BOM for proper UTF-8 encoding in Excel
                 fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
                 
-                // CSV Headers - UPDATED: Include kelompok jabatan
+                // CSV Headers
                 fputcsv($file, [
                     'NIP', 'Nama Lengkap', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 
                     'Alamat', 'No Telepon', 'Handphone', 'Email', 'Unit Organisasi', 
-                    'Jabatan', 'Status Pegawai', 'Kelompok Jabatan', 'TMT Mulai Jabatan', 'TMT Mulai Kerja', 'TMT Pensiun',
+                    'Jabatan', 'Status Pegawai', 'TMT Mulai Jabatan', 'TMT Mulai Kerja',
                     'Pendidikan Terakhir', 'Instansi Pendidikan', 'Jurusan', 'Tahun Lulus',
                     'Jenis Sepatu', 'Ukuran Sepatu', 'Kota Domisili', 'Usia', 'Status', 'Seragam'
                 ]);
@@ -1063,10 +971,8 @@ class EmployeeController extends Controller
                         $employee->unit_organisasi,
                         $employee->jabatan ?: $employee->nama_jabatan,
                         $employee->status_pegawai,
-                        $employee->kelompok_jabatan ?: '-', // BARU
                         $employee->tmt_mulai_jabatan ? Carbon::parse($employee->tmt_mulai_jabatan)->format('d/m/Y') : '',
                         $employee->tmt_mulai_kerja ? Carbon::parse($employee->tmt_mulai_kerja)->format('d/m/Y') : '',
-                        $employee->tmt_pensiun ? Carbon::parse($employee->tmt_pensiun)->format('d/m/Y') : '', // BARU
                         $employee->pendidikan_terakhir ?: $employee->pendidikan,
                         $employee->instansi_pendidikan,
                         $employee->jurusan,
@@ -1091,13 +997,225 @@ class EmployeeController extends Controller
         }
     }
 
+    /**
+     * Import employees from CSV/Excel
+     */
+    public function import(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240', // 10MB max
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->with('error', 'File tidak valid. Pastikan file berformat CSV atau Excel dan ukuran maksimal 10MB.');
+        }
+
+        try {
+            $file = $request->file('file');
+            $path = $file->getRealPath();
+            
+            if (in_array($file->getClientOriginalExtension(), ['csv', 'txt'])) {
+                $imported = $this->processCsvImport($path);
+            } else {
+                $imported = $this->processExcelImport($path);
+            }
+
+            return redirect()->route('employees.index')
+                ->with('success', "Berhasil mengimpor {$imported} data karyawan.");
+        } catch (\Exception $e) {
+            return redirect()->route('employees.index')
+                ->with('error', 'Gagal mengimpor data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get employee profile (API endpoint)
+     */
+    public function profile(Employee $employee)
+    {
+        try {
+            // Load organization relationship if it exists
+            if (method_exists($employee, 'organization')) {
+                $employee->load('organization');
+            }
+            
+            // Calculate additional profile data
+            $workDuration = null;
+            if ($employee->tmt_mulai_kerja) {
+                $workDuration = Carbon::parse($employee->tmt_mulai_kerja)->diffForHumans(null, true);
+            }
+
+            $yearsToRetirement = null;
+            if ($employee->tmt_pensiun) {
+                $yearsToRetirement = Carbon::now()->diffInYears(Carbon::parse($employee->tmt_pensiun));
+            }
+
+            $profileCompletion = $this->calculateProfileCompletion($employee);
+
+            return response()->json([
+                'employee' => $employee,
+                'work_duration' => $workDuration,
+                'years_to_retirement' => $yearsToRetirement,
+                'is_near_retirement' => $yearsToRetirement && $yearsToRetirement <= 2,
+                'profile_completion' => $profileCompletion,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk actions on employees
+     */
+    public function bulkAction(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'action' => 'required|in:activate,deactivate,delete',
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'exists:employees,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $employees = Employee::whereIn('id', $request->employee_ids);
+            $count = count($request->employee_ids);
+
+            switch ($request->action) {
+                case 'activate':
+                    $employees->update(['status' => 'active']);
+                    $message = "{$count} karyawan berhasil diaktifkan.";
+                    break;
+                case 'deactivate':
+                    $employees->update(['status' => 'inactive']);
+                    $message = "{$count} karyawan berhasil dinonaktifkan.";
+                    break;
+                case 'delete':
+                    $employees->update(['status' => 'inactive']);
+                    $message = "{$count} karyawan berhasil dihapus.";
+                    break;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'affected_count' => $count,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bulk action failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate employee data
+     */
+    public function validateData(Request $request)
+    {
+        try {
+            $rules = [
+                'nip' => 'required|string|max:20',
+                'nama_lengkap' => 'required|string|max:255',
+                'email' => 'nullable|email|max:255',
+                'unit_organisasi' => 'required|string|max:100',
+                'nama_jabatan' => 'required|string|max:255',
+            ];
+
+            $validator = Validator::make($request->all(), $rules);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'valid' => false,
+                    'errors' => $validator->errors(),
+                ]);
+            }
+
+            // Check for duplicate NIP
+            $nipQuery = Employee::where('nip', $request->nip);
+            if ($request->has('employee_id')) {
+                $nipQuery->where('id', '!=', $request->employee_id);
+            }
+            
+            if ($nipQuery->exists()) {
+                return response()->json([
+                    'valid' => false,
+                    'errors' => ['nip' => ['NIP sudah digunakan oleh karyawan lain']],
+                ]);
+            }
+
+            return response()->json([
+                'valid' => true,
+                'message' => 'Data valid',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'valid' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate various reports
+     */
+    public function generateReport(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'type' => 'required|in:summary,detailed,by_unit,retirement,shoes',
+            'format' => 'required|in:csv,excel,json',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            switch ($request->type) {
+                case 'summary':
+                    return $this->generateSummaryReport($request->format);
+                case 'detailed':
+                    return $this->generateDetailedReport($request->format);
+                case 'by_unit':
+                    return $this->generateByUnitReport($request->format);
+                case 'retirement':
+                    return $this->generateRetirementReport($request->format);
+                case 'shoes':
+                    return $this->generateShoesReport($request->format);
+                default:
+                    return response()->json(['error' => 'Invalid report type'], 400);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     // =====================================================
     // ENHANCED PRIVATE HELPER METHODS WITH WITA SUPPORT
     // =====================================================
 
     /**
      * Get enhanced statistics with WITA timezone support
-     * UPDATED: Include TAD Split dan Kelompok Jabatan statistics
+     * ENHANCED: Includes new employee counts based on WITA timezone
+     * FIXED: Resolved count() error by ensuring proper array handling and filter validation
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
@@ -1111,19 +1229,7 @@ class EmployeeController extends Controller
             if (empty($filterConditions)) {
                 $total = Employee::where('status', 'active')->count();
                 $pegawaiTetap = Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count();
-                $pkwt = Employee::where('status', 'active')->where('status_pegawai', 'PKWT')->count();
-                
-                // TAD Statistics dengan split - FITUR BARU
-                $tadPaketSDM = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET SDM')->count();
-                $tadPaketPekerjaan = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
-                $tadTotal = $tadPaketSDM + $tadPaketPekerjaan;
-                
-                // Backward compatibility - include legacy TAD
-                $tadLegacy = Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count();
-                if ($tadLegacy > 0) {
-                    $tadTotal += $tadLegacy;
-                }
-                
+                $tad = Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count();
                 $uniqueUnits = Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
             } else {
                 // If filters applied, calculate from filtered results
@@ -1138,7 +1244,6 @@ class EmployeeController extends Controller
                           ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%") // BARU
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%");
                     });
@@ -1146,10 +1251,6 @@ class EmployeeController extends Controller
 
                 if (isset($filterConditions['status_pegawai'])) {
                     $query->where('status_pegawai', $filterConditions['status_pegawai']);
-                }
-
-                if (isset($filterConditions['kelompok_jabatan'])) { // BARU
-                    $query->where('kelompok_jabatan', $filterConditions['kelompok_jabatan']);
                 }
 
                 if (isset($filterConditions['unit_organisasi'])) {
@@ -1170,14 +1271,7 @@ class EmployeeController extends Controller
 
                 $total = $query->count();
                 $pegawaiTetap = (clone $query)->where('status_pegawai', 'PEGAWAI TETAP')->count();
-                $pkwt = (clone $query)->where('status_pegawai', 'PKWT')->count();
-                
-                // TAD dengan split
-                $tadPaketSDM = (clone $query)->where('status_pegawai', 'TAD PAKET SDM')->count();
-                $tadPaketPekerjaan = (clone $query)->where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
-                $tadLegacy = (clone $query)->where('status_pegawai', 'TAD')->count();
-                $tadTotal = $tadPaketSDM + $tadPaketPekerjaan + $tadLegacy;
-                
+                $tad = (clone $query)->where('status_pegawai', 'TAD')->count();
                 $uniqueUnits = (clone $query)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
             }
             
@@ -1205,11 +1299,7 @@ class EmployeeController extends Controller
             return [
                 'total' => $total,
                 'pegawaiTetap' => $pegawaiTetap,
-                'pkwt' => $pkwt,
-                'tad_total' => $tadTotal,
-                'tad_paket_sdm' => $tadPaketSDM,
-                'tad_paket_pekerjaan' => $tadPaketPekerjaan,
-                'tad' => $tadTotal, // Backward compatibility
+                'tad' => $tad,
                 'uniqueUnits' => $uniqueUnits,
                 'newToday' => $newToday,
                 'newYesterday' => $newYesterday,
@@ -1226,10 +1316,6 @@ class EmployeeController extends Controller
             return [
                 'total' => 0,
                 'pegawaiTetap' => 0,
-                'pkwt' => 0,
-                'tad_total' => 0,
-                'tad_paket_sdm' => 0,
-                'tad_paket_pekerjaan' => 0,
                 'tad' => 0,
                 'uniqueUnits' => 0,
                 'newToday' => 0,
@@ -1242,8 +1328,194 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Get new employees added today in WITA timezone
+     * ENHANCED: Returns detailed employee data for notifications
+     */
+    private function getNewEmployeesToday()
+    {
+        try {
+            return Employee::select(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'created_at'])
+                ->whereBetween('created_at', [
+                    TimezoneHelper::getWitaTodayStart()->utc(),
+                    TimezoneHelper::getWitaTodayEnd()->utc()
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nip' => $employee->nip,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'nama_jabatan' => $employee->nama_jabatan,
+                        'created_at' => $employee->created_at,
+                        'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                        'time_diff' => TimezoneHelper::getHumanDiff($employee->created_at),
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('New Employees Today Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get new employees added yesterday in WITA timezone
+     * ENHANCED: Returns count for comparison
+     */
+    private function getNewEmployeesYesterday()
+    {
+        try {
+            return Employee::whereBetween('created_at', [
+                TimezoneHelper::getWitaYesterdayStart()->utc(),
+                TimezoneHelper::getWitaYesterdayEnd()->utc()
+            ])->count();
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get new employees added this week in WITA timezone
+     * ENHANCED: Returns detailed data for weekly summary
+     */
+    private function getNewEmployeesThisWeek()
+    {
+        try {
+            return Employee::select(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'created_at'])
+                ->whereBetween('created_at', [
+                    TimezoneHelper::getWitaThisWeekStart()->utc(),
+                    TimezoneHelper::getWitaDate()->utc()
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nip' => $employee->nip,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'created_at' => $employee->created_at,
+                        'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                        'is_today' => TimezoneHelper::isToday($employee->created_at),
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('New Employees This Week Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get comprehensive notification data from session
+     * ENHANCED: Centralized notification data management
+     */
+    private function getNotificationData()
+    {
+        $newEmployeeId = session('newEmployeeId');
+        $newEmployee = null;
+        
+        if ($newEmployeeId) {
+            $newEmployee = Employee::find($newEmployeeId);
+        }
+
+        return [
+            'newEmployee' => $newEmployee,
+            'success' => session('success'),
+            'error' => session('error'),
+            'message' => session('message'),
+            'notification' => session('notification'),
+            'alerts' => session('alerts', []),
+        ];
+    }
+
+    /**
+     * Build comprehensive success notification data
+     * ENHANCED: Advanced notification system with WITA timezone
+     * FIXED: Added error handling to prevent issues with TimezoneHelper
+     */
+    private function buildSuccessNotification(Employee $employee)
+    {
+        try {
+            $timeInfo = TimezoneHelper::getTimeBasedGreeting();
+            
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'newEmployeeId' => $employee->id,
+                'newEmployeeNip' => $employee->nip,
+                'newEmployeeName' => $employee->nama_lengkap,
+                'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                'notification' => [
+                    'type' => 'success',
+                    'title' => $timeInfo['greeting'] . ' - Karyawan Baru!',
+                    'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                    'employee_id' => $employee->id,
+                    'employee_nip' => $employee->nip,
+                    'employee_name' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'time_info' => $timeInfo,
+                    'created_at_wita' => TimezoneHelper::formatIndonesian($employee->created_at),
+                    'auto_scroll' => true,
+                    'show_highlight' => true,
+                    'duration' => 6000,
+                    'click_to_hide' => true,
+                    'created_at' => $employee->created_at->toDateTimeString(),
+                ],
+                'alerts' => [
+                    [
+                        'type' => 'success',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan notifikasi ' . strtolower($timeInfo['greeting']) . '.',
+                        'dismissible' => true,
+                        'duration' => 4000
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            Log::error('Build Success Notification Error: ' . $e->getMessage());
+            
+            // Return safe fallback notification
+            return [
+                'success' => 'Karyawan berhasil ditambahkan!',
+                'newEmployeeId' => $employee->id,
+                'newEmployeeNip' => $employee->nip,
+                'newEmployeeName' => $employee->nama_lengkap,
+                'message' => "Karyawan {$employee->nama_lengkap} (NIP: {$employee->nip}) berhasil ditambahkan ke sistem.",
+                'notification' => [
+                    'type' => 'success',
+                    'title' => 'Karyawan Baru!',
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan.",
+                    'employee_id' => $employee->id,
+                    'duration' => 5000,
+                ],
+                'alerts' => [
+                    [
+                        'type' => 'success',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar.',
+                        'duration' => 4000
+                    ]
+                ]
+            ];
+        }
+    }
+
+    /**
+     * Get organizations for filter dropdown
+     */
+    private function getOrganizationsForFilter()
+    {
+        try {
+            return Organization::where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']);
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
      * Get filter options for all dropdown filters
-     * UPDATED: Include kelompok jabatan options
      */
     private function getFilterOptions()
     {
@@ -1253,8 +1525,7 @@ class EmployeeController extends Controller
                 'positions' => $this->getJabatanOptions(),
                 'shoe_types' => ['Pantofel', 'Safety Shoes'],
                 'shoe_sizes' => $this->getShoeSizeOptions(),
-                'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS, // UPDATED: Include TAD split
-                'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS, // BARU
+                'status_pegawai' => ['PEGAWAI TETAP', 'TAD'],
                 'genders' => ['L', 'P'], // FIXED: Use database format for consistency
             ];
         } catch (\Exception $e) {
@@ -1264,39 +1535,666 @@ class EmployeeController extends Controller
                 'shoe_types' => [],
                 'shoe_sizes' => [],
                 'status_pegawai' => [],
-                'kelompok_jabatan' => [],
                 'genders' => [],
             ];
         }
     }
 
-    // Keep all other existing private methods as they are already comprehensive
-    private function getNewEmployeesToday() { /* existing implementation */ }
-    private function getNewEmployeesYesterday() { /* existing implementation */ }
-    private function getNewEmployeesThisWeek() { /* existing implementation */ }
-    private function getNotificationData() { /* existing implementation */ }
-    private function buildSuccessNotification(Employee $employee) { /* existing implementation */ }
-    private function getOrganizationsForFilter() { /* existing implementation */ }
-    private function getUnitOptions() { /* existing implementation */ }
-    private function getJabatanOptions() { /* existing implementation */ }
-    private function getShoeSizeOptions() { /* existing implementation */ }
-    private function getEmployeesByOrganization() { /* existing implementation */ }
-    private function getEmployeesByEducation() { /* existing implementation */ }
-    private function getShoesSizeDistribution() { /* existing implementation */ }
-    private function getRecentHires() { /* existing implementation */ }
-    private function getUpcomingRetirement() { /* existing implementation */ }
-    private function calculateProfileCompletion(Employee $employee) { /* existing implementation */ }
-    private function processCsvImport($filePath) { /* existing implementation */ }
-    private function processExcelImport($filePath) { /* existing implementation */ }
-    private function createEmployeeFromImport($data) { /* existing implementation */ }
-    private function normalizeGender($gender) { /* existing implementation */ }
-    private function generateSummaryReport($format) { /* existing implementation */ }
-    private function generateDetailedReport($format) { /* existing implementation */ }
-    private function generateByUnitReport($format) { /* existing implementation */ }
-    private function generateRetirementReport($format) { /* existing implementation */ }
-    private function generateShoesReport($format) { /* existing implementation */ }
-    private function generateCsvReport($reportName, $stats, $unitStats) { /* existing implementation */ }
+    /**
+     * Get unique unit options from employees
+     * ENHANCED: Return as collection instead of array for better chaining
+     */
+    private function getUnitOptions()
+    {
+        try {
+            return Employee::whereNotNull('unit_organisasi')
+                ->distinct()
+                ->orderBy('unit_organisasi')
+                ->pluck('unit_organisasi')
+                ->filter()
+                ->values();
+        } catch (\Exception $e) {
+            return collect([]);
+        }
+    }
 
-    // Keep all other existing methods (import, profile, bulkAction, validateData, generateReport, etc.)
-    // as they are comprehensive and working well
+    /**
+     * Get unique jabatan options from employees
+     * ENHANCED: Return as collection and merge both jabatan fields
+     */
+    private function getJabatanOptions()
+    {
+        try {
+            $jabatan = Employee::whereNotNull('jabatan')
+                ->distinct()
+                ->pluck('jabatan')
+                ->filter();
+                
+            $namaJabatan = Employee::whereNotNull('nama_jabatan')
+                ->distinct()
+                ->pluck('nama_jabatan')
+                ->filter();
+
+            return $jabatan->merge($namaJabatan)
+                ->unique()
+                ->sort()
+                ->values();
+        } catch (\Exception $e) {
+            return collect([]);
+        }
+    }
+
+    /**
+     * Get unique shoe size options from employees
+     */
+    private function getShoeSizeOptions()
+    {
+        try {
+            return Employee::whereNotNull('ukuran_sepatu')
+                ->distinct()
+                ->orderByRaw('CAST(ukuran_sepatu AS UNSIGNED)')
+                ->pluck('ukuran_sepatu')
+                ->filter()
+                ->values();
+        } catch (\Exception $e) {
+            return collect([]);
+        }
+    }
+
+    /**
+     * Get employees by organization
+     */
+    private function getEmployeesByOrganization()
+    {
+        return Employee::select('unit_organisasi', DB::raw('count(*) as total'))
+            ->whereNotNull('unit_organisasi')
+            ->where('status', 'active')
+            ->groupBy('unit_organisasi')
+            ->orderBy('total', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->unit_organisasi,
+                    'count' => $item->total,
+                ];
+            });
+    }
+
+    /**
+     * Get employees by education
+     */
+    private function getEmployeesByEducation()
+    {
+        return Employee::select(
+                DB::raw('COALESCE(pendidikan_terakhir, pendidikan) as education'),
+                DB::raw('count(*) as total')
+            )
+            ->whereNotNull(DB::raw('COALESCE(pendidikan_terakhir, pendidikan)'))
+            ->where('status', 'active')
+            ->groupBy(DB::raw('COALESCE(pendidikan_terakhir, pendidikan)'))
+            ->orderBy('total', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->education,
+                    'count' => $item->total,
+                ];
+            });
+    }
+
+    /**
+     * Get shoes size distribution
+     */
+    private function getShoesSizeDistribution()
+    {
+        return Employee::select('ukuran_sepatu', DB::raw('count(*) as total'))
+            ->whereNotNull('ukuran_sepatu')
+            ->where('status', 'active')
+            ->groupBy('ukuran_sepatu')
+            ->orderBy('ukuran_sepatu')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'size' => $item->ukuran_sepatu,
+                    'count' => $item->total,
+                ];
+            });
+    }
+
+    /**
+     * Get recent hires (last 6 months)
+     */
+    private function getRecentHires()
+    {
+        return Employee::where(function($query) {
+                $query->where('tmt_mulai_kerja', '>=', Carbon::now()->subMonths(6))
+                      ->orWhere('created_at', '>=', Carbon::now()->subMonths(6));
+            })
+            ->where('status', 'active')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'jabatan', 'nama_jabatan', 'tmt_mulai_kerja', 'created_at']);
+    }
+
+    /**
+     * Get upcoming retirement (next 12 months)
+     */
+    private function getUpcomingRetirement()
+    {
+        return Employee::whereNotNull('tmt_pensiun')
+            ->whereBetween('tmt_pensiun', [Carbon::now(), Carbon::now()->addMonths(12)])
+            ->where('status', 'active')
+            ->orderBy('tmt_pensiun', 'asc')
+            ->limit(10)
+            ->get(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'jabatan', 'nama_jabatan', 'tmt_pensiun']);
+    }
+
+    /**
+     * Calculate profile completion percentage
+     */
+    private function calculateProfileCompletion(Employee $employee)
+    {
+        $fields = [
+            'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
+            'tanggal_lahir', 'alamat', 'no_telepon', 'email',
+            'unit_organisasi', 'jabatan', 'status_pegawai',
+            'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 'ukuran_sepatu'
+        ];
+
+        $completedFields = 0;
+        foreach ($fields as $field) {
+            if (!empty($employee->$field)) {
+                $completedFields++;
+            }
+        }
+
+        return round(($completedFields / count($fields)) * 100);
+    }
+
+    /**
+     * Process CSV import
+     */
+    private function processCsvImport($filePath)
+    {
+        $csvData = array_map('str_getcsv', file($filePath));
+        $header = array_shift($csvData);
+        $imported = 0;
+        
+        DB::beginTransaction();
+        
+        try {
+            foreach ($csvData as $row) {
+                if (count($row) < count($header)) continue;
+                
+                $data = array_combine($header, $row);
+                
+                // Skip if NIP already exists
+                if (Employee::where('nip', $data['NIP'] ?? '')->exists()) {
+                    continue;
+                }
+                
+                // Process and create employee record
+                if ($this->createEmployeeFromImport($data)) {
+                    $imported++;
+                }
+            }
+            
+            DB::commit();
+            return $imported;
+        } catch (\Exception $e) {
+            DB::rollback();
+            throw $e;
+        }
+    }
+
+    /**
+     * Process Excel import (placeholder)
+     */
+    private function processExcelImport($filePath)
+    {
+        // This would require a library like PhpSpreadsheet
+        // For now, treat as CSV
+        return $this->processCsvImport($filePath);
+    }
+
+    /**
+     * Create employee from import data
+     */
+    private function createEmployeeFromImport($data)
+    {
+        try {
+            $employeeData = [
+                'nip' => $data['NIP'] ?? null,
+                'nama_lengkap' => $data['NAMA LENGKAP'] ?? $data['Nama Lengkap'] ?? null,
+                'status_pegawai' => $data['STATUS PEGAWAI'] ?? $data['Status Pegawai'] ?? 'PEGAWAI TETAP',
+                'unit_organisasi' => $data['UNIT ORGANISASI'] ?? $data['Unit Organisasi'] ?? null,
+                'jabatan' => $data['JABATAN'] ?? $data['Jabatan'] ?? null,
+                'nama_jabatan' => $data['NAMA JABATAN'] ?? $data['Nama Jabatan'] ?? $data['JABATAN'] ?? $data['Jabatan'] ?? null,
+                'jenis_kelamin' => $this->normalizeGender($data['JENIS KELAMIN'] ?? $data['Jenis Kelamin'] ?? 'L'),
+                'handphone' => $data['HANDPHONE'] ?? $data['Handphone'] ?? $data['NO TELEPON'] ?? $data['No Telepon'] ?? null,
+                'tempat_lahir' => $data['TEMPAT LAHIR'] ?? $data['Tempat Lahir'] ?? null,
+                'alamat' => $data['ALAMAT'] ?? $data['Alamat'] ?? null,
+                'pendidikan_terakhir' => $data['PENDIDIKAN'] ?? $data['Pendidikan'] ?? $data['PENDIDIKAN TERAKHIR'] ?? null,
+                'jurusan' => $data['JURUSAN'] ?? $data['Jurusan'] ?? null,
+                'email' => $data['EMAIL'] ?? $data['Email'] ?? null,
+                'jenis_sepatu' => $data['JENIS SEPATU'] ?? $data['Jenis Sepatu'] ?? null,
+                'ukuran_sepatu' => $data['UKURAN SEPATU'] ?? $data['Ukuran Sepatu'] ?? null,
+                'seragam' => $data['SERAGAM'] ?? $data['Seragam'] ?? '-',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'status_kerja' => 'Aktif',
+                'status' => 'active',
+            ];
+
+            // Parse dates
+            if (!empty($data['TMT MULAI JABATAN']) || !empty($data['Tmt Mulai Jabatan'])) {
+                try {
+                    $dateStr = $data['TMT MULAI JABATAN'] ?? $data['Tmt Mulai Jabatan'];
+                    $employeeData['tmt_mulai_jabatan'] = Carbon::createFromFormat('d/m/Y', $dateStr);
+                } catch (\Exception $e) {
+                    $employeeData['tmt_mulai_jabatan'] = null;
+                }
+            }
+
+            if (!empty($data['TANGGAL LAHIR']) || !empty($data['Tanggal Lahir'])) {
+                try {
+                    $dateStr = $data['TANGGAL LAHIR'] ?? $data['Tanggal Lahir'];
+                    $employeeData['tanggal_lahir'] = Carbon::createFromFormat('d/m/Y', $dateStr);
+                    $employeeData['usia'] = $employeeData['tanggal_lahir']->age;
+                } catch (\Exception $e) {
+                    $employeeData['tanggal_lahir'] = null;
+                }
+            }
+
+            // Find organization safely
+            if (!empty($employeeData['unit_organisasi'])) {
+                try {
+                    $organization = Organization::where('name', 'like', '%' . $employeeData['unit_organisasi'] . '%')->first();
+                    if ($organization) {
+                        $employeeData['organization_id'] = $organization->id;
+                    }
+                } catch (\Exception $e) {
+                    // Continue without organization_id
+                }
+            }
+
+            Employee::create($employeeData);
+            return true;
+        } catch (\Exception $e) {
+            // Log error but continue with next record
+            return false;
+        }
+    }
+
+    /**
+     * Normalize gender field
+     * FIXED: Return database compatible format (L/P)
+     */
+    private function normalizeGender($gender)
+    {
+        $gender = strtoupper(trim($gender));
+        
+        if (in_array($gender, ['L', 'LAKI-LAKI', 'LAKI', 'MALE', 'M'])) {
+            return 'L';
+        } elseif (in_array($gender, ['P', 'PEREMPUAN', 'WANITA', 'FEMALE', 'F'])) {
+            return 'P';
+        }
+        
+        return 'L'; // Default
+    }
+
+    /**
+     * Generate summary report
+     */
+    private function generateSummaryReport($format)
+    {
+        try {
+            $stats = [
+                'total' => Employee::count(),
+                'active' => Employee::where('status', 'active')->count(),
+                'pegawai_tetap' => Employee::where('status_pegawai', 'PEGAWAI TETAP')->count(),
+                'tad' => Employee::where('status_pegawai', 'TAD')->count(),
+                'laki_laki' => Employee::where('jenis_kelamin', 'L')->count(),
+                'perempuan' => Employee::where('jenis_kelamin', 'P')->count(),
+                'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
+            ];
+
+            $unitStats = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
+                ->whereNotNull('unit_organisasi')
+                ->where('status', 'active')
+                ->groupBy('unit_organisasi')
+                ->orderBy('total', 'desc')
+                ->get();
+            
+            if ($format === 'csv') {
+                return $this->generateCsvReport('laporan_ringkasan_karyawan', $stats, $unitStats);
+            }
+            
+            return response()->json([
+                'statistics' => $stats,
+                'unit_statistics' => $unitStats,
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate summary report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate detailed report
+     */
+    private function generateDetailedReport($format)
+    {
+        try {
+            $employees = Employee::where('status', 'active')
+                ->orderBy('nama_lengkap')
+                ->get();
+
+            if ($format === 'csv') {
+                $filename = 'laporan_detail_karyawan_' . date('Y-m-d_H-i-s') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"$filename\"",
+                ];
+
+                $callback = function() use ($employees) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    
+                    // Headers
+                    fputcsv($file, [
+                        'NIP', 'Nama Lengkap', 'Status Pegawai', 'Unit Organisasi',
+                        'Jabatan', 'TMT Mulai Jabatan', 'Jenis Kelamin',
+                        'Handphone', 'Email', 'Pendidikan', 'Jurusan', 'Jenis Sepatu', 'Ukuran Sepatu', 'Seragam'
+                    ]);
+
+                    // Data
+                    foreach ($employees as $employee) {
+                        fputcsv($file, [
+                            $employee->nip,
+                            $employee->nama_lengkap,
+                            $employee->status_pegawai,
+                            $employee->unit_organisasi,
+                            $employee->jabatan ?: $employee->nama_jabatan,
+                            $employee->tmt_mulai_jabatan ? Carbon::parse($employee->tmt_mulai_jabatan)->format('d/m/Y') : '',
+                            $employee->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan',
+                            $employee->handphone,
+                            $employee->email ?: '-',
+                            $employee->pendidikan_terakhir ?: $employee->pendidikan,
+                            $employee->jurusan,
+                            $employee->jenis_sepatu ?: '-',
+                            $employee->ukuran_sepatu ?: '-',
+                            $employee->seragam ?: '-',
+                        ]);
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'employees' => $employees,
+                'total' => $employees->count(),
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate detailed report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate by unit report
+     */
+    private function generateByUnitReport($format)
+    {
+        try {
+            $unitStats = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
+                ->whereNotNull('unit_organisasi')
+                ->where('status', 'active')
+                ->groupBy('unit_organisasi')
+                ->orderBy('total', 'desc')
+                ->get();
+
+            if ($format === 'csv') {
+                $filename = 'laporan_per_unit_' . date('Y-m-d_H-i-s') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"$filename\"",
+                ];
+
+                $callback = function() use ($unitStats) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    
+                    fputcsv($file, ['LAPORAN KARYAWAN PER UNIT ORGANISASI']);
+                    fputcsv($file, ['Tanggal Laporan', date('d/m/Y H:i:s')]);
+                    fputcsv($file, []);
+                    fputcsv($file, ['Unit Organisasi', 'Jumlah Karyawan']);
+                    
+                    foreach ($unitStats as $unit) {
+                        fputcsv($file, [$unit->unit_organisasi, $unit->total]);
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'unit_statistics' => $unitStats,
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate by unit report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate retirement report
+     */
+    private function generateRetirementReport($format)
+    {
+        try {
+            $upcomingRetirement = Employee::whereNotNull('tmt_pensiun')
+                ->whereBetween('tmt_pensiun', [Carbon::now(), Carbon::now()->addMonths(12)])
+                ->where('status', 'active')
+                ->orderBy('tmt_pensiun', 'asc')
+                ->get();
+
+            if ($format === 'csv') {
+                $filename = 'laporan_pensiun_' . date('Y-m-d_H-i-s') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"$filename\"",
+                ];
+
+                $callback = function() use ($upcomingRetirement) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    
+                    fputcsv($file, ['LAPORAN KARYAWAN YANG AKAN PENSIUN']);
+                    fputcsv($file, ['Periode', '12 Bulan Ke Depan']);
+                    fputcsv($file, ['Tanggal Laporan', date('d/m/Y H:i:s')]);
+                    fputcsv($file, []);
+                    fputcsv($file, ['NIP', 'Nama Lengkap', 'Unit Organisasi', 'Jabatan', 'TMT Pensiun']);
+                    
+                    foreach ($upcomingRetirement as $employee) {
+                        fputcsv($file, [
+                            $employee->nip,
+                            $employee->nama_lengkap,
+                            $employee->unit_organisasi,
+                            $employee->jabatan ?: $employee->nama_jabatan,
+                            $employee->tmt_pensiun ? Carbon::parse($employee->tmt_pensiun)->format('d/m/Y') : ''
+                        ]);
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'upcoming_retirement' => $upcomingRetirement,
+                'total' => $upcomingRetirement->count(),
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate retirement report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate shoes report
+     */
+    private function generateShoesReport($format)
+    {
+        try {
+            $shoeStats = [
+                'pantofel' => Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                'safety_shoes' => Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
+                'no_data' => Employee::whereNull('jenis_sepatu')->count(),
+            ];
+
+            $sizeDistribution = Employee::select('ukuran_sepatu', DB::raw('count(*) as total'))
+                ->whereNotNull('ukuran_sepatu')
+                ->where('status', 'active')
+                ->groupBy('ukuran_sepatu')
+                ->orderBy('ukuran_sepatu')
+                ->get();
+
+            $shoesByUnit = Employee::select('unit_organisasi', 'jenis_sepatu', DB::raw('count(*) as total'))
+                ->whereNotNull('jenis_sepatu')
+                ->where('status', 'active')
+                ->groupBy('unit_organisasi', 'jenis_sepatu')
+                ->orderBy('unit_organisasi')
+                ->get();
+
+            if ($format === 'csv') {
+                $filename = 'laporan_distribusi_sepatu_' . date('Y-m-d_H-i-s') . '.csv';
+                
+                $headers = [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"$filename\"",
+                ];
+
+                $callback = function() use ($shoeStats, $sizeDistribution, $shoesByUnit) {
+                    $file = fopen('php://output', 'w');
+                    fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+                    
+                    fputcsv($file, ['LAPORAN DISTRIBUSI SEPATU KARYAWAN']);
+                    fputcsv($file, ['PT GAPURA ANGKASA - BANDAR UDARA NGURAH RAI']);
+                    fputcsv($file, ['Tanggal Laporan', date('d/m/Y H:i:s')]);
+                    fputcsv($file, []);
+                    
+                    fputcsv($file, ['RINGKASAN JENIS SEPATU']);
+                    fputcsv($file, ['Jenis Sepatu', 'Jumlah Karyawan']);
+                    fputcsv($file, ['Pantofel', $shoeStats['pantofel']]);
+                    fputcsv($file, ['Safety Shoes', $shoeStats['safety_shoes']]);
+                    fputcsv($file, ['Belum ada data', $shoeStats['no_data']]);
+                    
+                    fputcsv($file, []);
+                    fputcsv($file, ['DISTRIBUSI UKURAN SEPATU']);
+                    fputcsv($file, ['Ukuran', 'Jumlah Karyawan']);
+                    
+                    foreach ($sizeDistribution as $size) {
+                        fputcsv($file, [$size->ukuran_sepatu, $size->total]);
+                    }
+                    
+                    fputcsv($file, []);
+                    fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);
+                    fputcsv($file, ['Unit Organisasi', 'Jenis Sepatu', 'Jumlah']);
+                    
+                    foreach ($shoesByUnit as $item) {
+                        fputcsv($file, [$item->unit_organisasi, $item->jenis_sepatu, $item->total]);
+                    }
+                    
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'shoe_statistics' => $shoeStats,
+                'size_distribution' => $sizeDistribution,
+                'shoes_by_unit' => $shoesByUnit,
+                'generated_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate shoes report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate CSV report helper
+     */
+    private function generateCsvReport($reportName, $stats, $unitStats)
+    {
+        $filename = $reportName . '_' . date('Y-m-d_H-i-s') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"$filename\"",
+        ];
+
+        $callback = function() use ($stats, $unitStats) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            fputcsv($file, ['LAPORAN RINGKASAN KARYAWAN PT GAPURA ANGKASA']);
+            fputcsv($file, ['Tanggal Laporan', date('d/m/Y H:i:s')]);
+            fputcsv($file, []);
+            
+            fputcsv($file, ['STATISTIK UMUM']);
+            fputcsv($file, ['Total Karyawan', $stats['total']]);
+            fputcsv($file, ['Karyawan Aktif', $stats['active']]);
+            fputcsv($file, ['Pegawai Tetap', $stats['pegawai_tetap']]);
+            fputcsv($file, ['TAD', $stats['tad']]);
+            fputcsv($file, ['Laki-laki', $stats['laki_laki']]);
+            fputcsv($file, ['Perempuan', $stats['perempuan']]);
+            
+            if (isset($stats['pantofel']) && isset($stats['safety_shoes'])) {
+                fputcsv($file, []);
+                fputcsv($file, ['DISTRIBUSI SEPATU']);
+                fputcsv($file, ['Pantofel', $stats['pantofel']]);
+                fputcsv($file, ['Safety Shoes', $stats['safety_shoes']]);
+            }
+            
+            fputcsv($file, []);
+            fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);
+            fputcsv($file, ['Unit Organisasi', 'Jumlah Karyawan']);
+            
+            foreach ($unitStats as $unit) {
+                fputcsv($file, [$unit->unit_organisasi, $unit->total]);
+            }
+            
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

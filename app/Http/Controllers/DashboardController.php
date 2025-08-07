@@ -40,6 +40,7 @@ class DashboardController extends Controller
 
     /**
      * Get dashboard statistics (API endpoint)
+     * UPDATED: Include TAD Split dan Kelompok Jabatan
      */
     public function getStatistics()
     {
@@ -51,7 +52,10 @@ class DashboardController extends Controller
                 'total_employees' => 0,
                 'active_employees' => 0,
                 'pegawai_tetap' => 0,
-                'tad' => 0,
+                'pkwt' => 0,
+                'tad_total' => 0,
+                'tad_paket_sdm' => 0,
+                'tad_paket_pekerjaan' => 0,
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -59,6 +63,7 @@ class DashboardController extends Controller
 
     /**
      * Get chart data for dashboard
+     * UPDATED: Include TAD breakdown dan Kelompok Jabatan
      */
     public function getChartData()
     {
@@ -66,6 +71,8 @@ class DashboardController extends Controller
             $byOrganization = $this->getEmployeesByOrganization();
             $byStatus = $this->getEmployeesByStatus();
             $byGender = $this->getEmployeesByGender();
+            $byKelompokJabatan = $this->getEmployeesByKelompokJabatan();
+            $tadBreakdown = $this->getTADBreakdown();
             $monthlyHires = $this->getMonthlyHires();
             $ageDistribution = $this->getAgeDistribution();
 
@@ -73,6 +80,8 @@ class DashboardController extends Controller
                 'by_organization' => $byOrganization,
                 'by_status' => $byStatus,
                 'by_gender' => $byGender,
+                'by_kelompok_jabatan' => $byKelompokJabatan,
+                'tad_breakdown' => $tadBreakdown,
                 'monthly_hires' => $monthlyHires,
                 'age_distribution' => $ageDistribution,
             ]);
@@ -82,6 +91,8 @@ class DashboardController extends Controller
                 'by_organization' => [],
                 'by_status' => [],
                 'by_gender' => [],
+                'by_kelompok_jabatan' => [],
+                'tad_breakdown' => [],
                 'monthly_hires' => [],
                 'age_distribution' => [],
             ], 500);
@@ -209,6 +220,7 @@ class DashboardController extends Controller
 
     /**
      * Private method to get statistics data
+     * UPDATED: Include TAD Split, PKWT, dan Kelompok Jabatan statistics
      */
     private function getStatisticsData()
     {
@@ -216,7 +228,18 @@ class DashboardController extends Controller
         $totalEmployees = Employee::count();
         $activeEmployees = Employee::where('status', 'active')->count();
         $pegawaiTetap = Employee::where('status_pegawai', 'PEGAWAI TETAP')->count();
-        $tad = Employee::where('status_pegawai', 'TAD')->count();
+        $pkwt = Employee::where('status_pegawai', 'PKWT')->count();
+        
+        // TAD Statistics dengan split - FITUR BARU
+        $tadPaketSDM = Employee::where('status_pegawai', 'TAD PAKET SDM')->count();
+        $tadPaketPekerjaan = Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
+        $tadTotal = $tadPaketSDM + $tadPaketPekerjaan;
+        
+        // Backward compatibility - masih support TAD lama
+        $tadLegacy = Employee::where('status_pegawai', 'TAD')->count();
+        if ($tadLegacy > 0 && $tadTotal == 0) {
+            $tadTotal = $tadLegacy;
+        }
 
         // Gender statistics - handle both L/P and Laki-laki/Perempuan formats
         $maleEmployees = Employee::where(function ($query) {
@@ -228,6 +251,14 @@ class DashboardController extends Controller
             $query->where('jenis_kelamin', 'P')
                   ->orWhere('jenis_kelamin', 'Perempuan');
         })->count();
+
+        // Kelompok Jabatan statistics - FITUR BARU
+        $kelompokJabatanStats = Employee::select('kelompok_jabatan', DB::raw('COUNT(*) as count'))
+            ->whereNotNull('kelompok_jabatan')
+            ->where('status', 'active')
+            ->groupBy('kelompok_jabatan')
+            ->get()
+            ->pluck('count', 'kelompok_jabatan');
         
         // Organization count
         $totalOrganizations = Organization::count();
@@ -244,20 +275,40 @@ class DashboardController extends Controller
                               ->where('status', 'active')
                               ->count();
 
-        // Upcoming retirement (next 12 months)
+        // Upcoming retirement (next 12 months) - Updated untuk 56 tahun
         $upcomingRetirement = Employee::whereNotNull('tmt_pensiun')
                                     ->whereBetween('tmt_pensiun', [Carbon::now(), Carbon::now()->addMonths(12)])
                                     ->where('status', 'active')
                                     ->count();
 
         return [
+            // Basic statistics
             'total_employees' => $totalEmployees,
             'active_employees' => $activeEmployees,
             'inactive_employees' => $totalEmployees - $activeEmployees,
             'pegawai_tetap' => $pegawaiTetap,
-            'tad' => $tad,
+            'pkwt' => $pkwt,
+            
+            // TAD Statistics dengan breakdown - FITUR BARU
+            'tad_total' => $tadTotal,
+            'tad_paket_sdm' => $tadPaketSDM,
+            'tad_paket_pekerjaan' => $tadPaketPekerjaan,
+            'tad' => $tadTotal, // Backward compatibility
+            
+            // Gender
             'male_employees' => $maleEmployees,
             'female_employees' => $femaleEmployees,
+            
+            // Kelompok Jabatan breakdown - FITUR BARU
+            'kelompok_jabatan' => [
+                'supervisor' => $kelompokJabatanStats['SUPERVISOR'] ?? 0,
+                'staff' => $kelompokJabatanStats['STAFF'] ?? 0,
+                'manager' => $kelompokJabatanStats['MANAGER'] ?? 0,
+                'executive_gm' => $kelompokJabatanStats['EXECUTIVE GENERAL MANAGER'] ?? 0,
+                'account_executive' => $kelompokJabatanStats['ACCOUNT EXECUTIVE/AE'] ?? 0,
+            ],
+            
+            // Additional stats
             'total_organizations' => $totalOrganizations,
             'recent_hires' => $recentHires,
             'upcoming_retirement' => $upcomingRetirement,
@@ -287,6 +338,7 @@ class DashboardController extends Controller
 
     /**
      * Get employees by status
+     * UPDATED: Support TAD Split
      */
     private function getEmployeesByStatus()
     {
@@ -299,7 +351,7 @@ class DashboardController extends Controller
                 return [
                     'name' => $item->status_pegawai,
                     'value' => $item->total,
-                    'color' => $item->status_pegawai === 'PEGAWAI TETAP' ? '#10B981' : '#F59E0B',
+                    'color' => $this->getStatusColor($item->status_pegawai),
                 ];
             });
     }
@@ -330,6 +382,50 @@ class DashboardController extends Controller
                 'name' => 'Perempuan',
                 'value' => $femaleCount,
                 'color' => '#EC4899',
+            ],
+        ];
+    }
+
+    /**
+     * Get employees by kelompok jabatan - FITUR BARU
+     */
+    private function getEmployeesByKelompokJabatan()
+    {
+        return Employee::select('kelompok_jabatan', DB::raw('count(*) as total'))
+            ->whereNotNull('kelompok_jabatan')
+            ->where('status', 'active')
+            ->groupBy('kelompok_jabatan')
+            ->orderBy('total', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->kelompok_jabatan,
+                    'value' => $item->total,
+                    'color' => $this->getKelompokJabatanColor($item->kelompok_jabatan),
+                ];
+            });
+    }
+
+    /**
+     * Get TAD breakdown untuk chart - FITUR BARU
+     */
+    private function getTADBreakdown()
+    {
+        $tadPaketSDM = Employee::where('status_pegawai', 'TAD PAKET SDM')->count();
+        $tadPaketPekerjaan = Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
+
+        return [
+            [
+                'name' => 'TAD Paket SDM',
+                'value' => $tadPaketSDM,
+                'color' => '#F59E0B',
+                'description' => 'Sumber Daya Manusia',
+            ],
+            [
+                'name' => 'TAD Paket Pekerjaan', 
+                'value' => $tadPaketPekerjaan,
+                'color' => '#EF4444',
+                'description' => 'Kontrak Pekerjaan',
             ],
         ];
     }
@@ -412,6 +508,36 @@ class DashboardController extends Controller
     }
 
     /**
+     * Get color for status pegawai - FITUR BARU
+     */
+    private function getStatusColor($status)
+    {
+        return match($status) {
+            'PEGAWAI TETAP' => '#10B981',
+            'PKWT' => '#3B82F6',
+            'TAD PAKET SDM' => '#F59E0B',
+            'TAD PAKET PEKERJAAN' => '#EF4444',
+            'TAD' => '#F59E0B', // Backward compatibility
+            default => '#6B7280',
+        };
+    }
+
+    /**
+     * Get color for kelompok jabatan - FITUR BARU
+     */
+    private function getKelompokJabatanColor($kelompok)
+    {
+        return match($kelompok) {
+            'SUPERVISOR' => '#8B5CF6',
+            'STAFF' => '#06B6D4', 
+            'MANAGER' => '#10B981',
+            'EXECUTIVE GENERAL MANAGER' => '#F59E0B',
+            'ACCOUNT EXECUTIVE/AE' => '#EF4444',
+            default => '#6B7280',
+        };
+    }
+
+    /**
      * Calculate growth rate (month over month)
      */
     private function calculateGrowthRate()
@@ -437,6 +563,7 @@ class DashboardController extends Controller
 
     /**
      * Get default statistics (fallback)
+     * UPDATED: Include TAD Split fields
      */
     private function getDefaultStatistics()
     {
@@ -445,9 +572,20 @@ class DashboardController extends Controller
             'active_employees' => 0,
             'inactive_employees' => 0,
             'pegawai_tetap' => 0,
+            'pkwt' => 0,
+            'tad_total' => 0,
+            'tad_paket_sdm' => 0,
+            'tad_paket_pekerjaan' => 0,
             'tad' => 0,
             'male_employees' => 0,
             'female_employees' => 0,
+            'kelompok_jabatan' => [
+                'supervisor' => 0,
+                'staff' => 0,
+                'manager' => 0,
+                'executive_gm' => 0,
+                'account_executive' => 0,
+            ],
             'total_organizations' => 0,
             'recent_hires' => 0,
             'upcoming_retirement' => 0,
@@ -457,6 +595,7 @@ class DashboardController extends Controller
 
     /**
      * Get default chart data (fallback)
+     * UPDATED: Include new chart types
      */
     private function getDefaultChartData()
     {
@@ -464,6 +603,8 @@ class DashboardController extends Controller
             'by_organization' => [],
             'by_status' => [],
             'by_gender' => [],
+            'by_kelompok_jabatan' => [],
+            'tad_breakdown' => [],
             'monthly_hires' => [],
             'age_distribution' => [],
         ];
@@ -471,6 +612,7 @@ class DashboardController extends Controller
 
     /**
      * Export to CSV
+     * UPDATED: Include TAD Split dan Kelompok Jabatan data
      */
     private function exportToCsv($statistics, $organizationData)
     {
@@ -496,8 +638,16 @@ class DashboardController extends Controller
             fputcsv($file, ['STATISTIK UMUM']);
             fputcsv($file, ['Metrik', 'Nilai']);
             foreach ($statistics as $key => $value) {
-                $label = ucfirst(str_replace('_', ' ', $key));
-                fputcsv($file, [$label, $value]);
+                if ($key === 'kelompok_jabatan' && is_array($value)) {
+                    fputcsv($file, ['=== KELOMPOK JABATAN ===', '']);
+                    foreach ($value as $jabatan => $count) {
+                        $label = ucwords(str_replace('_', ' ', $jabatan));
+                        fputcsv($file, [$label, $count]);
+                    }
+                } else {
+                    $label = ucfirst(str_replace('_', ' ', $key));
+                    fputcsv($file, [$label, is_array($value) ? 'Complex Data' : $value]);
+                }
             }
             
             fputcsv($file, ['']);
