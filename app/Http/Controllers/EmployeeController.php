@@ -346,6 +346,7 @@ class EmployeeController extends Controller
                 'weight' => 'nullable|numeric|between:30,200',
                 'no_bpjs_kesehatan' => 'nullable|string|max:50',
                 'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                'seragam' => 'nullable|string|max:10',
                 'organization_id' => 'nullable|exists:organizations,id',
             ], [
                 // Custom error messages
@@ -523,32 +524,78 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for editing the specified employee
+     * ENHANCED: Format data dengan benar untuk React component
      */
     public function edit(Employee $employee)
     {
         try {
+            // Prepare employee data dengan format yang konsisten
+            $employeeData = $employee->toArray();
+            
+            // Convert gender dari database format (L/P) ke display format
+            if (isset($employeeData['jenis_kelamin'])) {
+                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+            }
+            
+            // Format dates untuk input type="date"
+            $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun'];
+            foreach ($dateFields as $field) {
+                if (isset($employeeData[$field]) && $employeeData[$field]) {
+                    $employeeData[$field] = Carbon::parse($employeeData[$field])->format('Y-m-d');
+                }
+            }
+            
+            // Ensure numeric fields are properly formatted
+            $numericFields = ['height', 'weight', 'tahun_lulus'];
+            foreach ($numericFields as $field) {
+                if (isset($employeeData[$field]) && $employeeData[$field]) {
+                    $employeeData[$field] = (string) $employeeData[$field];
+                }
+            }
+            
+            // Get organizations untuk dropdown jika diperlukan
             $organizations = $this->getOrganizationsForFilter();
             
+            // Get unit options
+            $unitOptions = $this->getUnitOptions()->toArray();
+            
+            // Get jabatan options
+            $jabatanOptions = $this->getJabatanOptions()->toArray();
+            
             return Inertia::render('Employees/Edit', [
-                'employee' => $employee,
+                'employee' => $employeeData,
                 'organizations' => $organizations,
-                'unitOptions' => $this->getUnitOptions()->toArray(),
-                'jabatanOptions' => $this->getJabatanOptions()->toArray(),
+                'unitOptions' => $unitOptions,
+                'jabatanOptions' => $jabatanOptions,
+                'title' => 'Edit Karyawan',
+                'subtitle' => "Edit data karyawan {$employee->nama_lengkap}",
+                'success' => session('success'),
+                'error' => session('error'),
+                'message' => session('message'),
             ]);
+            
         } catch (\Exception $e) {
             Log::error('Employee Edit Error', [
-                'employee_id' => $employee->id,
-                'error' => $e->getMessage()
+                'employee_id' => $employee->id ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return redirect()->route('employees.index')
-                ->with('error', 'Error loading edit form: ' . $e->getMessage());
+                ->with([
+                    'error' => 'Gagal memuat form edit karyawan.',
+                    'notification' => [
+                        'type' => 'error',
+                        'title' => 'Gagal Memuat Data',
+                        'message' => 'Terjadi kesalahan saat memuat form edit karyawan.'
+                    ]
+                ]);
         }
     }
 
     /**
      * Update the specified employee
-     * FIXED: Gender field conversion dan database compatibility
+     * ENHANCED: Validasi lengkap untuk semua field yang bisa diedit (kecuali NIP)
      */
     public function update(Request $request, Employee $employee)
     {
@@ -556,21 +603,33 @@ class EmployeeController extends Controller
             $originalData = $employee->toArray();
 
             $validator = Validator::make($request->all(), [
+                // NIP tidak boleh diubah - hanya untuk referensi
                 'nip' => [
                     'required',
                     'string',
                     'max:20',
                     Rule::unique('employees', 'nip')->ignore($employee->id)
                 ],
+                // Data Pribadi
                 'nama_lengkap' => 'required|string|max:255',
-                // FIXED: Accept both formats dan convert properly
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
+                'kota_domisili' => 'nullable|string|max:100',
+                'nik' => 'nullable|string|max:20',
+                
+                // Data Kontak
                 'no_telepon' => 'nullable|string|max:20',
                 'handphone' => 'nullable|string|max:20',
-                'email' => 'nullable|email|max:255|unique:employees,email,' . $employee->id,
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                    Rule::unique('employees', 'email')->ignore($employee->id)
+                ],
+                
+                // Data Pekerjaan
                 'unit_organisasi' => 'required|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 'nama_jabatan' => 'required|string|max:255',
@@ -578,19 +637,23 @@ class EmployeeController extends Controller
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_pensiun' => 'nullable|date|after:today',
+                
+                // Data Pendidikan
                 'pendidikan_terakhir' => 'nullable|string|max:50',
                 'pendidikan' => 'nullable|string|max:50',
                 'instansi_pendidikan' => 'nullable|string|max:255',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
+                
+                // Data Tambahan
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
                 'ukuran_sepatu' => 'nullable|string|max:10',
-                'kota_domisili' => 'nullable|string|max:100',
-                'organization_id' => 'nullable|exists:organizations,id',
-                'no_bpjs_kesehatan' => 'nullable|string|max:50',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
                 'height' => 'nullable|numeric|between:100,250',
                 'weight' => 'nullable|numeric|between:30,200',
+                'no_bpjs_kesehatan' => 'nullable|string|max:50',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                'seragam' => 'nullable|string|max:10',
+                'organization_id' => 'nullable|exists:organizations,id',
             ]);
 
             if ($validator->fails()) {
@@ -609,11 +672,16 @@ class EmployeeController extends Controller
 
             $data = $validator->validated();
             
-            // FIXED: Convert gender to database format (L/P) instead of display format
-            if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
-                $data['jenis_kelamin'] = 'L';
-            } else {
-                $data['jenis_kelamin'] = 'P';
+            // IMPORTANT: Hapus NIP dari data yang akan diupdate untuk mencegah perubahan
+            unset($data['nip']);
+            
+            // Convert gender to database format (L/P) instead of display format
+            if (isset($data['jenis_kelamin'])) {
+                if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
+                    $data['jenis_kelamin'] = 'L';
+                } else {
+                    $data['jenis_kelamin'] = 'P';
+                }
             }
 
             // Recalculate age if birth date is updated
@@ -626,13 +694,27 @@ class EmployeeController extends Controller
                 $data['jabatan'] = $data['nama_jabatan'];
             }
 
+            // Convert numeric fields
+            if (isset($data['height'])) {
+                $data['height'] = (int) $data['height'];
+            }
+            if (isset($data['weight'])) {
+                $data['weight'] = (int) $data['weight'];
+            }
+            if (isset($data['tahun_lulus'])) {
+                $data['tahun_lulus'] = (int) $data['tahun_lulus'];
+            }
+
+            // Update employee data
             $employee->update($data);
 
             // Log the update
             Log::info('Employee Updated Successfully', [
                 'employee_id' => $employee->id,
                 'nip' => $employee->nip,
-                'updated_fields' => array_keys(array_diff_assoc($data, $originalData))
+                'nama_lengkap' => $employee->nama_lengkap,
+                'updated_fields' => array_keys(array_diff_assoc($data, $originalData)),
+                'updated_by' => 'system' // Bisa diubah ke auth user jika ada authentication
             ]);
 
             return redirect()->route('employees.index')
@@ -642,20 +724,39 @@ class EmployeeController extends Controller
                     'notification' => [
                         'type' => 'success',
                         'title' => 'Data Berhasil Diperbarui',
-                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui.",
-                        'employee_id' => $employee->id
+                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui."
                     ]
                 ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->validator)
+                ->withInput()
+                ->with([
+                    'error' => 'Validasi data gagal.',
+                    'notification' => [
+                        'type' => 'error',
+                        'title' => 'Validasi Gagal',
+                        'message' => 'Mohon periksa kembali data yang diisi'
+                    ]
+                ]);
         } catch (\Exception $e) {
             Log::error('Employee Update Error', [
-                'employee_id' => $employee->id,
-                'error' => $e->getMessage()
+                'employee_id' => $employee->id ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return redirect()->back()
-                ->with('error', 'Error updating employee: ' . $e->getMessage())
-                ->withInput();
+                ->withInput()
+                ->with([
+                    'error' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
+                    'notification' => [
+                        'type' => 'error',
+                        'title' => 'Kesalahan Sistem',
+                        'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.'
+                    ]
+                ]);
         }
     }
 
