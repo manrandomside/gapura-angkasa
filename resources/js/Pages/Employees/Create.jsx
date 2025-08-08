@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Head, useForm, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
+import UnitOrganisasiComponent from "@/Components/UnitOrganisasiComponent";
 import {
     Save,
     X,
@@ -229,8 +230,9 @@ export default function Create({
     organizations = [],
     unitOptions = [],
     jabatanOptions = [],
-    statusPegawaiOptions = [], // BARU: TAD Split options
-    kelompokJabatanOptions = [], // BARU: Kelompok Jabatan options
+    statusPegawaiOptions = [],
+    kelompokJabatanOptions = [],
+    unitOrganisasiOptions = [],
     success = null,
     error = null,
     message = null,
@@ -245,16 +247,18 @@ export default function Create({
             alamat: "",
             handphone: "",
             email: "",
-            no_bpjs_kesehatan: "", // PINDAH ke data pribadi
-            no_bpjs_ketenagakerjaan: "", // PINDAH ke data pribadi
+            no_bpjs_kesehatan: "",
+            no_bpjs_ketenagakerjaan: "",
             unit_organisasi: "",
+            unit_id: "",
+            sub_unit_id: "",
             jabatan: "",
             nama_jabatan: "",
-            status_pegawai: "PEGAWAI TETAP", // Default tetap sama
-            kelompok_jabatan: "", // BARU: Field kelompok jabatan
+            status_pegawai: "PEGAWAI TETAP",
+            kelompok_jabatan: "",
             tmt_mulai_jabatan: "",
             tmt_mulai_kerja: "",
-            tmt_pensiun: "", // Auto-calculated, read-only
+            tmt_pensiun: "",
             pendidikan_terakhir: "",
             pendidikan: "",
             instansi_pendidikan: "",
@@ -274,7 +278,7 @@ export default function Create({
     const [formValidation, setFormValidation] = useState({});
     const [notification, setNotification] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [calculatedAge, setCalculatedAge] = useState(null); // BARU: Track calculated age
+    const [calculatedAge, setCalculatedAge] = useState(null);
 
     // Show notification dari session
     useEffect(() => {
@@ -293,13 +297,13 @@ export default function Create({
         }
     }, [success, error]);
 
-    // UPDATED: Auto-calculate pension date when birth date changes (56 TAHUN, bukan 60)
+    // Auto-calculate pension date when birth date changes (56 TAHUN)
     useEffect(() => {
         if (data.tanggal_lahir) {
             const birthDate = new Date(data.tanggal_lahir);
             const pensionDate = new Date(birthDate);
-            pensionDate.setFullYear(birthDate.getFullYear() + 56); // CHANGED: 56 tahun
-            pensionDate.setDate(1); // Set ke tanggal 1 pada bulan yang sama
+            pensionDate.setFullYear(birthDate.getFullYear() + 56);
+            pensionDate.setDate(1);
 
             setData("tmt_pensiun", pensionDate.toISOString().split("T")[0]);
 
@@ -326,7 +330,7 @@ export default function Create({
         }
     }, [data.nama_jabatan]);
 
-    // UPDATED: Define sections
+    // Define sections
     const sections = {
         personal: { name: "Data Pribadi", icon: User },
         work: { name: "Data Pekerjaan", icon: Building2 },
@@ -415,16 +419,16 @@ export default function Create({
         return error;
     };
 
-    // FIXED: Enhanced handleInputChange dengan error clearing
+    // Enhanced handleInputChange dengan error clearing
     const handleInputChange = (name, value) => {
         setData(name, value);
 
-        // FIXED: Clear errors saat user mulai mengetik
+        // Clear errors saat user mulai mengetik
         if (errors[name]) {
             clearErrors(name);
         }
 
-        // FIXED: Clear local validation error
+        // Clear local validation error
         if (formValidation[name]) {
             setFormValidation((prev) => ({
                 ...prev,
@@ -442,7 +446,7 @@ export default function Create({
         validateField(name, value);
     };
 
-    // UPDATED: Validate required fields termasuk kelompok_jabatan
+    // Validate required fields termasuk kelompok_jabatan dan unit organisasi
     const validateRequiredFields = () => {
         const requiredFields = {
             nip: "NIP wajib diisi",
@@ -450,7 +454,7 @@ export default function Create({
             jenis_kelamin: "Jenis kelamin wajib dipilih",
             unit_organisasi: "Unit organisasi wajib dipilih",
             nama_jabatan: "Nama jabatan wajib diisi",
-            kelompok_jabatan: "Kelompok jabatan wajib dipilih", // BARU
+            kelompok_jabatan: "Kelompok jabatan wajib dipilih",
         };
 
         const newErrors = {};
@@ -464,7 +468,7 @@ export default function Create({
         return newErrors;
     };
 
-    // FIXED: Enhanced form submission dengan better error handling
+    // Enhanced form submission dengan better error handling
     const handleSubmit = (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -472,6 +476,9 @@ export default function Create({
         console.log("Form Data Submission:", data);
         console.log("Gender Value:", data.jenis_kelamin);
         console.log("Kelompok Jabatan Value:", data.kelompok_jabatan);
+        console.log("Unit Organisasi:", data.unit_organisasi);
+        console.log("Unit ID:", data.unit_id);
+        console.log("Sub Unit ID:", data.sub_unit_id);
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -503,6 +510,13 @@ export default function Create({
         // Clean data before submission
         const cleanData = { ...data };
 
+        // Convert gender value untuk database
+        if (cleanData.jenis_kelamin === "Laki-laki") {
+            cleanData.jenis_kelamin = "L";
+        } else if (cleanData.jenis_kelamin === "Perempuan") {
+            cleanData.jenis_kelamin = "P";
+        }
+
         // Remove empty strings dan convert ke null jika perlu
         Object.keys(cleanData).forEach((key) => {
             if (cleanData[key] === "") {
@@ -520,10 +534,10 @@ export default function Create({
                     type: "success",
                     title: "Berhasil!",
                     message:
-                        "Karyawan berhasil ditambahkan. TMT Pensiun telah dihitung otomatis (56 tahun). Mengalihkan ke daftar karyawan...",
+                        "Karyawan berhasil ditambahkan dengan struktur organisasi lengkap. TMT Pensiun telah dihitung otomatis (56 tahun). Mengalihkan ke daftar karyawan...",
                 });
 
-                // Redirect after 2 seconds untuk memberikan waktu user melihat notification
+                // Redirect after 2 seconds
                 setTimeout(() => {
                     router.visit(route("employees.index"));
                 }, 2000);
@@ -541,8 +555,13 @@ export default function Create({
                     errorMessage = "Jenis kelamin tidak valid";
                 } else if (errors.kelompok_jabatan) {
                     errorMessage = "Kelompok jabatan tidak valid";
+                } else if (errors.unit_organisasi) {
+                    errorMessage = "Unit organisasi tidak valid";
+                } else if (errors.unit_id) {
+                    errorMessage = "Unit tidak valid";
+                } else if (errors.sub_unit_id) {
+                    errorMessage = "Sub unit tidak valid";
                 } else if (Object.keys(errors).length > 0) {
-                    // Show first error
                     const firstError = Object.values(errors)[0];
                     errorMessage =
                         typeof firstError === "string"
@@ -558,10 +577,9 @@ export default function Create({
                     message: errorMessage,
                 });
 
-                // FIXED: Form tetap dapat diedit setelah error
                 setIsSubmitting(false);
 
-                // FIXED: Focus ke field pertama yang error
+                // Focus ke field pertama yang error
                 const firstErrorField = Object.keys(errors)[0];
                 if (firstErrorField) {
                     setTimeout(() => {
@@ -599,7 +617,7 @@ export default function Create({
         }
     };
 
-    // UPDATED: renderPersonalSection dengan BPJS dipindah ke sini
+    // renderPersonalSection dengan BPJS
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -733,7 +751,7 @@ export default function Create({
                 />
             </div>
 
-            {/* PINDAH KE SINI: BPJS Fields */}
+            {/* BPJS Fields */}
             <div className="pt-4 border-t border-gray-200">
                 <h3 className="flex items-center gap-2 mb-4 font-semibold text-gray-800 text-md">
                     <Shield className="w-4 h-4 text-[#439454]" />
@@ -763,7 +781,7 @@ export default function Create({
         </div>
     );
 
-    // UPDATED: renderWorkSection dengan kelompok_jabatan dan status pegawai baru
+    // renderWorkSection dengan UnitOrganisasiComponent dan kelompok_jabatan
     const renderWorkSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -771,32 +789,15 @@ export default function Create({
                 Data Pekerjaan
             </h2>
 
+            {/* Unit Organisasi Expert Component */}
+            <UnitOrganisasiComponent
+                data={data}
+                setData={setData}
+                errors={errors}
+                required={true}
+            />
+
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <InputField
-                    name="unit_organisasi"
-                    label="Unit Organisasi"
-                    required={true}
-                    options={
-                        unitOptions.length > 0
-                            ? unitOptions
-                            : [
-                                  "Back Office",
-                                  "Front Office",
-                                  "Security",
-                                  "Ground Handling",
-                                  "Cargo",
-                                  "Aviation Security",
-                                  "Passenger Service",
-                                  "Ramp",
-                              ]
-                    }
-                    icon={Building2}
-                    value={data.unit_organisasi}
-                    onChange={handleInputChange}
-                    error={
-                        errors.unit_organisasi || formValidation.unit_organisasi
-                    }
-                />
                 <InputField
                     name="nama_jabatan"
                     label="Nama Jabatan"
@@ -826,7 +827,6 @@ export default function Create({
                     onChange={handleInputChange}
                     error={errors.status_pegawai}
                 />
-                {/* BARU: Kelompok Jabatan */}
                 <InputField
                     name="kelompok_jabatan"
                     label="Kelompok Jabatan"
@@ -870,7 +870,6 @@ export default function Create({
                     error={errors.tmt_mulai_jabatan}
                     hint="Tanggal Mulai Tugas pada jabatan saat ini"
                 />
-                {/* UPDATED: TMT Pensiun - READ ONLY */}
                 <InputField
                     name="tmt_pensiun"
                     label="TMT Pensiun"
@@ -879,7 +878,7 @@ export default function Create({
                     value={data.tmt_pensiun}
                     onChange={handleInputChange}
                     error={errors.tmt_pensiun}
-                    disabled={true} // SELALU READ-ONLY
+                    disabled={true}
                     hint="Otomatis dihitung dari tanggal lahir (56 tahun)"
                 />
             </div>
@@ -948,7 +947,6 @@ export default function Create({
         </div>
     );
 
-    // UPDATED: renderAdditionalSection - BPJS sudah dipindah
     const renderAdditionalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -1064,7 +1062,8 @@ export default function Create({
                                 Tambah Karyawan Baru
                             </h1>
                             <p className="text-sm text-gray-600">
-                                Lengkapi data karyawan dengan teliti - TMT
+                                Lengkapi data karyawan dengan teliti - Unit
+                                Organisasi Expert dengan cascading dropdown. TMT
                                 Pensiun akan otomatis dihitung (56 tahun)
                             </p>
                         </div>

@@ -22,6 +22,8 @@ class Employee extends Model
         'provider',
         'kode_organisasi',
         'unit_organisasi',
+        'unit_id', // TAMBAHAN BARU
+        'sub_unit_id', // TAMBAHAN BARU
         'nama_organisasi',
         'nama_jabatan',
         'jabatan',
@@ -90,6 +92,8 @@ class Employee extends Model
      * ALTER TABLE employees ADD INDEX idx_ukuran_sepatu (ukuran_sepatu);
      * ALTER TABLE employees ADD INDEX idx_kelompok_jabatan (kelompok_jabatan);
      * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, unit_organisasi);
+     * ALTER TABLE employees ADD INDEX idx_unit_id (unit_id);
+     * ALTER TABLE employees ADD INDEX idx_sub_unit_id (sub_unit_id);
      */
 
     // =====================================================
@@ -127,6 +131,22 @@ class Employee extends Model
     public function organization()
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /**
+     * Get unit yang belongs to this employee - TAMBAHAN BARU
+     */
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
+    }
+
+    /**
+     * Get sub unit yang belongs to this employee - TAMBAHAN BARU
+     */
+    public function subUnit()
+    {
+        return $this->belongsTo(SubUnit::class);
     }
 
     // =====================================================
@@ -178,6 +198,30 @@ class Employee extends Model
     }
 
     /**
+     * Scope untuk filter berdasarkan unit - TAMBAHAN BARU
+     */
+    public function scopeByUnit($query, $unitId)
+    {
+        if ($unitId === 'all' || empty($unitId)) {
+            return $query;
+        }
+        
+        return $query->where('unit_id', $unitId);
+    }
+
+    /**
+     * Scope untuk filter berdasarkan sub unit - TAMBAHAN BARU
+     */
+    public function scopeBySubUnit($query, $subUnitId)
+    {
+        if ($subUnitId === 'all' || empty($subUnitId)) {
+            return $query;
+        }
+        
+        return $query->where('sub_unit_id', $subUnitId);
+    }
+
+    /**
      * Enhanced Global Search Scope - Optimized untuk pagination
      * Mencari di semua field penting dan mendukung pencarian global
      */
@@ -209,7 +253,14 @@ class Employee extends Model
               ->orWhere('handphone', 'like', $searchTerm)
               ->orWhere('email', 'like', $searchTerm)
               ->orWhere('tempat_lahir', 'like', $searchTerm)
-              ->orWhere('alamat', 'like', $searchTerm);
+              ->orWhere('alamat', 'like', $searchTerm)
+              // Search dalam unit dan sub unit - TAMBAHAN BARU
+              ->orWhereHas('unit', function ($q) use ($searchTerm) {
+                  $q->where('name', 'like', $searchTerm);
+              })
+              ->orWhereHas('subUnit', function ($q) use ($searchTerm) {
+                  $q->where('name', 'like', $searchTerm);
+              });
         });
     }
 
@@ -339,7 +390,7 @@ class Employee extends Model
 
     /**
      * Comprehensive filter scope untuk pagination - handles semua filter sekaligus
-     * UPDATED: Tambah filter kelompok jabatan
+     * UPDATED: Tambah filter kelompok jabatan, unit, dan sub unit - TAMBAHAN BARU
      */
     public function scopeApplyFilters(Builder $query, array $filters)
     {
@@ -356,6 +407,16 @@ class Employee extends Model
         // Unit organisasi filter
         if (!empty($filters['unit_organisasi'])) {
             $query->byUnitOrganisasi($filters['unit_organisasi']);
+        }
+
+        // Unit filter - TAMBAHAN BARU
+        if (!empty($filters['unit_id'])) {
+            $query->byUnit($filters['unit_id']);
+        }
+
+        // Sub Unit filter - TAMBAHAN BARU
+        if (!empty($filters['sub_unit_id'])) {
+            $query->bySubUnit($filters['sub_unit_id']);
         }
 
         // Jenis kelamin filter
@@ -408,6 +469,44 @@ class Employee extends Model
             $this->attributes['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
             $this->attributes['usia'] = $birthDate->age;
         }
+    }
+
+    /**
+     * Get unit organisasi display name dengan unit dan sub unit - TAMBAHAN BARU
+     */
+    public function getUnitDisplayAttribute()
+    {
+        $display = $this->unit_organisasi;
+        
+        if ($this->unit) {
+            $display .= ' - ' . $this->unit->name;
+        }
+        
+        if ($this->subUnit) {
+            $display .= ' - ' . $this->subUnit->name;
+        }
+        
+        return $display;
+    }
+
+    /**
+     * Get full organizational structure - TAMBAHAN BARU
+     */
+    public function getOrganizationalStructureAttribute()
+    {
+        return [
+            'unit_organisasi' => $this->unit_organisasi,
+            'unit' => $this->unit ? [
+                'id' => $this->unit->id,
+                'name' => $this->unit->name,
+                'code' => $this->unit->code,
+            ] : null,
+            'sub_unit' => $this->subUnit ? [
+                'id' => $this->subUnit->id,
+                'name' => $this->subUnit->name,
+                'code' => $this->subUnit->code,
+            ] : null,
+        ];
     }
 
     /**
@@ -679,7 +778,7 @@ class Employee extends Model
 
     /**
      * Get filter options untuk dropdown - optimized untuk pagination
-     * UPDATED: Tambah kelompok jabatan options
+     * UPDATED: Tambah kelompok jabatan options dan unit options - TAMBAHAN BARU
      */
     public static function getFilterOptions()
     {
@@ -846,11 +945,12 @@ class Employee extends Model
 
     /**
      * Pagination dengan filter dan search - method utama untuk controller
+     * UPDATED: Load unit dan sub unit relationships - TAMBAHAN BARU
      */
     public static function paginateWithFilters(array $filters = [], int $perPage = 20)
     {
         return self::active()
-                   ->with('organization')
+                   ->with(['organization', 'unit', 'subUnit']) // TAMBAHAN BARU
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->paginate($perPage)
@@ -869,6 +969,7 @@ class Employee extends Model
         $searchTerm = '%' . $term . '%';
         
         return self::active()
+                   ->with(['unit', 'subUnit']) // TAMBAHAN BARU
                    ->where(function ($q) use ($searchTerm) {
                        $q->where('nama_lengkap', 'like', $searchTerm)
                          ->orWhere('nip', 'like', $searchTerm)
@@ -876,12 +977,12 @@ class Employee extends Model
                          ->orWhere('nama_jabatan', 'like', $searchTerm);
                    })
                    ->limit($limit)
-                   ->get(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan'])
+                   ->get(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'unit_id', 'sub_unit_id'])
                    ->map(function ($employee) {
                        return [
                            'id' => $employee->id,
                            'text' => $employee->nama_lengkap . ' (' . $employee->nip . ')',
-                           'subtitle' => $employee->unit_organisasi . ' - ' . $employee->nama_jabatan,
+                           'subtitle' => $employee->unit_display . ' - ' . $employee->nama_jabatan,
                        ];
                    });
     }
@@ -910,10 +1011,12 @@ class Employee extends Model
 
     /**
      * Get export data dengan filter
+     * UPDATED: Load unit dan sub unit untuk export - TAMBAHAN BARU
      */
     public static function getExportData(array $filters = [])
     {
         return self::active()
+                   ->with(['unit', 'subUnit']) // TAMBAHAN BARU
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->get();
@@ -982,6 +1085,7 @@ class Employee extends Model
 
     /**
      * Generate ID card data
+     * UPDATED: Include unit structure - TAMBAHAN BARU
      */
     public function getIdCardData()
     {
@@ -990,6 +1094,7 @@ class Employee extends Model
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
             'unit_organisasi' => $this->unit_organisasi,
+            'unit_display' => $this->unit_display, // TAMBAHAN BARU
             'kelompok_jabatan' => $this->kelompok_jabatan,
             'initials' => $this->initials,
             'foto_url' => null, // Placeholder for future photo implementation

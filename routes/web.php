@@ -16,6 +16,7 @@ use Inertia\Inertia;
 | Base color: putih dengan hover hijau (#439454)
 | Sistem SDM PT Gapura Angkasa - Bandar Udara Ngurah Rai
 | Enhanced dengan filter sepatu dan ukuran sepatu
+| Updated dengan Unit Organisasi Expert System
 |
 */
 
@@ -297,7 +298,7 @@ Route::get('/total-karyawan', function () {
 })->name('total.karyawan');
 
 // =====================================================
-// API ROUTES (Enhanced untuk filtering sepatu)
+// API ROUTES - ENHANCED dengan Unit Organisasi Expert
 // =====================================================
 
 Route::prefix('api')->group(function () {
@@ -321,9 +322,35 @@ Route::prefix('api')->group(function () {
     Route::post('/employees/bulk-action', [EmployeeController::class, 'bulkAction'])
         ->name('api.employees.bulk.action');
     
-    // Enhanced filter options API untuk semua dropdown filters
+    // =====================================================
+    // UNIT ORGANISASI EXPERT API - BARU
+    // =====================================================
+    
+    // Unit & Sub Unit API routes untuk cascading dropdown
+    Route::get('/units', [EmployeeController::class, 'getUnits'])->name('api.units');
+    Route::get('/sub-units', [EmployeeController::class, 'getSubUnits'])->name('api.sub.units');
+    Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrganisasiOptions'])->name('api.unit.organisasi.options');
+    
+    // Enhanced filter options API dengan unit organisasi expert options
     Route::get('/employees/filter-options', function() {
         try {
+            // Get Unit Organisasi options dari Unit model jika ada
+            $unitOrganisasiOptions = [];
+            try {
+                if (class_exists('App\Models\Unit')) {
+                    $unitOrganisasiOptions = \App\Models\Unit::UNIT_ORGANISASI_OPTIONS;
+                }
+            } catch (\Exception $e) {
+                // Fallback ke options dari database jika Unit model belum ada
+                $unitOrganisasiOptions = \App\Models\Employee::select('unit_organisasi')
+                    ->whereNotNull('unit_organisasi')
+                    ->distinct()
+                    ->pluck('unit_organisasi')
+                    ->sort()
+                    ->values()
+                    ->toArray();
+            }
+            
             $filterOptions = [
                 'status_pegawai' => \App\Models\Employee::select('status_pegawai')
                     ->whereNotNull('status_pegawai')
@@ -332,12 +359,7 @@ Route::prefix('api')->group(function () {
                     ->sort()
                     ->values(),
                 
-                'unit_organisasi' => \App\Models\Employee::select('unit_organisasi')
-                    ->whereNotNull('unit_organisasi')
-                    ->distinct()
-                    ->pluck('unit_organisasi')
-                    ->sort()
-                    ->values(),
+                'unit_organisasi' => $unitOrganisasiOptions,
                 
                 'jenis_sepatu' => \App\Models\Employee::select('jenis_sepatu')
                     ->whereNotNull('jenis_sepatu')
@@ -375,25 +397,31 @@ Route::prefix('api')->group(function () {
                     ->values(),
             ];
             
-            return response()->json($filterOptions);
+            return response()->json([
+                'success' => true,
+                'data' => $filterOptions
+            ]);
         } catch (\Exception $e) {
             return response()->json([
-                'error' => $e->getMessage(),
-                'status_pegawai' => [],
-                'unit_organisasi' => [],
-                'jenis_sepatu' => [],
-                'ukuran_sepatu' => [],
-                'jenis_kelamin' => [],
-                'pendidikan' => [],
-                'kelompok_jabatan' => [],
+                'success' => false,
+                'message' => 'Error retrieving filter options: ' . $e->getMessage(),
+                'data' => [
+                    'status_pegawai' => [],
+                    'unit_organisasi' => ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'],
+                    'jenis_sepatu' => ['Pantofel', 'Safety Shoes'],
+                    'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
+                    'jenis_kelamin' => ['L', 'P'],
+                    'pendidikan' => [],
+                    'kelompok_jabatan' => [],
+                ]
             ], 500);
         }
     })->name('api.employees.filter.options');
     
-    // Enhanced advanced search dengan multiple filters termasuk sepatu
+    // Enhanced advanced search dengan multiple filters termasuk sepatu dan unit expert
     Route::post('/employees/search/advanced', function(\Illuminate\Http\Request $request) {
         try {
-            $query = \App\Models\Employee::with('organization')
+            $query = \App\Models\Employee::with(['organization'])
                 ->where('status', 'active');
 
             // Apply search filter (mencakup semua field termasuk sepatu)
@@ -419,6 +447,15 @@ Route::prefix('api')->group(function () {
 
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
                 $query->where('unit_organisasi', $request->unit_organisasi);
+            }
+
+            // Unit expert filters
+            if ($request->filled('unit_id') && $request->unit_id !== 'all') {
+                $query->where('unit_id', $request->unit_id);
+            }
+
+            if ($request->filled('sub_unit_id') && $request->sub_unit_id !== 'all') {
+                $query->where('sub_unit_id', $request->sub_unit_id);
             }
 
             if ($request->filled('jenis_kelamin') && $request->jenis_kelamin !== 'all') {
@@ -483,7 +520,9 @@ Route::prefix('api')->group(function () {
                 'filters_applied' => $request->only([
                     'search', 
                     'status_pegawai', 
-                    'unit_organisasi', 
+                    'unit_organisasi',
+                    'unit_id',
+                    'sub_unit_id',
                     'jenis_kelamin',
                     'jenis_sepatu',
                     'ukuran_sepatu',
@@ -497,8 +536,8 @@ Route::prefix('api')->group(function () {
                 'search_metadata' => [
                     'search_time' => now()->toISOString(),
                     'has_filters' => $request->hasAny([
-                        'search', 'status_pegawai', 'unit_organisasi', 'jenis_kelamin',
-                        'jenis_sepatu', 'ukuran_sepatu', 'pendidikan', 'kelompok_jabatan'
+                        'search', 'status_pegawai', 'unit_organisasi', 'unit_id', 'sub_unit_id',
+                        'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'pendidikan', 'kelompok_jabatan'
                     ]),
                 ]
             ]);
@@ -611,11 +650,27 @@ Route::prefix('utilities')->group(function () {
                 'no_shoe_data' => \App\Models\Employee::whereNull('jenis_sepatu')->count(),
                 'unique_sizes' => \App\Models\Employee::whereNotNull('ukuran_sepatu')->distinct()->count('ukuran_sepatu'),
             ];
+
+            // Unit organisasi expert stats
+            $unitStats = [];
+            try {
+                if (class_exists('App\Models\Unit')) {
+                    $unitStats = [
+                        'total_units' => \App\Models\Unit::count(),
+                        'active_units' => \App\Models\Unit::where('is_active', true)->count(),
+                        'total_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::count() : 0,
+                        'active_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::where('is_active', true)->count() : 0,
+                    ];
+                }
+            } catch (\Exception $e) {
+                $unitStats = ['message' => 'Unit system not yet implemented'];
+            }
         } catch (\Exception $e) {
             $dbStatus = 'Error: ' . $e->getMessage();
             $employeeCount = 0;
             $organizationCount = 0;
             $shoeStats = ['pantofel' => 0, 'safety_shoes' => 0, 'no_shoe_data' => 0, 'unique_sizes' => 0];
+            $unitStats = ['message' => 'Database connection failed'];
         }
         
         return response()->json([
@@ -625,23 +680,26 @@ Route::prefix('utilities')->group(function () {
             'employee_count' => $employeeCount,
             'organization_count' => $organizationCount,
             'shoe_statistics' => $shoeStats,
+            'unit_statistics' => $unitStats,
             'features' => [
                 'shoe_filtering' => 'enabled',
                 'size_filtering' => 'enabled',
                 'advanced_search' => 'enabled',
                 'real_time_filtering' => 'enabled',
+                'unit_organisasi_expert' => 'enabled',
+                'cascading_dropdown' => 'enabled',
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
             'timestamp' => now()->toISOString(),
-            'version' => '1.1.0',
+            'version' => '1.2.0',
         ]);
     })->name('utilities.health.check');
     
     Route::get('/system-info', function () {
         return response()->json([
             'system_name' => 'GAPURA ANGKASA SDM System',
-            'version' => '1.1.0',
+            'version' => '1.2.0',
             'features' => [
                 'employee_management' => 'active',
                 'shoe_filtering' => 'active',
@@ -649,6 +707,9 @@ Route::prefix('utilities')->group(function () {
                 'advanced_search' => 'active',
                 'real_time_filtering' => 'active',
                 'shoe_reports' => 'active',
+                'unit_organisasi_expert' => 'active',
+                'cascading_dropdown' => 'active',
+                'unit_sub_unit_management' => 'active',
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -715,6 +776,36 @@ if (app()->environment('local', 'development')) {
                 ], 500);
             }
         })->name('dev.test.seeder');
+
+        // Test unit seeder
+        Route::get('/test-unit-seeder', function () {
+            try {
+                \Artisan::call('db:seed', ['--class' => 'UnitSeeder', '--force' => true]);
+                $output = \Artisan::output();
+                
+                $unitStats = [];
+                if (class_exists('App\Models\Unit')) {
+                    $unitStats = [
+                        'total_units' => \App\Models\Unit::count(),
+                        'active_units' => \App\Models\Unit::where('is_active', true)->count(),
+                        'airside_units' => \App\Models\Unit::where('unit_organisasi', 'Airside')->count(),
+                        'total_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::count() : 0,
+                        'active_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::where('is_active', true)->count() : 0,
+                    ];
+                }
+                
+                return response()->json([
+                    'message' => 'Unit Seeder executed successfully',
+                    'output' => $output,
+                    'unit_stats' => $unitStats,
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Unit Seeder failed',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        })->name('dev.test.unit.seeder');
         
         Route::get('/test-database', function () {
             try {
@@ -728,6 +819,19 @@ if (app()->environment('local', 'development')) {
                     'shoe_types' => \App\Models\Employee::select('jenis_sepatu')->distinct()->whereNotNull('jenis_sepatu')->pluck('jenis_sepatu'),
                     'shoe_sizes' => \App\Models\Employee::select('ukuran_sepatu')->distinct()->whereNotNull('ukuran_sepatu')->pluck('ukuran_sepatu')->sort()->values(),
                 ];
+
+                // Test unit data
+                $unitData = [];
+                try {
+                    if (class_exists('App\Models\Unit')) {
+                        $unitData = [
+                            'units' => \App\Models\Unit::with('subUnits')->get(),
+                            'unit_organisasi_options' => \App\Models\Unit::UNIT_ORGANISASI_OPTIONS ?? [],
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $unitData = ['message' => 'Unit models not yet created'];
+                }
                 
                 return response()->json([
                     'database_status' => 'Connected',
@@ -736,6 +840,7 @@ if (app()->environment('local', 'development')) {
                     'sample_employees' => $employees,
                     'organizations' => $organizations,
                     'shoe_data' => $shoeData,
+                    'unit_data' => $unitData,
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
@@ -770,6 +875,51 @@ if (app()->environment('local', 'development')) {
                 ], 500);
             }
         })->name('dev.test.shoe.filters');
+
+        // Test unit API endpoints
+        Route::get('/test-unit-api', function () {
+            try {
+                $tests = [];
+                
+                // Test unit organisasi options
+                $tests['unit_organisasi_options'] = [
+                    'endpoint' => '/api/unit-organisasi-options',
+                    'method' => 'GET',
+                    'status' => 'testing...'
+                ];
+
+                // Test units for Airside
+                $tests['airside_units'] = [
+                    'endpoint' => '/api/units?unit_organisasi=Airside',
+                    'method' => 'GET', 
+                    'status' => 'testing...'
+                ];
+
+                // Test sub units for first unit (if exists)
+                if (class_exists('App\Models\Unit')) {
+                    $firstUnit = \App\Models\Unit::first();
+                    if ($firstUnit) {
+                        $tests['sub_units'] = [
+                            'endpoint' => '/api/sub-units?unit_id=' . $firstUnit->id,
+                            'method' => 'GET',
+                            'status' => 'testing...'
+                        ];
+                    }
+                }
+                
+                return response()->json([
+                    'message' => 'Unit API endpoint tests',
+                    'tests' => $tests,
+                    'note' => 'Use these URLs to test the API endpoints manually',
+                    'timestamp' => now()->toISOString()
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Unit API tests failed',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        })->name('dev.test.unit.api');
         
         Route::get('/migrate-fresh', function () {
             try {
@@ -840,7 +990,7 @@ Route::fallback(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan Filter Sepatu
+| Route Documentation - Enhanced dengan Unit Organisasi Expert
 |--------------------------------------------------------------------------
 |
 | MAIN ROUTES:
@@ -851,10 +1001,22 @@ Route::fallback(function () {
 | - /laporan/sepatu           - Laporan khusus distribusi sepatu
 | - /pengaturan               - Settings sistem
 |
-| ENHANCED API ROUTES untuk Filter Sepatu:
-| - /api/employees/filter-options        - Get all filter options (termasuk sepatu)
-| - /api/employees/search/advanced       - Advanced search dengan filter sepatu
+| ENHANCED API ROUTES untuk Unit Organisasi Expert:
+| - /api/units                           - Get units by unit organisasi
+| - /api/sub-units                       - Get sub units by unit
+| - /api/unit-organisasi-options         - Get unit organisasi options
+| - /api/employees/filter-options        - Get all filter options (termasuk unit expert)
+| - /api/employees/search/advanced       - Advanced search dengan unit expert filters
 | - /api/employees/shoe-distribution     - Statistik distribusi sepatu
+|
+| UNIT ORGANISASI EXPERT FEATURES:
+| ✓ Cascading dropdown Unit Organisasi → Unit → Sub Unit
+| ✓ Dynamic loading via API berdasarkan parent selection
+| ✓ Unit Organisasi: EGM, GM, Airside, Landside, Back Office, SSQC, Ancillary
+| ✓ Airside Units: MO (dengan 8 sub units), ME (dengan 5 sub units)
+| ✓ Preview struktur organisasi real-time
+| ✓ Database relationships untuk filtering dan reporting
+| ✓ API endpoints untuk all unit data
 |
 | LEGACY/ALIAS ROUTES:
 | - /management-karyawan      - Redirect ke /employees
@@ -863,24 +1025,28 @@ Route::fallback(function () {
 |
 | DEVELOPMENT ROUTES (local only):
 | - /dev/test-seeder         - Test SDM Employee Seeder
+| - /dev/test-unit-seeder    - Test Unit Seeder
 | - /dev/test-database       - Test database connection
 | - /dev/test-shoe-filters   - Test shoe filtering functionality
+| - /dev/test-unit-api       - Test unit API endpoints
 | - /dev/migrate-fresh       - Fresh migration dengan seed
 | - /dev/routes              - List all available routes
 |
 | UTILITY ROUTES:
-| - /utilities/health-check  - System health check (dengan shoe stats)
+| - /utilities/health-check  - System health check (dengan unit stats)
 | - /utilities/clear-cache   - Clear application cache
-| - /utilities/system-info   - System information (dengan feature list)
+| - /utilities/system-info   - System information (dengan unit features)
 |
-| ENHANCED FEATURES:
+| ENHANCED FEATURES v1.2.0:
+| ✓ Unit Organisasi Expert system dengan cascading dropdown
+| ✓ Database structure untuk Unit dan Sub Unit
+| ✓ API endpoints untuk dynamic loading
 | ✓ Filter berdasarkan jenis sepatu (Pantofel/Safety Shoes)
 | ✓ Filter berdasarkan ukuran sepatu (36-44)
 | ✓ Advanced search pada semua field termasuk sepatu
 | ✓ Statistics breakdown untuk distribusi sepatu
 | ✓ Real-time filtering tanpa page reload
 | ✓ Shoe distribution reports
-| ✓ API endpoints untuk shoe data
-| ✓ Development tools untuk testing shoe filters
+| ✓ Development tools untuk testing
 |
 */
