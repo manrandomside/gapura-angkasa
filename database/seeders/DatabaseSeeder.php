@@ -11,7 +11,6 @@ class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database for GAPURA ANGKASA SDM System.
-     * UPDATED: Menambahkan support untuk organizational units hierarchy
      */
     public function run(): void
     {
@@ -27,7 +26,7 @@ class DatabaseSeeder extends Seeder
         // Seed users for authentication
         $this->seedUsers();
 
-        // Seed employees (main data) - menggunakan SDMEmployeeSeeder yang sudah ada
+        // Seed employees (main data)
         $this->seedEmployees();
 
         // Display completion summary
@@ -51,7 +50,7 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Seed organizations for GAPURA ANGKASA structure (UPDATED dengan semua unit organisasi)
+     * Seed organizations for GAPURA ANGKASA structure
      */
     private function seedOrganizations()
     {
@@ -60,46 +59,6 @@ class DatabaseSeeder extends Seeder
         $organizations = [
             [
                 'id' => 1,
-                'name' => 'EGM',
-                'code' => 'EGM',
-                'description' => 'Executive General Manager',
-                'location' => 'Bandar Udara Ngurah Rai',
-                'status' => 'active',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 2,
-                'name' => 'GM',
-                'code' => 'GM',
-                'description' => 'General Manager',
-                'location' => 'Bandar Udara Ngurah Rai',
-                'status' => 'active',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 3,
-                'name' => 'Airside',
-                'code' => 'AS',
-                'description' => 'Divisi Airside Operations - Flight Operations & Ramp Services',
-                'location' => 'Bandar Udara Ngurah Rai',
-                'status' => 'active',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 4,
-                'name' => 'Landside',
-                'code' => 'LS',
-                'description' => 'Divisi Landside Operations - MPA, MPL & Unschedule Flight',
-                'location' => 'Bandar Udara Ngurah Rai',
-                'status' => 'active',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => 5,
                 'name' => 'Back Office',
                 'code' => 'BO',
                 'description' => 'Divisi Back Office Operations - General Affair & Administration',
@@ -109,10 +68,50 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
+                'id' => 2,
+                'name' => 'Airside',
+                'code' => 'AS',
+                'description' => 'Divisi Airside Operations - Flight Operations & Ramp Services',
+                'location' => 'Bandar Udara Ngurah Rai',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 3,
+                'name' => 'Ground Support Equipment',
+                'code' => 'GSE',
+                'description' => 'Ground Support Equipment Division',
+                'location' => 'Bandar Udara Ngurah Rai',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 4,
+                'name' => 'Aviation Security',
+                'code' => 'AVSEC',
+                'description' => 'Aviation Security Division',
+                'location' => 'Bandar Udara Ngurah Rai',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 5,
+                'name' => 'Load Control',
+                'code' => 'LC',
+                'description' => 'Load Control Division',
+                'location' => 'Bandar Udara Ngurah Rai',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
                 'id' => 6,
-                'name' => 'SSQC',
-                'code' => 'SSQC',
-                'description' => 'Safety Security Quality Control',
+                'name' => 'Ramp Dispatch',
+                'code' => 'RD',
+                'description' => 'Ramp Dispatch Division',
                 'location' => 'Bandar Udara Ngurah Rai',
                 'status' => 'active',
                 'created_at' => now(),
@@ -120,117 +119,28 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'id' => 7,
-                'name' => 'Ancillary',
-                'code' => 'ANC',
-                'description' => 'Ancillary Services',
+                'name' => 'Security Officer',
+                'code' => 'SEC',
+                'description' => 'Security Officer Division',
                 'location' => 'Bandar Udara Ngurah Rai',
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]
+            ],
+            [
+                'id' => 8,
+                'name' => 'Operations',
+                'code' => 'OPS',
+                'description' => 'General Operations Division',
+                'location' => 'Bandar Udara Ngurah Rai',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
 
         DB::table('organizations')->insert($organizations);
         $this->command->info('Organizations seeded successfully.');
-
-        // TAMBAHAN: Seed organizational units hierarchy
-        $this->seedOrganizationalUnitsData();
-    }
-
-    /**
-     * TAMBAHAN: Seed organizational units hierarchy dalam tabel yang sama
-     * Menggunakan field JSON untuk menyimpan struktur hierarki
-     */
-    private function seedOrganizationalUnitsData()
-    {
-        $this->command->info('Setting up organizational units hierarchy...');
-        
-        // Cek apakah ada kolom untuk menyimpan struktur hierarki
-        if (!DB::getSchemaBuilder()->hasColumn('organizations', 'units_structure')) {
-            // Tambahkan kolom untuk menyimpan struktur hierarki
-            DB::statement('ALTER TABLE organizations ADD COLUMN units_structure JSON NULL');
-        }
-
-        // Data struktur organisasi sesuai kebutuhan GAPURA ANGKASA
-        $organizationalHierarchy = [
-            'EGM' => [
-                'units' => [
-                    'EGM' => ['sub_units' => []] // Tidak ada sub unit
-                ]
-            ],
-            'GM' => [
-                'units' => [
-                    'GM' => ['sub_units' => []] // Tidak ada sub unit
-                ]
-            ],
-            'Airside' => [
-                'units' => [
-                    'MO' => [
-                        'sub_units' => [
-                            'Flops', 'Depco', 'Ramp', 'Load Control', 
-                            'Load Master', 'ULD Control', 'Cargo Import', 'Cargo Export'
-                        ]
-                    ],
-                    'ME' => [
-                        'sub_units' => [
-                            'GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance',
-                            'BTT Operator', 'Line Maintenance'
-                        ]
-                    ]
-                ]
-            ],
-            'Landside' => [
-                'units' => [
-                    'MF' => [
-                        'sub_units' => [
-                            'KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways',
-                            'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili',
-                            'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines',
-                            'Sichuan Airlines', 'Aeroflot', 'Charter Flight'
-                        ]
-                    ],
-                    'MS' => [
-                        'sub_units' => ['MPGA', 'QG', 'IP']
-                    ]
-                ]
-            ],
-            'Back Office' => [
-                'units' => [
-                    'MU' => [
-                        'sub_units' => ['Human Resources & General Affair', 'Fasilitas & Sarana']
-                    ],
-                    'MK' => [
-                        'sub_units' => ['Accounting', 'Budgeting', 'Treassury', 'Tax']
-                    ]
-                ]
-            ],
-            'SSQC' => [
-                'units' => [
-                    'MQ' => [
-                        'sub_units' => ['Avsec', 'Safety Quality Control']
-                    ]
-                ]
-            ],
-            'Ancillary' => [
-                'units' => [
-                    'MB' => [
-                        'sub_units' => ['GPL', 'GLC', 'Joumpa']
-                    ]
-                ]
-            ]
-        ];
-
-        // Update setiap organization dengan struktur hierarkinya
-        foreach ($organizationalHierarchy as $orgName => $structure) {
-            DB::table('organizations')
-                ->where('name', $orgName)
-                ->update([
-                    'units_structure' => json_encode($structure),
-                    'updated_at' => now()
-                ]);
-        }
-
-        $this->command->info('Organizational units hierarchy seeded successfully.');
     }
 
     /**
@@ -246,6 +156,8 @@ class DatabaseSeeder extends Seeder
                 'email' => 'admin@gapura.com',
                 'email_verified_at' => now(),
                 'password' => Hash::make('password'),
+                'role' => 'super_admin',
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -254,6 +166,8 @@ class DatabaseSeeder extends Seeder
                 'email' => 'superadmin@gapura.com',
                 'email_verified_at' => now(),
                 'password' => Hash::make('superadmin123'),
+                'role' => 'super_admin',
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -262,6 +176,8 @@ class DatabaseSeeder extends Seeder
                 'email' => 'manager.hr@gapura.com',
                 'email_verified_at' => now(),
                 'password' => Hash::make('manager123'),
+                'role' => 'admin',
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -270,6 +186,8 @@ class DatabaseSeeder extends Seeder
                 'email' => 'staff.hr@gapura.com',
                 'email_verified_at' => now(),
                 'password' => Hash::make('staff123'),
+                'role' => 'staff',
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -278,6 +196,8 @@ class DatabaseSeeder extends Seeder
                 'email' => 'controller.hr@gapura.com',
                 'email_verified_at' => now(),
                 'password' => Hash::make('controller123'),
+                'role' => 'admin',
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -288,12 +208,357 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Seed employees using SDMEmployeeSeeder
+     * Seed employee data based on GAPURA ANGKASA actual data
      */
     private function seedEmployees()
     {
-        $this->command->info('Seeding employees using SDMEmployeeSeeder...');
-        $this->call(SDMEmployeeSeeder::class);
+        $this->command->info('Seeding employee data...');
+
+        $employees = [
+            [
+                'nip' => '2201048',
+                'nama_lengkap' => 'A.A GEDE AGUNG WIRAJAYA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Denpasar',
+                'tanggal_lahir' => '1985-03-15',
+                'usia' => Carbon::parse('1985-03-15')->age,
+                'alamat' => 'Jl. Raya Denpasar No. 123',
+                'no_telepon' => '081234567890',
+                'handphone' => '081234567890',
+                'email' => 'agung.wirajaya@gapura.com',
+                'unit_organisasi' => 'Airside',
+                'jabatan' => 'LOAD CONTROL',
+                'nama_jabatan' => 'LOAD CONTROL',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2021-03-10',
+                'tmt_mulai_kerja' => '2021-03-10',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Udayana',
+                'jurusan' => 'Teknik Mesin',
+                'tahun_lulus' => 2008,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '42',
+                'kota_domisili' => 'Denpasar',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2012117',
+                'nama_lengkap' => 'A.A NGURAH GEDE AGUNG DHARMA PUTRA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Gianyar',
+                'tanggal_lahir' => '1987-06-20',
+                'usia' => Carbon::parse('1987-06-20')->age,
+                'alamat' => 'Jl. Sunset Road No. 456',
+                'no_telepon' => '081234567891',
+                'handphone' => '081234567891',
+                'email' => 'dharma.putra@gapura.com',
+                'unit_organisasi' => 'Airside',
+                'jabatan' => 'RAMP DISPATCH',
+                'nama_jabatan' => 'RAMP DISPATCH',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2022-06-01',
+                'tmt_mulai_kerja' => '2022-06-01',
+                'pendidikan_terakhir' => 'D3',
+                'pendidikan' => 'D3',
+                'instansi_pendidikan' => 'Politeknik Negeri Bali',
+                'jurusan' => 'Teknik Penerbangan',
+                'tahun_lulus' => 2010,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '41',
+                'kota_domisili' => 'Gianyar',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2012124',
+                'nama_lengkap' => 'A.A. AYU CANDRAWATI',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
+                'tempat_lahir' => 'Badung',
+                'tanggal_lahir' => '1990-09-12',
+                'usia' => Carbon::parse('1990-09-12')->age,
+                'alamat' => 'Jl. Bypass Ngurah Rai No. 789',
+                'no_telepon' => '081234567892',
+                'handphone' => '081234567892',
+                'email' => 'ayu.candrawati@gapura.com',
+                'unit_organisasi' => 'Airside',
+                'jabatan' => 'LOAD CONTROL',
+                'nama_jabatan' => 'LOAD CONTROL',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2021-09-15',
+                'tmt_mulai_kerja' => '2021-09-15',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Udayana',
+                'jurusan' => 'Manajemen',
+                'tahun_lulus' => 2013,
+                'jenis_sepatu' => 'Pantofel',
+                'ukuran_sepatu' => '37',
+                'kota_domisili' => 'Badung',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2150791',
+                'nama_lengkap' => 'I KETUT ADIYANA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Tabanan',
+                'tanggal_lahir' => '1983-02-28',
+                'usia' => Carbon::parse('1983-02-28')->age,
+                'alamat' => 'Jl. Imam Bonjol No. 321',
+                'no_telepon' => '081234567893',
+                'handphone' => '081234567893',
+                'email' => 'ketut.adiyana@gapura.com',
+                'unit_organisasi' => 'Back Office',
+                'jabatan' => 'CONTROLLER HR & GA',
+                'nama_jabatan' => 'CONTROLLER HR & GA',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2023-02-15',
+                'tmt_mulai_kerja' => '2023-02-15',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Mahasaraswati',
+                'jurusan' => 'Psikologi',
+                'tahun_lulus' => 2006,
+                'jenis_sepatu' => 'Pantofel',
+                'ukuran_sepatu' => '43',
+                'kota_domisili' => 'Tabanan',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2019023',
+                'nama_lengkap' => 'I KOMANG AGUS WIRAWAN',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Klungkung',
+                'tanggal_lahir' => '1988-11-05',
+                'usia' => Carbon::parse('1988-11-05')->age,
+                'alamat' => 'Jl. Gatot Subroto No. 654',
+                'no_telepon' => '081234567894',
+                'handphone' => '081234567894',
+                'email' => 'agus.wirawan@gapura.com',
+                'unit_organisasi' => 'Avsec',
+                'jabatan' => 'SECURITY OFFICER',
+                'nama_jabatan' => 'SECURITY OFFICER',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2019-02-15',
+                'tmt_mulai_kerja' => '2019-02-15',
+                'pendidikan_terakhir' => 'SMA',
+                'pendidikan' => 'SMA',
+                'instansi_pendidikan' => 'SMA Negeri 1 Klungkung',
+                'jurusan' => 'IPA',
+                'tahun_lulus' => 2007,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '42',
+                'kota_domisili' => 'Klungkung',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 4,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2015089',
+                'nama_lengkap' => 'I MADE SURYA DINATA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Denpasar',
+                'tanggal_lahir' => '1985-01-18',
+                'usia' => Carbon::parse('1985-01-18')->age,
+                'alamat' => 'Jl. Teuku Umar No. 987',
+                'no_telepon' => '081234567895',
+                'handphone' => '081234567895',
+                'email' => 'surya.dinata@gapura.com',
+                'unit_organisasi' => 'GSE',
+                'jabatan' => 'OPERATOR GSE',
+                'nama_jabatan' => 'OPERATOR GSE',
+                'status_pegawai' => 'TAD',
+                'tmt_mulai_jabatan' => '2023-01-10',
+                'tmt_mulai_kerja' => '2023-01-10',
+                'pendidikan_terakhir' => 'D3',
+                'pendidikan' => 'D3',
+                'instansi_pendidikan' => 'Politeknik Negeri Bali',
+                'jurusan' => 'Teknik Mesin',
+                'tahun_lulus' => 2008,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '41',
+                'kota_domisili' => 'Denpasar',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 3,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2012140',
+                'nama_lengkap' => 'I NYOMAN JOHN SUPARTA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Buleleng',
+                'tanggal_lahir' => '1986-12-03',
+                'usia' => Carbon::parse('1986-12-03')->age,
+                'alamat' => 'Jl. Diponegoro No. 147',
+                'no_telepon' => '081234567896',
+                'handphone' => '081234567896',
+                'email' => 'john.suparta@gapura.com',
+                'unit_organisasi' => 'Airside',
+                'jabatan' => 'RAMP DISPATCH',
+                'nama_jabatan' => 'RAMP DISPATCH',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2022-01-15',
+                'tmt_mulai_kerja' => '2022-01-15',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Pendidikan Ganesha',
+                'jurusan' => 'Teknik Informatika',
+                'tahun_lulus' => 2009,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '44',
+                'kota_domisili' => 'Buleleng',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2018045',
+                'nama_lengkap' => 'NI PUTU SARI DEWI',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
+                'tempat_lahir' => 'Badung',
+                'tanggal_lahir' => '1992-04-22',
+                'usia' => Carbon::parse('1992-04-22')->age,
+                'alamat' => 'Jl. Raya Kuta No. 258',
+                'no_telepon' => '081234567897',
+                'handphone' => '081234567897',
+                'email' => 'sari.dewi@gapura.com',
+                'unit_organisasi' => 'Back Office',
+                'jabatan' => 'STAFF ADMINISTRASI',
+                'nama_jabatan' => 'STAFF ADMINISTRASI',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2020-04-15',
+                'tmt_mulai_kerja' => '2020-04-15',
+                'pendidikan_terakhir' => 'D3',
+                'pendidikan' => 'D3',
+                'instansi_pendidikan' => 'STIKOM Bali',
+                'jurusan' => 'Sistem Informasi',
+                'tahun_lulus' => 2015,
+                'jenis_sepatu' => 'Pantofel',
+                'ukuran_sepatu' => '36',
+                'kota_domisili' => 'Badung',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2020156',
+                'nama_lengkap' => 'KADEK RINA ASTUTI',
+                'jenis_kelamin' => 'P', // FIXED: using P instead of Perempuan
+                'tempat_lahir' => 'Gianyar',
+                'tanggal_lahir' => '1993-07-14',
+                'usia' => Carbon::parse('1993-07-14')->age,
+                'alamat' => 'Jl. Hayam Wuruk No. 369',
+                'no_telepon' => '081234567898',
+                'handphone' => '081234567898',
+                'email' => 'rina.astuti@gapura.com',
+                'unit_organisasi' => 'Load Control',
+                'jabatan' => 'LOAD CONTROL OFFICER',
+                'nama_jabatan' => 'LOAD CONTROL OFFICER',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2021-07-01',
+                'tmt_mulai_kerja' => '2021-07-01',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Udayana',
+                'jurusan' => 'Ekonomi',
+                'tahun_lulus' => 2016,
+                'jenis_sepatu' => 'Pantofel',
+                'ukuran_sepatu' => '38',
+                'kota_domisili' => 'Gianyar',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 5,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'nip' => '2019078',
+                'nama_lengkap' => 'WAYAN BAGUS SANTIKA',
+                'jenis_kelamin' => 'L', // FIXED: using L instead of Laki-laki
+                'tempat_lahir' => 'Denpasar',
+                'tanggal_lahir' => '1989-10-30',
+                'usia' => Carbon::parse('1989-10-30')->age,
+                'alamat' => 'Jl. Gajah Mada No. 741',
+                'no_telepon' => '081234567899',
+                'handphone' => '081234567899',
+                'email' => 'bagus.santika@gapura.com',
+                'unit_organisasi' => 'Avsec',
+                'jabatan' => 'SECURITY SUPERVISOR',
+                'nama_jabatan' => 'SECURITY SUPERVISOR',
+                'status_pegawai' => 'PEGAWAI TETAP',
+                'tmt_mulai_jabatan' => '2020-10-15',
+                'tmt_mulai_kerja' => '2020-10-15',
+                'pendidikan_terakhir' => 'S1',
+                'pendidikan' => 'S1',
+                'instansi_pendidikan' => 'Universitas Udayana',
+                'jurusan' => 'Hukum',
+                'tahun_lulus' => 2012,
+                'jenis_sepatu' => 'Safety Shoes',
+                'ukuran_sepatu' => '42',
+                'kota_domisili' => 'Denpasar',
+                'status' => 'active',
+                'status_kerja' => 'Aktif',
+                'provider' => 'PT Gapura Angkasa',
+                'lokasi_kerja' => 'Bandar Udara Ngurah Rai',
+                'cabang' => 'DPS',
+                'organization_id' => 4,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ];
+
+        DB::table('employees')->insert($employees);
+        $this->command->info('Employee data seeded successfully.');
     }
 
     /**
@@ -373,7 +638,7 @@ class DatabaseSeeder extends Seeder
         $this->command->info('   - BPJS Information (Health & Employment)');
         $this->command->info('   - Work Experience (Start Date, Years of Service)');
         $this->command->info('   - Physical Data (Height, Weight)');
-        $this->command->info('   - Organizational Structure (7 Units)');
+        $this->command->info('   - Organizational Structure (8 Units)');
         $this->command->info('');
         $this->command->info('ACCESS POINTS:');
         $this->command->info('   Dashboard: /dashboard');
@@ -387,7 +652,6 @@ class DatabaseSeeder extends Seeder
         $this->command->info('   Dashboard Statistics: /api/dashboard/statistics');
         $this->command->info('   Employee Search: /api/employees/search');
         $this->command->info('   Employee Statistics: /api/employees/statistics');
-        $this->command->info('   Organizational Units: /api/organizational-units');
         $this->command->info('   Health Check: /utilities/health-check');
         $this->command->info('');
         $this->command->info('DEVELOPMENT TOOLS (local only):');
@@ -395,15 +659,6 @@ class DatabaseSeeder extends Seeder
         $this->command->info('   Test Seeder: /dev/test-seeder');
         $this->command->info('   Clear Cache: /utilities/clear-cache');
         $this->command->info('   Route List: /dev/routes');
-        $this->command->info('');
-        $this->command->info('ORGANIZATIONAL STRUCTURE ADDED:');
-        $this->command->info('   EGM -> EGM (no sub units)');
-        $this->command->info('   GM -> GM (no sub units)');
-        $this->command->info('   Airside -> MO, ME (with sub units)');
-        $this->command->info('   Landside -> MF, MS (with sub units)');
-        $this->command->info('   Back Office -> MU, MK (with sub units)');
-        $this->command->info('   SSQC -> MQ (with sub units)');
-        $this->command->info('   Ancillary -> MB (with sub units)');
         $this->command->info('');
         $this->command->info('System is ready for use!');
         $this->command->info('Visit your Laravel application to manage employees.');
