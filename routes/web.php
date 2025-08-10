@@ -323,13 +323,17 @@ Route::prefix('api')->group(function () {
         ->name('api.employees.bulk.action');
     
     // =====================================================
-    // UNIT ORGANISASI EXPERT API - BARU
+    // UNIT ORGANISASI EXPERT API - COMPLETE
     // =====================================================
     
-    // Unit & Sub Unit API routes untuk cascading dropdown
+    // Core Unit & Sub Unit API routes untuk cascading dropdown
     Route::get('/units', [EmployeeController::class, 'getUnits'])->name('api.units');
     Route::get('/sub-units', [EmployeeController::class, 'getSubUnits'])->name('api.sub.units');
     Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrganisasiOptions'])->name('api.unit.organisasi.options');
+    
+    // Enhanced Unit API - BARU
+    Route::get('/units/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
+    Route::get('/units/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
     
     // Enhanced filter options API dengan unit organisasi expert options
     Route::get('/employees/filter-options', function() {
@@ -424,6 +428,14 @@ Route::prefix('api')->group(function () {
             $query = \App\Models\Employee::with(['organization'])
                 ->where('status', 'active');
 
+            // Load unit relationships if available
+            if (method_exists(\App\Models\Employee::class, 'unit')) {
+                $query->with('unit');
+            }
+            if (method_exists(\App\Models\Employee::class, 'subUnit')) {
+                $query->with('subUnit');
+            }
+
             // Apply search filter (mencakup semua field termasuk sepatu)
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
@@ -436,7 +448,14 @@ Route::prefix('api')->group(function () {
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
                       ->orWhere('alamat', 'like', "%{$searchTerm}%")
-                      ->orWhere('handphone', 'like', "%{$searchTerm}%");
+                      ->orWhere('handphone', 'like', "%{$searchTerm}%")
+                      // TAMBAHAN BARU: Search dalam unit dan sub unit
+                      ->orWhereHas('unit', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      })
+                      ->orWhereHas('subUnit', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', "%{$searchTerm}%");
+                      });
                 });
             }
 
@@ -449,7 +468,7 @@ Route::prefix('api')->group(function () {
                 $query->where('unit_organisasi', $request->unit_organisasi);
             }
 
-            // Unit expert filters
+            // Unit expert filters - BARU
             if ($request->filled('unit_id') && $request->unit_id !== 'all') {
                 $query->where('unit_id', $request->unit_id);
             }
@@ -660,6 +679,8 @@ Route::prefix('utilities')->group(function () {
                         'active_units' => \App\Models\Unit::where('is_active', true)->count(),
                         'total_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::count() : 0,
                         'active_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::where('is_active', true)->count() : 0,
+                        'unit_organisasi_count' => count(\App\Models\Unit::UNIT_ORGANISASI_OPTIONS ?? []),
+                        'hierarchy_complete' => \App\Models\Unit::where('is_active', true)->count() > 0 && class_exists('App\Models\SubUnit'),
                     ];
                 }
             } catch (\Exception $e) {
@@ -688,6 +709,8 @@ Route::prefix('utilities')->group(function () {
                 'real_time_filtering' => 'enabled',
                 'unit_organisasi_expert' => 'enabled',
                 'cascading_dropdown' => 'enabled',
+                'unit_hierarchy' => 'enabled',
+                'unit_statistics' => 'enabled',
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -710,6 +733,8 @@ Route::prefix('utilities')->group(function () {
                 'unit_organisasi_expert' => 'active',
                 'cascading_dropdown' => 'active',
                 'unit_sub_unit_management' => 'active',
+                'unit_hierarchy_api' => 'active',
+                'unit_statistics_api' => 'active',
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -789,8 +814,10 @@ if (app()->environment('local', 'development')) {
                         'total_units' => \App\Models\Unit::count(),
                         'active_units' => \App\Models\Unit::where('is_active', true)->count(),
                         'airside_units' => \App\Models\Unit::where('unit_organisasi', 'Airside')->count(),
+                        'landside_units' => \App\Models\Unit::where('unit_organisasi', 'Landside')->count(),
                         'total_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::count() : 0,
                         'active_sub_units' => class_exists('App\Models\SubUnit') ? \App\Models\SubUnit::where('is_active', true)->count() : 0,
+                        'unit_organisasi_breakdown' => \App\Models\Unit::selectRaw('unit_organisasi, COUNT(*) as count')->groupBy('unit_organisasi')->get(),
                     ];
                 }
                 
@@ -827,6 +854,7 @@ if (app()->environment('local', 'development')) {
                         $unitData = [
                             'units' => \App\Models\Unit::with('subUnits')->get(),
                             'unit_organisasi_options' => \App\Models\Unit::UNIT_ORGANISASI_OPTIONS ?? [],
+                            'hierarchy_test' => \App\Models\Unit::getGroupedByUnitOrganisasi(),
                         ];
                     }
                 } catch (\Exception $e) {
@@ -860,7 +888,7 @@ if (app()->environment('local', 'development')) {
                     'size_36_employees' => \App\Models\Employee::where('ukuran_sepatu', '36')->count(),
                     'size_42_employees' => \App\Models\Employee::where('ukuran_sepatu', '42')->count(),
                     'back_office_pantofel' => \App\Models\Employee::where('unit_organisasi', 'Back Office')->where('jenis_sepatu', 'Pantofel')->count(),
-                    'gse_safety_shoes' => \App\Models\Employee::where('unit_organisasi', 'GSE')->where('jenis_sepatu', 'Safety Shoes')->count(),
+                    'airside_safety_shoes' => \App\Models\Employee::where('unit_organisasi', 'Airside')->where('jenis_sepatu', 'Safety Shoes')->count(),
                 ];
                 
                 return response()->json([
@@ -876,47 +904,127 @@ if (app()->environment('local', 'development')) {
             }
         })->name('dev.test.shoe.filters');
 
-        // Test unit API endpoints
+        // Enhanced unit API testing route
         Route::get('/test-unit-api', function () {
             try {
-                $tests = [];
+                $results = [
+                    'timestamp' => now(),
+                    'tests' => []
+                ];
                 
-                // Test unit organisasi options
-                $tests['unit_organisasi_options'] = [
-                    'endpoint' => '/api/unit-organisasi-options',
-                    'method' => 'GET',
-                    'status' => 'testing...'
-                ];
-
-                // Test units for Airside
-                $tests['airside_units'] = [
-                    'endpoint' => '/api/units?unit_organisasi=Airside',
-                    'method' => 'GET', 
-                    'status' => 'testing...'
-                ];
-
-                // Test sub units for first unit (if exists)
-                if (class_exists('App\Models\Unit')) {
-                    $firstUnit = \App\Models\Unit::first();
-                    if ($firstUnit) {
-                        $tests['sub_units'] = [
-                            'endpoint' => '/api/sub-units?unit_id=' . $firstUnit->id,
-                            'method' => 'GET',
-                            'status' => 'testing...'
-                        ];
-                    }
+                // Test 1: Unit Organisasi Options
+                try {
+                    $response = app(EmployeeController::class)->getUnitOrganisasiOptions();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['unit_organisasi_options'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'data_count' => count($data['data'] ?? []),
+                        'sample_data' => array_slice($data['data'] ?? [], 0, 3)
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['unit_organisasi_options'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
                 }
                 
+                // Test 2: Units for Airside
+                try {
+                    $request = new \Illuminate\Http\Request(['unit_organisasi' => 'Airside']);
+                    $response = app(EmployeeController::class)->getUnits($request);
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['airside_units'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'units_count' => count($data['data'] ?? []),
+                        'units' => $data['data'] ?? []
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['airside_units'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 3: Sub Units for MO (if exists)
+                try {
+                    $moUnit = \App\Models\Unit::where('name', 'MO')->where('unit_organisasi', 'Airside')->first();
+                    if ($moUnit) {
+                        $request = new \Illuminate\Http\Request(['unit_id' => $moUnit->id]);
+                        $response = app(EmployeeController::class)->getSubUnits($request);
+                        $data = json_decode($response->getContent(), true);
+                        $results['tests']['mo_sub_units'] = [
+                            'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                            'sub_units_count' => count($data['data'] ?? []),
+                            'sub_units' => array_column($data['data'] ?? [], 'name')
+                        ];
+                    } else {
+                        $results['tests']['mo_sub_units'] = [
+                            'status' => 'SKIP',
+                            'reason' => 'MO unit not found - run UnitSeeder first'
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $results['tests']['mo_sub_units'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 4: Unit Hierarchy
+                try {
+                    $response = app(EmployeeController::class)->getAllUnitsHierarchy();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['unit_hierarchy'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'hierarchy_count' => count($data['data'] ?? []),
+                        'sample_structure' => array_keys($data['data'] ?? [])
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['unit_hierarchy'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 5: Unit Statistics
+                try {
+                    $response = app(EmployeeController::class)->getUnitStatistics();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['unit_statistics'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'statistics' => $data['data'] ?? []
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['unit_statistics'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Summary
+                $passCount = 0;
+                $totalTests = count($results['tests']);
+                foreach ($results['tests'] as $test) {
+                    if ($test['status'] === 'PASS') $passCount++;
+                }
+                
+                $results['summary'] = [
+                    'total_tests' => $totalTests,
+                    'passed' => $passCount,
+                    'failed' => $totalTests - $passCount,
+                    'success_rate' => $totalTests > 0 ? round(($passCount / $totalTests) * 100, 2) . '%' : '0%'
+                ];
+                
                 return response()->json([
-                    'message' => 'Unit API endpoint tests',
-                    'tests' => $tests,
-                    'note' => 'Use these URLs to test the API endpoints manually',
-                    'timestamp' => now()->toISOString()
-                ]);
+                    'message' => 'Unit API Testing Completed',
+                    'results' => $results
+                ], 200, [], JSON_PRETTY_PRINT);
+                
             } catch (\Exception $e) {
                 return response()->json([
-                    'message' => 'Unit API tests failed',
-                    'error' => $e->getMessage()
+                    'message' => 'Unit API Testing Failed',
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ], 500);
             }
         })->name('dev.test.unit.api');
@@ -990,7 +1098,7 @@ Route::fallback(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan Unit Organisasi Expert
+| Route Documentation - Enhanced dengan Unit Organisasi Expert Complete
 |--------------------------------------------------------------------------
 |
 | MAIN ROUTES:
@@ -1005,6 +1113,8 @@ Route::fallback(function () {
 | - /api/units                           - Get units by unit organisasi
 | - /api/sub-units                       - Get sub units by unit
 | - /api/unit-organisasi-options         - Get unit organisasi options
+| - /api/units/hierarchy                 - Get complete unit hierarchy
+| - /api/units/statistics                - Get unit statistics for monitoring
 | - /api/employees/filter-options        - Get all filter options (termasuk unit expert)
 | - /api/employees/search/advanced       - Advanced search dengan unit expert filters
 | - /api/employees/shoe-distribution     - Statistik distribusi sepatu
@@ -1013,40 +1123,39 @@ Route::fallback(function () {
 | ✓ Cascading dropdown Unit Organisasi → Unit → Sub Unit
 | ✓ Dynamic loading via API berdasarkan parent selection
 | ✓ Unit Organisasi: EGM, GM, Airside, Landside, Back Office, SSQC, Ancillary
-| ✓ Airside Units: MO (dengan 8 sub units), ME (dengan 5 sub units)
+| ✓ Complete hierarchy API endpoints
+| ✓ Real-time statistics monitoring
 | ✓ Preview struktur organisasi real-time
 | ✓ Database relationships untuk filtering dan reporting
-| ✓ API endpoints untuk all unit data
+| ✓ Enhanced testing routes untuk development
 |
 | LEGACY/ALIAS ROUTES:
 | - /management-karyawan      - Redirect ke /employees
 | - /data-karyawan           - Redirect ke /employees
 | - /total-karyawan          - Redirect ke /employees
 |
-| DEVELOPMENT ROUTES (local only):
+| ENHANCED DEVELOPMENT ROUTES (local only):
 | - /dev/test-seeder         - Test SDM Employee Seeder
-| - /dev/test-unit-seeder    - Test Unit Seeder
-| - /dev/test-database       - Test database connection
+| - /dev/test-unit-seeder    - Test Unit Seeder (enhanced)
+| - /dev/test-database       - Test database connection (dengan unit data)
 | - /dev/test-shoe-filters   - Test shoe filtering functionality
-| - /dev/test-unit-api       - Test unit API endpoints
+| - /dev/test-unit-api       - Enhanced unit API testing dengan comprehensive results
 | - /dev/migrate-fresh       - Fresh migration dengan seed
 | - /dev/routes              - List all available routes
 |
 | UTILITY ROUTES:
-| - /utilities/health-check  - System health check (dengan unit stats)
+| - /utilities/health-check  - System health check (enhanced dengan unit hierarchy stats)
 | - /utilities/clear-cache   - Clear application cache
-| - /utilities/system-info   - System information (dengan unit features)
+| - /utilities/system-info   - System information (enhanced dengan unit features)
 |
-| ENHANCED FEATURES v1.2.0:
-| ✓ Unit Organisasi Expert system dengan cascading dropdown
-| ✓ Database structure untuk Unit dan Sub Unit
-| ✓ API endpoints untuk dynamic loading
-| ✓ Filter berdasarkan jenis sepatu (Pantofel/Safety Shoes)
-| ✓ Filter berdasarkan ukuran sepatu (36-44)
-| ✓ Advanced search pada semua field termasuk sepatu
-| ✓ Statistics breakdown untuk distribusi sepatu
-| ✓ Real-time filtering tanpa page reload
-| ✓ Shoe distribution reports
-| ✓ Development tools untuk testing
+| ENHANCED FEATURES v1.3.0:
+| ✓ Complete Unit Organisasi Expert system dengan cascading dropdown
+| ✓ Full hierarchy API endpoints (/api/units/hierarchy)
+| ✓ Real-time unit statistics (/api/units/statistics)
+| ✓ Enhanced search dengan unit dan sub unit filters
+| ✓ Comprehensive testing suite untuk unit API
+| ✓ Enhanced health check dengan unit system monitoring
+| ✓ Complete API documentation dalam route comments
+| ✓ Development tools untuk comprehensive testing
 |
 */

@@ -39,11 +39,11 @@ class EmployeeController extends Controller
     ];
 
     // =====================================================
-    // UNIT/SUBUNIT API METHODS - TAMBAHAN BARU
+    // UNIT/SUBUNIT API METHODS - COMPLETE IMPLEMENTATION
     // =====================================================
 
     /**
-     * Get units berdasarkan unit organisasi - TAMBAHAN BARU
+     * Get units berdasarkan unit organisasi
      */
     public function getUnits(Request $request)
     {
@@ -61,7 +61,7 @@ class EmployeeController extends Controller
             $units = Unit::active()
                 ->byUnitOrganisasi($unitOrganisasi)
                 ->orderBy('name')
-                ->get(['id', 'name', 'code']);
+                ->get(['id', 'name', 'code', 'description']);
 
             return response()->json([
                 'success' => true,
@@ -72,7 +72,8 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             Log::error('Get Units Error', [
                 'error' => $e->getMessage(),
-                'unit_organisasi' => $request->get('unit_organisasi')
+                'unit_organisasi' => $request->get('unit_organisasi'),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -84,7 +85,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get sub units berdasarkan unit - TAMBAHAN BARU
+     * Get sub units berdasarkan unit
      */
     public function getSubUnits(Request $request)
     {
@@ -102,7 +103,7 @@ class EmployeeController extends Controller
             $subUnits = SubUnit::active()
                 ->byUnit($unitId)
                 ->orderBy('name')
-                ->get(['id', 'name', 'code']);
+                ->get(['id', 'name', 'code', 'description']);
 
             return response()->json([
                 'success' => true,
@@ -113,7 +114,8 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             Log::error('Get Sub Units Error', [
                 'error' => $e->getMessage(),
-                'unit_id' => $request->get('unit_id')
+                'unit_id' => $request->get('unit_id'),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -125,12 +127,14 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get unit organisasi options - TAMBAHAN BARU
+     * Get unit organisasi options
      */
     public function getUnitOrganisasiOptions()
     {
         try {
-            $unitOrganisasi = Unit::UNIT_ORGANISASI_OPTIONS;
+            $unitOrganisasi = Unit::UNIT_ORGANISASI_OPTIONS ?? [
+                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
+            ];
 
             return response()->json([
                 'success' => true,
@@ -140,16 +144,112 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Get Unit Organisasi Options Error', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Error retrieving unit organisasi options',
-                'data' => Unit::UNIT_ORGANISASI_OPTIONS ?? [
-                    'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
-                ]
+                'data' => ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary']
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all unit data in hierarchical structure
+     */
+    public function getAllUnitsHierarchy()
+    {
+        try {
+            $hierarchy = [];
+            
+            foreach (Unit::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
+                $units = Unit::active()
+                    ->byUnitOrganisasi($unitOrganisasi)
+                    ->with(['subUnits' => function($query) {
+                        $query->active()->orderBy('name');
+                    }])
+                    ->orderBy('name')
+                    ->get();
+
+                if ($units->count() > 0) {
+                    $hierarchy[$unitOrganisasi] = $units;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Unit hierarchy retrieved successfully',
+                'data' => $hierarchy
             ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Units Hierarchy Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error retrieving unit hierarchy',
+                'data' => []
+            ], 500);
+        }
+    }
+
+    /**
+     * Get unit statistics for monitoring
+     */
+    public function getUnitStatistics()
+    {
+        try {
+            $statistics = [
+                'total_unit_organisasi' => count(Unit::UNIT_ORGANISASI_OPTIONS),
+                'total_units' => Unit::active()->count(),
+                'total_sub_units' => SubUnit::active()->count(),
+                'employees_with_units' => Employee::whereNotNull('unit_id')->count(),
+                'employees_with_sub_units' => Employee::whereNotNull('sub_unit_id')->count(),
+                'breakdown_by_unit_organisasi' => []
+            ];
+
+            // Get breakdown per unit organisasi
+            foreach (Unit::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
+                $unitCount = Unit::active()->byUnitOrganisasi($unitOrganisasi)->count();
+                $subUnitCount = SubUnit::active()
+                    ->whereHas('unit', function($query) use ($unitOrganisasi) {
+                        $query->where('unit_organisasi', $unitOrganisasi);
+                    })
+                    ->count();
+                
+                $employeeCount = Employee::whereHas('unit', function($query) use ($unitOrganisasi) {
+                    $query->where('unit_organisasi', $unitOrganisasi);
+                })->count();
+
+                $statistics['breakdown_by_unit_organisasi'][$unitOrganisasi] = [
+                    'units' => $unitCount,
+                    'sub_units' => $subUnitCount,
+                    'employees' => $employeeCount
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Unit statistics retrieved successfully',
+                'data' => $statistics
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Unit Statistics Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error retrieving unit statistics',
+                'data' => []
+            ], 500);
         }
     }
 
