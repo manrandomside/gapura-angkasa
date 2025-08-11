@@ -97,6 +97,58 @@ class Employee extends Model
         'height' => 'integer',
     ];
 
+    // =====================================================
+    // SEEDER COMPATIBILITY METHODS
+    // Menangani field no_telepon untuk seeder tanpa error
+    // =====================================================
+
+    /**
+     * CUSTOM: Override create method untuk filter out no_telepon field
+     * Ini memungkinkan seeder bekerja tanpa mengubah data seeder
+     */
+    public static function create(array $attributes = [])
+    {
+        // Remove no_telepon field jika ada dalam data
+        $attributes = self::filterNoTeleponField($attributes);
+        
+        return static::query()->create($attributes);
+    }
+
+    /**
+     * CUSTOM: Override fill method untuk filter out no_telepon field
+     */
+    public function fill(array $attributes)
+    {
+        // Remove no_telepon field jika ada dalam data
+        $attributes = self::filterNoTeleponField($attributes);
+        
+        return parent::fill($attributes);
+    }
+
+    /**
+     * CUSTOM: Override update method untuk filter out no_telepon field
+     */
+    public function update(array $attributes = [], array $options = [])
+    {
+        // Remove no_telepon field jika ada dalam data
+        $attributes = self::filterNoTeleponField($attributes);
+        
+        return parent::update($attributes, $options);
+    }
+
+    /**
+     * Helper method untuk filter no_telepon field dari array attributes
+     */
+    private static function filterNoTeleponField(array $attributes)
+    {
+        // Hapus no_telepon field jika ada
+        if (isset($attributes['no_telepon'])) {
+            unset($attributes['no_telepon']);
+        }
+        
+        return $attributes;
+    }
+
     /**
      * Get the route key for the model.
      * UPDATED: Menggunakan NIK sebagai route key
