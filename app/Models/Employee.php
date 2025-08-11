@@ -487,17 +487,34 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * Auto-calculate TMT Pensiun when tanggal_lahir is set (56 tahun) - FITUR BARU
+     * REVISI: Enhanced TMT Pensiun calculation dengan logika baru (56 tahun)
+     * Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+     * Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
      */
     public function setTanggalLahirAttribute($value)
     {
         $this->attributes['tanggal_lahir'] = $value;
         
-        // Auto calculate TMT Pensiun (56 tahun) dan umur
+        // REVISI: Auto calculate TMT Pensiun dengan logika baru dan umur
         if ($value) {
             $birthDate = Carbon::parse($value);
-            $this->attributes['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
             $this->attributes['usia'] = $birthDate->age;
+            
+            // REVISI: Logika TMT Pensiun berdasarkan aturan baru
+            // Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+            // Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+            $pensionYear = $birthDate->year + 56;
+            
+            if ($birthDate->day < 10) {
+                // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+            } else {
+                // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                $pensionDate->addMonth(); // Tambah 1 bulan
+            }
+            
+            $this->attributes['tmt_pensiun'] = $pensionDate->format('Y-m-d');
         }
     }
 
@@ -1214,7 +1231,7 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * Boot method untuk menambahkan event listeners
+     * REVISI: Boot method dengan logika TMT Pensiun yang diperbaiki
      */
     protected static function boot()
     {
@@ -1233,16 +1250,24 @@ class Employee extends Model
 
             // Hitung usia otomatis jika ada tanggal lahir
             if ($employee->tanggal_lahir && empty($employee->usia)) {
-                $birthDate = new \DateTime($employee->tanggal_lahir);
-                $today = new \DateTime();
-                $employee->usia = $today->diff($birthDate)->y;
+                $birthDate = Carbon::parse($employee->tanggal_lahir);
+                $employee->usia = $birthDate->age;
             }
 
-            // Hitung TMT Pensiun otomatis (56 tahun)
+            // REVISI: Hitung TMT Pensiun otomatis dengan logika baru (56 tahun)
             if ($employee->tanggal_lahir && empty($employee->tmt_pensiun)) {
-                $birthDate = new \DateTime($employee->tanggal_lahir);
-                $pensionDate = clone $birthDate;
-                $pensionDate->add(new \DateInterval('P56Y'));
+                $birthDate = Carbon::parse($employee->tanggal_lahir);
+                $pensionYear = $birthDate->year + 56;
+                
+                if ($birthDate->day < 10) {
+                    // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                } else {
+                    // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                    $pensionDate->addMonth(); // Tambah 1 bulan
+                }
+                
                 $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
             }
         });
@@ -1251,13 +1276,21 @@ class Employee extends Model
         static::updating(function ($employee) {
             // Update usia jika tanggal lahir berubah
             if ($employee->isDirty('tanggal_lahir') && $employee->tanggal_lahir) {
-                $birthDate = new \DateTime($employee->tanggal_lahir);
-                $today = new \DateTime();
-                $employee->usia = $today->diff($birthDate)->y;
+                $birthDate = Carbon::parse($employee->tanggal_lahir);
+                $employee->usia = $birthDate->age;
 
-                // Update TMT Pensiun juga
-                $pensionDate = clone $birthDate;
-                $pensionDate->add(new \DateInterval('P56Y'));
+                // REVISI: Update TMT Pensiun dengan logika baru juga
+                $pensionYear = $birthDate->year + 56;
+                
+                if ($birthDate->day < 10) {
+                    // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                } else {
+                    // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                    $pensionDate->addMonth(); // Tambah 1 bulan
+                }
+                
                 $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
             }
         });

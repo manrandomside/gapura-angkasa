@@ -540,39 +540,40 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * UPDATED: NIK sebagai primary key (16 digit, required, unique), NIP tetap required tapi bukan primary
-     * REMOVED: no_telepon field validation and handling
+     * UPDATED: Enhanced TMT Pensiun calculation logic dan validation untuk unit organisasi
+     * REVISI: TMT Pensiun dengan logika baru sesuai permintaan
      */
     public function store(Request $request)
     {
         try {
             // Log request data untuk debugging (tanpa data sensitif)
             Log::info('Employee Store Request Started', [
-                'nik' => $request->nik, // UPDATED: Log NIK sebagai primary identifier
+                'nik' => $request->nik,
                 'nip' => $request->nip,
                 'nama_lengkap' => $request->nama_lengkap,
                 'unit_organisasi' => $request->unit_organisasi,
-                'unit_id' => $request->unit_id, // TAMBAHAN BARU
-                'sub_unit_id' => $request->sub_unit_id, // TAMBAHAN BARU
+                'unit_id' => $request->unit_id,
+                'sub_unit_id' => $request->sub_unit_id,
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'kelompok_jabatan' => $request->kelompok_jabatan,
+                'status_pegawai' => $request->status_pegawai,
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
             ]);
 
-            // Get available unit organisasi options - TAMBAHAN BARU
+            // Get available unit organisasi options
             $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // UPDATED: NIK sebagai primary key validation + REMOVED no_telepon
+            // UPDATED: Enhanced validation dengan unit_organisasi dan status_pegawai yang lebih ketat
             $validator = Validator::make($request->all(), [
                 // PRIMARY KEY: NIK (16 digit, required, unique)
                 'nik' => [
                     'required',
                     'string',
-                    'size:16', // Harus tepat 16 digit
-                    'regex:/^[0-9]+$/', // Hanya angka
+                    'size:16',
+                    'regex:/^[0-9]+$/',
                     Rule::unique('employees', 'nik')
                 ],
                 
@@ -582,16 +583,16 @@ class EmployeeController extends Controller
                     'string',
                     'min:6',
                     'max:20',
-                    'regex:/^[0-9]+$/', // Hanya angka
+                    'regex:/^[0-9]+$/',
                     Rule::unique('employees', 'nip')
                 ],
                 
-                // Required fields
+                // Required fields - UPDATED: unit_organisasi dan status_pegawai lebih ketat
                 'nama_lengkap' => 'required|string|min:2|max:255',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
-                'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)], // UPDATED
-                'unit_id' => 'nullable|exists:units,id', // TAMBAHAN BARU
-                'sub_unit_id' => 'nullable|exists:sub_units,id', // TAMBAHAN BARU
+                'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)],
+                'unit_id' => 'nullable|exists:units,id',
+                'sub_unit_id' => 'nullable|exists:sub_units,id',
                 'nama_jabatan' => 'required|string|max:255',
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
@@ -602,7 +603,7 @@ class EmployeeController extends Controller
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
                 
-                // Contact fields - REMOVED: no_telepon
+                // Contact fields
                 'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'email' => 'nullable|email|max:255|unique:employees,email',
                 
@@ -632,7 +633,7 @@ class EmployeeController extends Controller
                 'seragam' => 'nullable|string|max:10',
                 'organization_id' => 'nullable|exists:organizations,id',
             ], [
-                // UPDATED: Custom error messages untuk NIK dan NIP
+                // UPDATED: Enhanced error messages
                 'nik.required' => 'NIK wajib diisi',
                 'nik.size' => 'NIK harus tepat 16 digit',
                 'nik.regex' => 'NIK hanya boleh berisi angka',
@@ -689,7 +690,7 @@ class EmployeeController extends Controller
                 // Get validated data
                 $employeeData = $validator->validated();
 
-                // FIXED: Convert gender to database format (L/P)
+                // Convert gender to database format (L/P)
                 if (in_array($employeeData['jenis_kelamin'], ['Laki-laki', 'L'])) {
                     $employeeData['jenis_kelamin'] = 'L';
                 } else {
@@ -708,15 +709,29 @@ class EmployeeController extends Controller
                     $employeeData['jabatan'] = $employeeData['nama_jabatan'];
                 }
 
-                // FITUR BARU: Auto-calculate TMT Pensiun dan umur (56 tahun)
+                // REVISI: Enhanced TMT Pensiun calculation dengan logika baru
                 if (!empty($employeeData['tanggal_lahir'])) {
                     $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
                     $employeeData['usia'] = $birthDate->age;
-                    // Auto-calculate TMT Pensiun (56 tahun) - Set ke tanggal 1 pada bulan ke-56
-                    $employeeData['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
+                    
+                    // REVISI: Logika TMT Pensiun berdasarkan aturan baru
+                    // Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                    // Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                    $pensionYear = $birthDate->year + 56;
+                    
+                    if ($birthDate->day < 10) {
+                        // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                        $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                    } else {
+                        // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                        $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                        $pensionDate->addMonth(); // Tambah 1 bulan
+                    }
+                    
+                    $employeeData['tmt_pensiun'] = $pensionDate->format('Y-m-d');
                 }
 
-                // TAMBAHAN BARU: Validasi unit consistency (pastikan unit_id sesuai dengan unit_organisasi)
+                // Validasi unit consistency
                 if (!empty($employeeData['unit_id'])) {
                     $unit = Unit::find($employeeData['unit_id']);
                     if (!$unit || $unit->unit_organisasi !== $employeeData['unit_organisasi']) {
@@ -724,7 +739,7 @@ class EmployeeController extends Controller
                     }
                 }
 
-                // TAMBAHAN BARU: Validasi sub unit consistency (pastikan sub_unit_id sesuai dengan unit_id)
+                // Validasi sub unit consistency
                 if (!empty($employeeData['sub_unit_id'])) {
                     if (empty($employeeData['unit_id'])) {
                         throw new \Exception('Unit harus dipilih terlebih dahulu sebelum memilih sub unit');
@@ -736,7 +751,7 @@ class EmployeeController extends Controller
                     }
                 }
 
-                // UPDATED: Create employee dengan NIK sebagai primary key
+                // Create employee dengan NIK sebagai primary key
                 $employee = Employee::create($employeeData);
 
                 if (!$employee) {
@@ -746,9 +761,9 @@ class EmployeeController extends Controller
                 // Commit transaction
                 DB::commit();
 
-                // UPDATED: Log successful creation dengan NIK sebagai primary identifier
+                // Log successful creation
                 Log::info('Employee Created Successfully', [
-                    'employee_nik' => $employee->nik, // UPDATED: Use NIK as primary identifier
+                    'employee_nik' => $employee->nik,
                     'employee_nip' => $employee->nip,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
@@ -757,10 +772,12 @@ class EmployeeController extends Controller
                     'kelompok_jabatan' => $employee->kelompok_jabatan,
                     'status_pegawai' => $employee->status_pegawai,
                     'tmt_pensiun' => $employee->tmt_pensiun?->format('Y-m-d'),
+                    'pension_calculation' => $employee->tanggal_lahir ? 
+                        (Carbon::parse($employee->tanggal_lahir)->day < 10 ? 'Same month' : 'Next month') : 'N/A',
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
-                // ENHANCED: Comprehensive notification system
+                // Build success notification
                 $notificationData = $this->buildSuccessNotification($employee);
 
                 return redirect()->route('employees.index')
@@ -1032,11 +1049,24 @@ class EmployeeController extends Controller
                 }
             }
 
-            // FITUR BARU: Recalculate TMT Pensiun dan umur jika tanggal lahir berubah (56 tahun)
+            // REVISI: Enhanced TMT Pensiun calculation dengan logika baru
             if (isset($data['tanggal_lahir']) && $data['tanggal_lahir'] !== $originalData['tanggal_lahir']) {
                 $birthDate = Carbon::parse($data['tanggal_lahir']);
                 $data['usia'] = $birthDate->age;
-                $data['tmt_pensiun'] = $birthDate->copy()->addYears(56)->startOfMonth();
+                
+                // REVISI: Logika TMT Pensiun berdasarkan aturan baru
+                $pensionYear = $birthDate->year + 56;
+                
+                if ($birthDate->day < 10) {
+                    // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                } else {
+                    // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
+                    $pensionDate->addMonth(); // Tambah 1 bulan
+                }
+                
+                $data['tmt_pensiun'] = $pensionDate->format('Y-m-d');
             } elseif (isset($data['tanggal_lahir'])) {
                 $data['usia'] = Carbon::parse($data['tanggal_lahir'])->age;
             }
@@ -1046,7 +1076,7 @@ class EmployeeController extends Controller
                 $data['jabatan'] = $data['nama_jabatan'];
             }
 
-            // TAMBAHAN BARU: Validasi unit consistency (pastikan unit_id sesuai dengan unit_organisasi)
+            // Validasi unit consistency
             if (!empty($data['unit_id'])) {
                 $unit = Unit::find($data['unit_id']);
                 if (!$unit || $unit->unit_organisasi !== $data['unit_organisasi']) {
@@ -1064,7 +1094,7 @@ class EmployeeController extends Controller
                 }
             }
 
-            // TAMBAHAN BARU: Validasi sub unit consistency (pastikan sub_unit_id sesuai dengan unit_id)
+            // Validasi sub unit consistency
             if (!empty($data['sub_unit_id'])) {
                 if (empty($data['unit_id'])) {
                     return redirect()->back()
@@ -1099,9 +1129,9 @@ class EmployeeController extends Controller
             // Update employee data
             $employee->update($data);
 
-            // UPDATED: Log the update dengan NIK sebagai identifier
+            // Log the update
             Log::info('Employee Updated Successfully', [
-                'employee_nik' => $employee->nik, // UPDATED: Use NIK as primary identifier
+                'employee_nik' => $employee->nik,
                 'employee_nip' => $employee->nip,
                 'nama_lengkap' => $employee->nama_lengkap,
                 'updated_fields' => array_keys(array_diff_assoc($data, $originalData)),
@@ -1231,7 +1261,6 @@ class EmployeeController extends Controller
 
     // =====================================================
     // SAFE PRIVATE HELPER METHODS - FIXED NULL HANDLING
-    // (All helper methods remain the same)
     // =====================================================
 
     /**
@@ -1557,26 +1586,39 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Build success notification - SAFE VERSION - UPDATED: Reference NIK
+     * Build success notification - UPDATED: Enhanced with TMT Pensiun explanation
      */
     private function buildSuccessNotification($employee)
     {
         try {
+            // Generate TMT Pensiun explanation
+            $pensionExplanation = '';
+            if ($employee->tanggal_lahir && $employee->tmt_pensiun) {
+                $birthDate = Carbon::parse($employee->tanggal_lahir);
+                $pensionDate = Carbon::parse($employee->tmt_pensiun);
+                
+                if ($birthDate->day < 10) {
+                    $pensionExplanation = " (lahir tanggal {$birthDate->day}, pensiun 1 {$pensionDate->format('F Y')})";
+                } else {
+                    $pensionExplanation = " (lahir tanggal {$birthDate->day}, pensiun 1 {$pensionDate->format('F Y')})";
+                }
+            }
+
             return [
                 'success' => 'Karyawan berhasil ditambahkan!',
                 'newEmployee' => $employee,
-                'message' => "Karyawan {$employee->nama_lengkap} dengan NIK {$employee->nik} telah berhasil ditambahkan ke sistem.",
+                'message' => "Karyawan {$employee->nama_lengkap} dengan NIK {$employee->nik} telah berhasil ditambahkan ke sistem. TMT Pensiun telah dihitung otomatis{$pensionExplanation}.",
                 'notification' => [
                     'type' => 'success',
-                    'title' => 'Karyawan Baru!',
-                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan dengan NIK {$employee->nik}.",
-                    'employee_nik' => $employee->nik, // UPDATED: Use NIK instead of ID
+                    'title' => 'Karyawan Baru Ditambahkan!',
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan dengan NIK {$employee->nik}. TMT Pensiun: " . ($employee->tmt_pensiun ? Carbon::parse($employee->tmt_pensiun)->format('d/m/Y') : 'N/A'),
+                    'employee_nik' => $employee->nik,
                     'duration' => 5000,
                 ],
                 'alerts' => [
                     [
                         'type' => 'success',
-                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar.',
+                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan TMT Pensiun yang telah dihitung otomatis.',
                         'duration' => 4000
                     ]
                 ]

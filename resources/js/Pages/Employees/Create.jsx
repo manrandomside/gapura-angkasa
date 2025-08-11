@@ -96,7 +96,7 @@ const InputField = ({
                             : "border-gray-300 bg-white"
                     }`}
                 >
-                    <option value="">Pilih {label}</option>
+                    <option value="">{placeholder || `Pilih ${label}`}</option>
                     {options.map((option) => (
                         <option key={option} value={option}>
                             {option}
@@ -239,15 +239,14 @@ export default function Create({
 }) {
     const { data, setData, post, processing, errors, reset, clearErrors } =
         useForm({
-            nik: "", // NIK WAJIB - Primary Key
-            nip: "", // NIP WAJIB - Unique tapi bukan primary
+            nik: "",
+            nip: "",
             nama_lengkap: "",
             jenis_kelamin: "",
             tempat_lahir: "",
             tanggal_lahir: "",
             alamat: "",
             handphone: "",
-            // REMOVED: no_telepon field dihapus sesuai permintaan
             email: "",
             no_bpjs_kesehatan: "",
             no_bpjs_ketenagakerjaan: "",
@@ -256,7 +255,7 @@ export default function Create({
             sub_unit_id: "",
             jabatan: "",
             nama_jabatan: "",
-            status_pegawai: "PEGAWAI TETAP",
+            status_pegawai: "", // REVISI: Hapus default "PEGAWAI TETAP"
             kelompok_jabatan: "",
             tmt_mulai_jabatan: "",
             tmt_mulai_kerja: "",
@@ -297,13 +296,25 @@ export default function Create({
         }
     }, [success, error]);
 
-    // Auto-calculate pension date when birth date changes (56 TAHUN)
+    // REVISI: Auto-calculate pension date dengan logika baru (56 TAHUN)
     useEffect(() => {
         if (data.tanggal_lahir) {
             const birthDate = new Date(data.tanggal_lahir);
             const pensionDate = new Date(birthDate);
+
+            // REVISI: Logika TMT Pensiun berdasarkan aturan baru
+            // Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+            // Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
             pensionDate.setFullYear(birthDate.getFullYear() + 56);
-            pensionDate.setDate(1);
+
+            if (birthDate.getDate() < 10) {
+                // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
+                pensionDate.setDate(1);
+            } else {
+                // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
+                pensionDate.setDate(1);
+                pensionDate.setMonth(pensionDate.getMonth() + 1);
+            }
 
             setData("tmt_pensiun", pensionDate.toISOString().split("T")[0]);
 
@@ -348,7 +359,7 @@ export default function Create({
                 } else if (value && value.length !== 16) {
                     error = "NIK harus tepat 16 digit";
                 } else if (!value || value.trim() === "") {
-                    error = "NIK wajib diisi"; // NIK WAJIB
+                    error = "NIK wajib diisi";
                 }
                 break;
             case "nip":
@@ -357,7 +368,7 @@ export default function Create({
                 } else if (value && value.length < 6) {
                     error = "NIP minimal 6 digit";
                 } else if (!value || value.trim() === "") {
-                    error = "NIP wajib diisi"; // NIP WAJIB
+                    error = "NIP wajib diisi";
                 }
                 break;
             case "email":
@@ -449,16 +460,17 @@ export default function Create({
         validateField(name, value);
     };
 
-    // UPDATED: Validate required fields termasuk NIK dan NIP wajib
+    // REVISI: Validate required fields dengan status_pegawai
     const validateRequiredFields = () => {
         const requiredFields = {
-            nik: "NIK wajib diisi", // WAJIB - Primary Key
-            nip: "NIP wajib diisi", // WAJIB - Unique
+            nik: "NIK wajib diisi",
+            nip: "NIP wajib diisi",
             nama_lengkap: "Nama lengkap wajib diisi",
             jenis_kelamin: "Jenis kelamin wajib dipilih",
             unit_organisasi: "Unit organisasi wajib dipilih",
             nama_jabatan: "Nama jabatan wajib diisi",
             kelompok_jabatan: "Kelompok jabatan wajib dipilih",
+            status_pegawai: "Status pegawai wajib dipilih", // REVISI: Tambahkan validasi
         };
 
         const newErrors = {};
@@ -483,6 +495,7 @@ export default function Create({
         console.log("Gender Value:", data.jenis_kelamin);
         console.log("Kelompok Jabatan Value:", data.kelompok_jabatan);
         console.log("Unit Organisasi:", data.unit_organisasi);
+        console.log("Status Pegawai:", data.status_pegawai); // REVISI: Log status pegawai
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -492,7 +505,7 @@ export default function Create({
                 type: "error",
                 title: "Data Tidak Lengkap",
                 message:
-                    "Mohon lengkapi semua field yang wajib diisi termasuk NIK dan NIP",
+                    "Mohon lengkapi semua field yang wajib diisi termasuk NIK, NIP, dan Status Pegawai",
             });
             setIsSubmitting(false);
             return;
@@ -539,7 +552,7 @@ export default function Create({
                     type: "success",
                     title: "Berhasil!",
                     message:
-                        "Karyawan berhasil ditambahkan dengan NIK sebagai primary key. TMT Pensiun telah dihitung otomatis (56 tahun). Mengalihkan ke daftar karyawan...",
+                        "Karyawan berhasil ditambahkan dengan NIK sebagai primary key. TMT Pensiun telah dihitung otomatis (56 tahun dengan logika baru). Mengalihkan ke daftar karyawan...",
                 });
 
                 // Redirect after 2 seconds
@@ -565,7 +578,10 @@ export default function Create({
                 } else if (errors.kelompok_jabatan) {
                     errorMessage = "Kelompok jabatan tidak valid";
                 } else if (errors.unit_organisasi) {
-                    errorMessage = "Unit organisasi tidak valid";
+                    errorMessage =
+                        "Unit organisasi tidak valid atau belum dipilih";
+                } else if (errors.status_pegawai) {
+                    errorMessage = "Status pegawai belum dipilih";
                 } else if (errors.unit_id) {
                     errorMessage = "Unit tidak valid";
                 } else if (errors.sub_unit_id) {
@@ -697,7 +713,7 @@ export default function Create({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.tanggal_lahir || formValidation.tanggal_lahir}
-                    hint={`TMT Pensiun akan otomatis dihitung (56 tahun)${
+                    hint={`TMT Pensiun akan otomatis dihitung (56 tahun dengan logika baru)${
                         calculatedAge
                             ? ` - Umur saat ini: ${calculatedAge} tahun`
                             : ""
@@ -781,7 +797,7 @@ export default function Create({
         </div>
     );
 
-    // renderWorkSection dengan UnitOrganisasiComponent dan kelompok_jabatan
+    // REVISI: renderWorkSection dengan validasi status_pegawai yang diperbaiki
     const renderWorkSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -822,10 +838,13 @@ export default function Create({
                                   "TAD PAKET PEKERJAAN",
                               ]
                     }
+                    placeholder="Pilih Status Pegawai" // REVISI: Tambahkan placeholder
                     icon={UserCheck}
                     value={data.status_pegawai}
                     onChange={handleInputChange}
-                    error={errors.status_pegawai}
+                    error={
+                        errors.status_pegawai || formValidation.status_pegawai
+                    } // REVISI: Tambahkan validasi
                 />
                 <InputField
                     name="kelompok_jabatan"
@@ -879,7 +898,7 @@ export default function Create({
                     onChange={handleInputChange}
                     error={errors.tmt_pensiun}
                     disabled={true}
-                    hint="Otomatis dihitung dari tanggal lahir (56 tahun)"
+                    hint="Otomatis dihitung dari tanggal lahir (56 tahun dengan logika baru)"
                 />
             </div>
         </div>
@@ -1063,8 +1082,9 @@ export default function Create({
                             </h1>
                             <p className="text-sm text-gray-600">
                                 Lengkapi data karyawan dengan teliti. NIK dan
-                                NIP wajib diisi dengan benar. TMT Pensiun akan
-                                otomatis dihitung (56 tahun)
+                                NIP wajib diisi dengan benar. Status Pegawai
+                                wajib dipilih. TMT Pensiun akan otomatis
+                                dihitung (56 tahun dengan logika baru)
                             </p>
                         </div>
                     </div>
