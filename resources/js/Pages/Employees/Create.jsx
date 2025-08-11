@@ -239,13 +239,15 @@ export default function Create({
 }) {
     const { data, setData, post, processing, errors, reset, clearErrors } =
         useForm({
-            nip: "",
+            nik: "", // NIK WAJIB - Primary Key
+            nip: "", // NIP WAJIB - Unique tapi bukan primary
             nama_lengkap: "",
             jenis_kelamin: "",
             tempat_lahir: "",
             tanggal_lahir: "",
             alamat: "",
             handphone: "",
+            // REMOVED: no_telepon field dihapus sesuai permintaan
             email: "",
             no_bpjs_kesehatan: "",
             no_bpjs_ketenagakerjaan: "",
@@ -270,8 +272,6 @@ export default function Create({
             height: "",
             weight: "",
             seragam: "",
-            nik: "",
-            no_telepon: "",
         });
 
     const [activeSection, setActiveSection] = useState("personal");
@@ -342,15 +342,13 @@ export default function Create({
         let error = "";
 
         switch (fieldName) {
-            case "email":
-                if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                    error = "Format email tidak valid";
-                }
-                break;
-            case "handphone":
-            case "no_telepon":
-                if (value && !/^[0-9+\-\s()]+$/.test(value)) {
-                    error = "Format nomor telepon tidak valid";
+            case "nik":
+                if (value && !/^[0-9]+$/.test(value)) {
+                    error = "NIK hanya boleh berisi angka";
+                } else if (value && value.length !== 16) {
+                    error = "NIK harus tepat 16 digit";
+                } else if (!value || value.trim() === "") {
+                    error = "NIK wajib diisi"; // NIK WAJIB
                 }
                 break;
             case "nip":
@@ -358,13 +356,18 @@ export default function Create({
                     error = "NIP hanya boleh berisi angka";
                 } else if (value && value.length < 6) {
                     error = "NIP minimal 6 digit";
+                } else if (!value || value.trim() === "") {
+                    error = "NIP wajib diisi"; // NIP WAJIB
                 }
                 break;
-            case "nik":
-                if (value && !/^[0-9]+$/.test(value)) {
-                    error = "NIK hanya boleh berisi angka";
-                } else if (value && value.length !== 16) {
-                    error = "NIK harus 16 digit";
+            case "email":
+                if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                    error = "Format email tidak valid";
+                }
+                break;
+            case "handphone":
+                if (value && !/^[0-9+\-\s()]+$/.test(value)) {
+                    error = "Format nomor handphone tidak valid";
                 }
                 break;
             case "tahun_lulus":
@@ -436,8 +439,8 @@ export default function Create({
             }));
         }
 
-        // Real-time validation for important fields
-        if (["nip", "nik", "email", "handphone", "no_telepon"].includes(name)) {
+        // Real-time validation for important fields - UPDATED untuk NIK dan NIP
+        if (["nik", "nip", "email", "handphone"].includes(name)) {
             setTimeout(() => validateField(name, value), 500);
         }
     };
@@ -446,10 +449,11 @@ export default function Create({
         validateField(name, value);
     };
 
-    // Validate required fields termasuk kelompok_jabatan dan unit organisasi
+    // UPDATED: Validate required fields termasuk NIK dan NIP wajib
     const validateRequiredFields = () => {
         const requiredFields = {
-            nip: "NIP wajib diisi",
+            nik: "NIK wajib diisi", // WAJIB - Primary Key
+            nip: "NIP wajib diisi", // WAJIB - Unique
             nama_lengkap: "Nama lengkap wajib diisi",
             jenis_kelamin: "Jenis kelamin wajib dipilih",
             unit_organisasi: "Unit organisasi wajib dipilih",
@@ -474,11 +478,11 @@ export default function Create({
         setIsSubmitting(true);
 
         console.log("Form Data Submission:", data);
+        console.log("NIK Value:", data.nik);
+        console.log("NIP Value:", data.nip);
         console.log("Gender Value:", data.jenis_kelamin);
         console.log("Kelompok Jabatan Value:", data.kelompok_jabatan);
         console.log("Unit Organisasi:", data.unit_organisasi);
-        console.log("Unit ID:", data.unit_id);
-        console.log("Sub Unit ID:", data.sub_unit_id);
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -487,7 +491,8 @@ export default function Create({
             setNotification({
                 type: "error",
                 title: "Data Tidak Lengkap",
-                message: "Mohon lengkapi semua field yang wajib diisi",
+                message:
+                    "Mohon lengkapi semua field yang wajib diisi termasuk NIK dan NIP",
             });
             setIsSubmitting(false);
             return;
@@ -534,7 +539,7 @@ export default function Create({
                     type: "success",
                     title: "Berhasil!",
                     message:
-                        "Karyawan berhasil ditambahkan dengan struktur organisasi lengkap. TMT Pensiun telah dihitung otomatis (56 tahun). Mengalihkan ke daftar karyawan...",
+                        "Karyawan berhasil ditambahkan dengan NIK sebagai primary key. TMT Pensiun telah dihitung otomatis (56 tahun). Mengalihkan ke daftar karyawan...",
                 });
 
                 // Redirect after 2 seconds
@@ -547,8 +552,12 @@ export default function Create({
 
                 let errorMessage = "Terjadi kesalahan saat menyimpan data";
 
-                if (errors.nip) {
-                    errorMessage = "NIP sudah digunakan atau tidak valid";
+                if (errors.nik) {
+                    errorMessage =
+                        "NIK sudah digunakan atau tidak valid (harus 16 digit angka)";
+                } else if (errors.nip) {
+                    errorMessage =
+                        "NIP sudah digunakan atau tidak valid (minimal 6 digit angka)";
                 } else if (errors.email) {
                     errorMessage = "Email sudah digunakan atau tidak valid";
                 } else if (errors.jenis_kelamin) {
@@ -617,7 +626,7 @@ export default function Create({
         }
     };
 
-    // renderPersonalSection dengan BPJS
+    // UPDATED: renderPersonalSection - HAPUS no_telepon, tambah NIK/NIP required
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -627,27 +636,28 @@ export default function Create({
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <InputField
-                    name="nip"
-                    label="NIP"
-                    required={true}
-                    placeholder="Contoh: 20241234"
-                    icon={User}
-                    value={data.nip}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.nip || formValidation.nip}
-                    hint="Nomor Induk Pegawai (minimal 6 digit)"
-                />
-                <InputField
                     name="nik"
                     label="NIK"
+                    required={true}
                     placeholder="Contoh: 1234567890123456"
                     icon={User}
                     value={data.nik}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nik || formValidation.nik}
-                    hint="Nomor Induk Kependudukan (16 digit)"
+                    hint="Nomor Induk Kependudukan (16 digit) - WAJIB DIISI DENGAN BENAR, jangan sampai salah"
+                />
+                <InputField
+                    name="nip"
+                    label="NIP"
+                    required={true}
+                    placeholder="Contoh: 2024001"
+                    icon={User}
+                    value={data.nip}
+                    onChange={handleInputChange}
+                    onBlur={handleInputBlur}
+                    error={errors.nip || formValidation.nip}
+                    hint="Nomor Induk Pegawai (minimal 6 digit) - WAJIB DIISI"
                 />
                 <InputField
                     name="nama_lengkap"
@@ -715,6 +725,7 @@ export default function Create({
                 error={errors.alamat}
             />
 
+            {/* UPDATED: Data Kontak - HAPUS no_telepon field */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <InputField
                     name="handphone"
@@ -726,17 +737,6 @@ export default function Create({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.handphone || formValidation.handphone}
-                />
-                <InputField
-                    name="no_telepon"
-                    label="No. Telepon"
-                    placeholder="0361-123456"
-                    icon={Phone}
-                    value={data.no_telepon}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.no_telepon || formValidation.no_telepon}
-                    hint="Nomor telepon rumah (opsional)"
                 />
                 <InputField
                     name="email"
@@ -1062,9 +1062,9 @@ export default function Create({
                                 Tambah Karyawan Baru
                             </h1>
                             <p className="text-sm text-gray-600">
-                                Lengkapi data karyawan dengan teliti - Unit
-                                Organisasi Expert dengan cascading dropdown. TMT
-                                Pensiun akan otomatis dihitung (56 tahun)
+                                Lengkapi data karyawan dengan teliti. NIK dan
+                                NIP wajib diisi dengan benar. TMT Pensiun akan
+                                otomatis dihitung (56 tahun)
                             </p>
                         </div>
                     </div>

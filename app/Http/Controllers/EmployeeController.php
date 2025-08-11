@@ -254,7 +254,7 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // EXISTING METHODS - UPDATED
+    // MAIN CRUD METHODS - UPDATED FOR NIK PRIMARY KEY
     // =====================================================
 
     /**
@@ -288,7 +288,8 @@ class EmployeeController extends Controller
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
-                    $q->where('nip', 'like', "%{$searchTerm}%")
+                    $q->where('nik', 'like', "%{$searchTerm}%") // UPDATED: Search NIK instead of id
+                      ->orWhere('nip', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
@@ -539,13 +540,15 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * UPDATED: Include kelompok jabatan validation dan auto-calculate TMT Pensiun (56 tahun) + Unit/SubUnit handling
+     * UPDATED: NIK sebagai primary key (16 digit, required, unique), NIP tetap required tapi bukan primary
+     * REMOVED: no_telepon field validation and handling
      */
     public function store(Request $request)
     {
         try {
             // Log request data untuk debugging (tanpa data sensitif)
             Log::info('Employee Store Request Started', [
+                'nik' => $request->nik, // UPDATED: Log NIK sebagai primary identifier
                 'nip' => $request->nip,
                 'nama_lengkap' => $request->nama_lengkap,
                 'unit_organisasi' => $request->unit_organisasi,
@@ -562,36 +565,45 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // UPDATED: Comprehensive validation dengan TAD Split dan Kelompok Jabatan + Unit/SubUnit
+            // UPDATED: NIK sebagai primary key validation + REMOVED no_telepon
             $validator = Validator::make($request->all(), [
-                // Required fields
+                // PRIMARY KEY: NIK (16 digit, required, unique)
+                'nik' => [
+                    'required',
+                    'string',
+                    'size:16', // Harus tepat 16 digit
+                    'regex:/^[0-9]+$/', // Hanya angka
+                    Rule::unique('employees', 'nik')
+                ],
+                
+                // NIP: Required tapi bukan primary key (minimal 6 digit, unique)
                 'nip' => [
                     'required',
                     'string',
+                    'min:6',
                     'max:20',
+                    'regex:/^[0-9]+$/', // Hanya angka
                     Rule::unique('employees', 'nip')
                 ],
-                'nama_lengkap' => 'required|string|max:255',
+                
+                // Required fields
+                'nama_lengkap' => 'required|string|min:2|max:255',
+                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)], // UPDATED
                 'unit_id' => 'nullable|exists:units,id', // TAMBAHAN BARU
                 'sub_unit_id' => 'nullable|exists:sub_units,id', // TAMBAHAN BARU
                 'nama_jabatan' => 'required|string|max:255',
-                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
-                
-                // BARU: Status pegawai dengan TAD Split
+                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
                 
-                // BARU: Kelompok jabatan (required)
-                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
-                
-                // Optional fields with validation
-                'nik' => 'nullable|string|max:20',
+                // Optional personal fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
-                'no_telepon' => 'nullable|string|max:20',
-                'handphone' => 'nullable|string|max:20',
+                
+                // Contact fields - REMOVED: no_telepon
+                'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'email' => 'nullable|email|max:255|unique:employees,email',
                 
                 // Work related fields
@@ -606,24 +618,37 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Additional fields
+                // Physical data
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|string|max:10',
-                'height' => 'nullable|numeric|between:100,250',
-                'weight' => 'nullable|numeric|between:30,200',
-                'no_bpjs_kesehatan' => 'nullable|string|max:50',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'height' => 'nullable|integer|min:100|max:250',
+                'weight' => 'nullable|integer|min:30|max:200',
+                
+                // BPJS
+                'no_bpjs_kesehatan' => 'nullable|string|max:20',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
+                
+                // Additional
                 'seragam' => 'nullable|string|max:10',
                 'organization_id' => 'nullable|exists:organizations,id',
             ], [
-                // Custom error messages
+                // UPDATED: Custom error messages untuk NIK dan NIP
+                'nik.required' => 'NIK wajib diisi',
+                'nik.size' => 'NIK harus tepat 16 digit',
+                'nik.regex' => 'NIK hanya boleh berisi angka',
+                'nik.unique' => 'NIK sudah terdaftar di sistem',
+                
                 'nip.required' => 'NIP wajib diisi',
-                'nip.unique' => 'NIP sudah digunakan oleh karyawan lain',
+                'nip.min' => 'NIP minimal 6 digit',
+                'nip.regex' => 'NIP hanya boleh berisi angka',
+                'nip.unique' => 'NIP sudah terdaftar di sistem',
+                
                 'nama_lengkap.required' => 'Nama lengkap wajib diisi',
+                'nama_lengkap.min' => 'Nama lengkap minimal 2 karakter',
                 'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
-                'unit_organisasi.in' => 'Unit organisasi tidak valid', // TAMBAHAN BARU
-                'unit_id.exists' => 'Unit tidak valid', // TAMBAHAN BARU
-                'sub_unit_id.exists' => 'Sub unit tidak valid', // TAMBAHAN BARU
+                'unit_organisasi.in' => 'Unit organisasi tidak valid',
+                'unit_id.exists' => 'Unit tidak valid',
+                'sub_unit_id.exists' => 'Sub unit tidak valid',
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi',
                 'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
                 'jenis_kelamin.in' => 'Jenis kelamin tidak valid',
@@ -631,12 +656,14 @@ class EmployeeController extends Controller
                 'status_pegawai.in' => 'Status pegawai tidak valid',
                 'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih',
                 'kelompok_jabatan.in' => 'Kelompok jabatan tidak valid',
-                'email.unique' => 'Email sudah digunakan oleh karyawan lain',
+                'email.unique' => 'Email sudah terdaftar di sistem',
                 'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini',
+                'handphone.regex' => 'Format nomor handphone tidak valid',
             ]);
 
             if ($validator->fails()) {
                 Log::warning('Employee Store Validation Failed', [
+                    'nik' => $request->nik,
                     'nip' => $request->nip,
                     'errors' => array_keys($validator->errors()->toArray())
                 ]);
@@ -709,7 +736,7 @@ class EmployeeController extends Controller
                     }
                 }
 
-                // Create employee dengan error handling
+                // UPDATED: Create employee dengan NIK sebagai primary key
                 $employee = Employee::create($employeeData);
 
                 if (!$employee) {
@@ -719,10 +746,10 @@ class EmployeeController extends Controller
                 // Commit transaction
                 DB::commit();
 
-                // Log successful creation - UPDATED: Include unit information
+                // UPDATED: Log successful creation dengan NIK sebagai primary identifier
                 Log::info('Employee Created Successfully', [
-                    'employee_id' => $employee->id,
-                    'nip' => $employee->nip,
+                    'employee_nik' => $employee->nik, // UPDATED: Use NIK as primary identifier
+                    'employee_nip' => $employee->nip,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
                     'unit_id' => $employee->unit_id,
@@ -743,6 +770,7 @@ class EmployeeController extends Controller
                 DB::rollback();
                 
                 Log::error('Employee Creation Database Error', [
+                    'nik' => $request->nik,
                     'nip' => $request->nip,
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
@@ -753,6 +781,7 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Employee Store General Error', [
+                'nik' => $request->nik ?? 'N/A',
                 'nip' => $request->nip ?? 'N/A',
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -775,11 +804,14 @@ class EmployeeController extends Controller
 
     /**
      * Display the specified employee
-     * UPDATED: Load unit dan subUnit relationships
+     * UPDATED: Parameter sekarang menggunakan NIK (string) bukan ID auto-increment
      */
-    public function show(Employee $employee)
+    public function show(string $nik)
     {
         try {
+            // UPDATED: Find by NIK instead of auto-increment ID
+            $employee = Employee::where('nik', $nik)->firstOrFail();
+            
             // Load relationships if they exist
             if (method_exists($employee, 'organization')) {
                 $employee->load('organization');
@@ -796,7 +828,7 @@ class EmployeeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
-                'employee_id' => $employee->id ?? 'N/A',
+                'employee_nik' => $nik,
                 'error' => $e->getMessage()
             ]);
 
@@ -807,11 +839,14 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for editing the specified employee
-     * UPDATED: Include kelompok jabatan dan status pegawai options + Unit Organisasi Options
+     * UPDATED: Parameter menggunakan NIK, Include kelompok jabatan dan status pegawai options + Unit Organisasi Options
      */
-    public function edit(Employee $employee)
+    public function edit(string $nik)
     {
         try {
+            // UPDATED: Find by NIK instead of auto-increment ID
+            $employee = Employee::where('nik', $nik)->firstOrFail();
+            
             // Load relationships - TAMBAHAN BARU
             if (method_exists($employee, 'unit')) {
                 $employee->load('unit');
@@ -867,7 +902,7 @@ class EmployeeController extends Controller
             
         } catch (\Exception $e) {
             Log::error('Employee Edit Error', [
-                'employee_id' => $employee->id ?? 'unknown',
+                'employee_nik' => $nik,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -886,11 +921,14 @@ class EmployeeController extends Controller
 
     /**
      * Update the specified employee
-     * UPDATED: Include kelompok jabatan validation dan auto-recalculate TMT Pensiun jika tanggal lahir berubah + Unit/SubUnit handling
+     * UPDATED: Parameter menggunakan NIK, NIK tidak bisa diubah, NIP bisa diubah + Unit/SubUnit handling
+     * REMOVED: no_telepon validation and handling
      */
-    public function update(Request $request, Employee $employee)
+    public function update(Request $request, string $nik)
     {
         try {
+            // UPDATED: Find by NIK instead of auto-increment ID
+            $employee = Employee::where('nik', $nik)->firstOrFail();
             $originalData = $employee->toArray();
 
             // Get available unit organisasi options - TAMBAHAN BARU
@@ -898,50 +936,72 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
+            // UPDATED: Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah + REMOVED no_telepon
             $validator = Validator::make($request->all(), [
+                // NIP bisa diubah tapi harus tetap unique (kecuali untuk employee ini)
                 'nip' => [
                     'required',
                     'string',
+                    'min:6',
                     'max:20',
-                    Rule::unique('employees', 'nip')->ignore($employee->id)
+                    'regex:/^[0-9]+$/',
+                    Rule::unique('employees', 'nip')->ignore($employee->nik, 'nik') // UPDATED: ignore based on NIK
                 ],
-                'nama_lengkap' => 'required|string|max:255',
+                
+                // Required fields
+                'nama_lengkap' => 'required|string|min:2|max:255',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
+                'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)],
+                'nama_jabatan' => 'required|string|max:255',
+                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
+                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
+                
+                // Optional fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
-                'nik' => 'nullable|string|max:20',
-                'no_telepon' => 'nullable|string|max:20',
-                'handphone' => 'nullable|string|max:20',
+                'unit_id' => 'nullable|exists:units,id',
+                'sub_unit_id' => 'nullable|exists:sub_units,id',
+                'jabatan' => 'nullable|string|max:255',
+                'tmt_mulai_jabatan' => 'nullable|date',
+                'tmt_mulai_kerja' => 'nullable|date',
+                
+                // Contact fields - REMOVED: no_telepon
+                'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'email' => [
                     'nullable',
                     'email',
                     'max:255',
-                    Rule::unique('employees', 'email')->ignore($employee->id)
+                    Rule::unique('employees', 'email')->ignore($employee->nik, 'nik') // UPDATED: ignore based on NIK
                 ],
-                'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)], // UPDATED
-                'unit_id' => 'nullable|exists:units,id', // TAMBAHAN BARU
-                'sub_unit_id' => 'nullable|exists:sub_units,id', // TAMBAHAN BARU
-                'jabatan' => 'nullable|string|max:255',
-                'nama_jabatan' => 'required|string|max:255',
-                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
-                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
-                'tmt_mulai_jabatan' => 'nullable|date',
-                'tmt_mulai_kerja' => 'nullable|date',
+                
+                // Education fields
                 'pendidikan_terakhir' => 'nullable|string|max:50',
                 'pendidikan' => 'nullable|string|max:50',
                 'instansi_pendidikan' => 'nullable|string|max:255',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
+                
+                // Physical data
                 'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|string|max:10',
-                'height' => 'nullable|numeric|between:100,250',
-                'weight' => 'nullable|numeric|between:30,200',
-                'no_bpjs_kesehatan' => 'nullable|string|max:50',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'height' => 'nullable|integer|min:100|max:250',
+                'weight' => 'nullable|integer|min:30|max:200',
+                
+                // BPJS
+                'no_bpjs_kesehatan' => 'nullable|string|max:20',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
+                
+                // Additional
                 'seragam' => 'nullable|string|max:10',
                 'organization_id' => 'nullable|exists:organizations,id',
+            ], [
+                'nip.required' => 'NIP wajib diisi',
+                'nip.min' => 'NIP minimal 6 digit',
+                'nip.regex' => 'NIP hanya boleh berisi angka',
+                'nip.unique' => 'NIP sudah terdaftar di sistem',
+                // ... other custom messages
             ]);
 
             if ($validator->fails()) {
@@ -960,8 +1020,8 @@ class EmployeeController extends Controller
 
             $data = $validator->validated();
             
-            // IMPORTANT: Hapus NIP dari data yang akan diupdate untuk mencegah perubahan
-            unset($data['nip']);
+            // IMPORTANT: NIK tidak boleh diubah (tidak ada dalam validated data)
+            // NIP boleh diubah sesuai validasi di atas
             
             // Convert gender to database format (L/P)
             if (isset($data['jenis_kelamin'])) {
@@ -1039,10 +1099,10 @@ class EmployeeController extends Controller
             // Update employee data
             $employee->update($data);
 
-            // Log the update - UPDATED: Include unit information
+            // UPDATED: Log the update dengan NIK sebagai identifier
             Log::info('Employee Updated Successfully', [
-                'employee_id' => $employee->id,
-                'nip' => $employee->nip,
+                'employee_nik' => $employee->nik, // UPDATED: Use NIK as primary identifier
+                'employee_nip' => $employee->nip,
                 'nama_lengkap' => $employee->nama_lengkap,
                 'updated_fields' => array_keys(array_diff_assoc($data, $originalData)),
                 'unit_organisasi' => $employee->unit_organisasi,
@@ -1066,7 +1126,7 @@ class EmployeeController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Employee Update Error', [
-                'employee_id' => $employee->id ?? 'unknown',
+                'employee_nik' => $nik,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -1086,35 +1146,40 @@ class EmployeeController extends Controller
 
     /**
      * Remove the specified employee (soft delete)
+     * UPDATED: Parameter menggunakan NIK
      */
-    public function destroy(Employee $employee)
+    public function destroy(string $nik)
     {
         try {
+            // UPDATED: Find by NIK instead of auto-increment ID
+            $employee = Employee::where('nik', $nik)->firstOrFail();
+            
             $employeeName = $employee->nama_lengkap;
             $employeeNip = $employee->nip;
+            $employeeNik = $employee->nik;
             
             // Soft delete by setting status to inactive
             $employee->update(['status' => 'inactive']);
 
             Log::info('Employee Deleted Successfully', [
-                'employee_id' => $employee->id,
-                'nip' => $employeeNip,
+                'employee_nik' => $employeeNik, // UPDATED: Use NIK as primary identifier
+                'employee_nip' => $employeeNip,
                 'nama_lengkap' => $employeeName
             ]);
 
             return redirect()->route('employees.index')
                 ->with([
                     'success' => "Karyawan {$employeeName} berhasil dihapus!",
-                    'message' => "Karyawan {$employeeName} (NIP: {$employeeNip}) berhasil dihapus dari sistem.",
+                    'message' => "Karyawan {$employeeName} (NIK: {$employeeNik}) berhasil dihapus dari sistem.",
                     'notification' => [
                         'type' => 'warning',
                         'title' => 'Karyawan Dihapus',
-                        'message' => "Karyawan {$employeeName} (NIP: {$employeeNip}) berhasil dihapus dari sistem."
+                        'message' => "Karyawan {$employeeName} (NIK: {$employeeNik}) berhasil dihapus dari sistem."
                     ]
                 ]);
         } catch (\Exception $e) {
             Log::error('Employee Delete Error', [
-                'employee_id' => $employee->id,
+                'employee_nik' => $nik,
                 'error' => $e->getMessage()
             ]);
 
@@ -1166,6 +1231,7 @@ class EmployeeController extends Controller
 
     // =====================================================
     // SAFE PRIVATE HELPER METHODS - FIXED NULL HANDLING
+    // (All helper methods remain the same)
     // =====================================================
 
     /**
@@ -1203,7 +1269,8 @@ class EmployeeController extends Controller
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
-                        $q->where('nip', 'like', "%{$searchTerm}%")
+                        $q->where('nik', 'like', "%{$searchTerm}%") // UPDATED: Search NIK instead of id
+                          ->orWhere('nip', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                           ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
@@ -1490,7 +1557,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Build success notification - SAFE VERSION
+     * Build success notification - SAFE VERSION - UPDATED: Reference NIK
      */
     private function buildSuccessNotification($employee)
     {
@@ -1498,12 +1565,12 @@ class EmployeeController extends Controller
             return [
                 'success' => 'Karyawan berhasil ditambahkan!',
                 'newEmployee' => $employee,
-                'message' => "Karyawan {$employee->nama_lengkap} telah berhasil ditambahkan ke sistem.",
+                'message' => "Karyawan {$employee->nama_lengkap} dengan NIK {$employee->nik} telah berhasil ditambahkan ke sistem.",
                 'notification' => [
                     'type' => 'success',
                     'title' => 'Karyawan Baru!',
-                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan.",
-                    'employee_id' => $employee->id,
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan dengan NIK {$employee->nik}.",
+                    'employee_nik' => $employee->nik, // UPDATED: Use NIK instead of ID
                     'duration' => 5000,
                 ],
                 'alerts' => [

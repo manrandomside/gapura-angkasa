@@ -11,9 +11,28 @@ class Employee extends Model
 {
     use HasFactory;
 
+    /**
+     * UPDATED: NIK sebagai primary key (bukan auto-increment)
+     * GAPURA ANGKASA SDM System - Employee Model
+     */
+    
+    protected $table = 'employees';
+    
+    // NIK sebagai primary key (string, bukan auto-increment)
+    protected $primaryKey = 'nik';
+    
+    // Primary key bukan auto-increment
+    public $incrementing = false;
+    
+    // Primary key bertipe string
+    protected $keyType = 'string';
+
+    /**
+     * UPDATED: Fillable attributes - REMOVED no_telepon, ensured NIK is included
+     */
     protected $fillable = [
+        'nik', // Primary key - WAJIB ada di fillable untuk create
         'nip',
-        'nik',
         'nama_lengkap',
         'lokasi_kerja',
         'cabang',
@@ -50,7 +69,7 @@ class Employee extends Model
         'remarks_pendidikan',
         'tahun_lulus',
         'handphone',
-        'no_telepon',
+        // REMOVED: 'no_telepon' - Field dihapus sesuai permintaan
         'email',
         'kategori_karyawan',
         'tmt_pensiun',
@@ -79,9 +98,20 @@ class Employee extends Model
     ];
 
     /**
+     * Get the route key for the model.
+     * UPDATED: Menggunakan NIK sebagai route key
+     */
+    public function getRouteKeyName()
+    {
+        return 'nik';
+    }
+
+    /**
      * Database indexing recommendations for optimal pagination performance
+     * UPDATED: Include NIK indexing
      * Run these SQL commands for better performance with large datasets:
      * 
+     * ALTER TABLE employees ADD INDEX idx_nik (nik);
      * ALTER TABLE employees ADD INDEX idx_status (status);
      * ALTER TABLE employees ADD INDEX idx_nama_lengkap (nama_lengkap);
      * ALTER TABLE employees ADD INDEX idx_nip (nip);
@@ -91,7 +121,7 @@ class Employee extends Model
      * ALTER TABLE employees ADD INDEX idx_jenis_sepatu (jenis_sepatu);
      * ALTER TABLE employees ADD INDEX idx_ukuran_sepatu (ukuran_sepatu);
      * ALTER TABLE employees ADD INDEX idx_kelompok_jabatan (kelompok_jabatan);
-     * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, unit_organisasi);
+     * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, nik, unit_organisasi);
      * ALTER TABLE employees ADD INDEX idx_unit_id (unit_id);
      * ALTER TABLE employees ADD INDEX idx_sub_unit_id (sub_unit_id);
      */
@@ -223,7 +253,7 @@ class Employee extends Model
 
     /**
      * Enhanced Global Search Scope - Optimized untuk pagination
-     * Mencari di semua field penting dan mendukung pencarian global
+     * UPDATED: Include NIK search, REMOVED no_telepon search
      */
     public function scopeGlobalSearch(Builder $query, $term)
     {
@@ -236,7 +266,7 @@ class Employee extends Model
         return $query->where(function ($q) use ($searchTerm) {
             $q->where('nama_lengkap', 'like', $searchTerm)
               ->orWhere('nip', 'like', $searchTerm)
-              ->orWhere('nik', 'like', $searchTerm)
+              ->orWhere('nik', 'like', $searchTerm) // Search NIK
               ->orWhere('jabatan', 'like', $searchTerm)
               ->orWhere('nama_jabatan', 'like', $searchTerm)
               ->orWhere('unit_organisasi', 'like', $searchTerm)
@@ -472,6 +502,16 @@ class Employee extends Model
     }
 
     /**
+     * Mutator untuk NIK format validation - TAMBAHAN BARU
+     */
+    public function setNikAttribute($value)
+    {
+        // Clean NIK: hapus karakter non-digit dan pastikan 16 digit
+        $cleanNik = preg_replace('/[^0-9]/', '', $value);
+        $this->attributes['nik'] = $cleanNik;
+    }
+
+    /**
      * Get unit organisasi display name dengan unit dan sub unit - TAMBAHAN BARU
      */
     public function getUnitDisplayAttribute()
@@ -609,11 +649,12 @@ class Employee extends Model
 
     /**
      * Accessor untuk format handphone yang lebih readable
+     * UPDATED: Fallback removed no_telepon reference
      */
     public function getHandphoneFormattedAttribute()
     {
         if (empty($this->handphone)) {
-            return $this->no_telepon ?: '-';
+            return '-'; // UPDATED: Removed no_telepon fallback
         }
 
         $phone = $this->handphone;
@@ -652,7 +693,9 @@ class Employee extends Model
      */
     public function setNipAttribute($value)
     {
-        $this->attributes['nip'] = trim($value);
+        // Clean NIP: hapus karakter non-digit
+        $cleanNip = preg_replace('/[^0-9]/', '', trim($value));
+        $this->attributes['nip'] = $cleanNip;
     }
 
     /**
@@ -959,6 +1002,7 @@ class Employee extends Model
 
     /**
      * Search suggestions untuk autocomplete
+     * UPDATED: Include NIK in search results, use NIK as identifier
      */
     public static function getSearchSuggestions($term, $limit = 10)
     {
@@ -973,40 +1017,71 @@ class Employee extends Model
                    ->where(function ($q) use ($searchTerm) {
                        $q->where('nama_lengkap', 'like', $searchTerm)
                          ->orWhere('nip', 'like', $searchTerm)
+                         ->orWhere('nik', 'like', $searchTerm) // UPDATED: Include NIK
                          ->orWhere('unit_organisasi', 'like', $searchTerm)
                          ->orWhere('nama_jabatan', 'like', $searchTerm);
                    })
                    ->limit($limit)
-                   ->get(['id', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'unit_id', 'sub_unit_id'])
+                   ->get(['nik', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'unit_id', 'sub_unit_id'])
                    ->map(function ($employee) {
                        return [
-                           'id' => $employee->id,
-                           'text' => $employee->nama_lengkap . ' (' . $employee->nip . ')',
+                           'nik' => $employee->nik, // UPDATED: Use NIK as identifier
+                           'text' => $employee->nama_lengkap . ' (NIK: ' . $employee->nik . ', NIP: ' . $employee->nip . ')',
                            'subtitle' => $employee->unit_display . ' - ' . $employee->nama_jabatan,
                        ];
                    });
     }
 
     /**
-     * Validasi NIP unik - optimized
+     * Helper method untuk mendapatkan employee berdasarkan NIK - TAMBAHAN BARU
      */
-    public static function isNipUnique($nip, $excludeId = null)
+    public static function findByNik($nik)
     {
-        $query = self::where('nip', $nip);
+        return static::where('nik', $nik)->first();
+    }
+
+    /**
+     * Helper method untuk mendapatkan employee berdasarkan NIP
+     */
+    public static function findByNip($nip)
+    {
+        return static::where('nip', $nip)->first();
+    }
+
+    /**
+     * Validasi NIK unik - UPDATED untuk NIK-based system
+     */
+    public static function isNikUnique($nik, $excludeNik = null)
+    {
+        $query = self::where('nik', $nik);
         
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
+        if ($excludeNik) {
+            $query->where('nik', '!=', $excludeNik);
         }
         
         return $query->doesntExist();
     }
 
     /**
-     * Bulk update status
+     * Validasi NIP unik - UPDATED untuk NIK-based system
      */
-    public static function bulkUpdateStatus(array $ids, $status)
+    public static function isNipUnique($nip, $excludeNik = null)
     {
-        return self::whereIn('id', $ids)->update(['status' => $status]);
+        $query = self::where('nip', $nip);
+        
+        if ($excludeNik) {
+            $query->where('nik', '!=', $excludeNik); // UPDATED: exclude berdasarkan NIK
+        }
+        
+        return $query->doesntExist();
+    }
+
+    /**
+     * Bulk update status - UPDATED menggunakan NIK array
+     */
+    public static function bulkUpdateStatus(array $niks, $status)
+    {
+        return self::whereIn('nik', $niks)->update(['status' => $status]);
     }
 
     /**
@@ -1027,12 +1102,29 @@ class Employee extends Model
     // =====================================================
 
     /**
+     * Method untuk validasi NIK format Indonesia - TAMBAHAN BARU
+     */
+    public function validateNikFormat()
+    {
+        if (strlen($this->nik) !== 16) {
+            return false;
+        }
+
+        if (!ctype_digit($this->nik)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Calculate profile completion percentage
+     * UPDATED: Removed no_telepon from calculation
      */
     public function getProfileCompletionPercentage()
     {
         $fields = [
-            'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
+            'nik', 'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 
             'tanggal_lahir', 'alamat', 'handphone', 'email',
             'unit_organisasi', 'nama_jabatan', 'status_pegawai', 'kelompok_jabatan',
             'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 
@@ -1085,11 +1177,12 @@ class Employee extends Model
 
     /**
      * Generate ID card data
-     * UPDATED: Include unit structure - TAMBAHAN BARU
+     * UPDATED: Include NIK dan unit structure - TAMBAHAN BARU
      */
     public function getIdCardData()
     {
         return [
+            'nik' => $this->nik, // UPDATED: Include NIK
             'nip' => $this->nip,
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
@@ -1099,5 +1192,74 @@ class Employee extends Model
             'initials' => $this->initials,
             'foto_url' => null, // Placeholder for future photo implementation
         ];
+    }
+
+    /**
+     * Method untuk mendapatkan informasi ringkas employee - UPDATED
+     */
+    public function getSummaryAttribute()
+    {
+        return [
+            'nik' => $this->nik, // UPDATED: NIK sebagai primary identifier
+            'nip' => $this->nip,
+            'nama' => $this->nama_lengkap,
+            'unit' => $this->unit_organisasi,
+            'jabatan' => $this->nama_jabatan,
+            'status' => $this->status_pegawai,
+        ];
+    }
+
+    // =====================================================
+    // BOOT METHOD - AUTO CALCULATIONS
+    // =====================================================
+
+    /**
+     * Boot method untuk menambahkan event listeners
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Event ketika membuat employee baru
+        static::creating(function ($employee) {
+            // Set default values jika tidak ada
+            if (empty($employee->status)) {
+                $employee->status = 'active';
+            }
+            
+            if (empty($employee->status_kerja)) {
+                $employee->status_kerja = 'Aktif';
+            }
+
+            // Hitung usia otomatis jika ada tanggal lahir
+            if ($employee->tanggal_lahir && empty($employee->usia)) {
+                $birthDate = new \DateTime($employee->tanggal_lahir);
+                $today = new \DateTime();
+                $employee->usia = $today->diff($birthDate)->y;
+            }
+
+            // Hitung TMT Pensiun otomatis (56 tahun)
+            if ($employee->tanggal_lahir && empty($employee->tmt_pensiun)) {
+                $birthDate = new \DateTime($employee->tanggal_lahir);
+                $pensionDate = clone $birthDate;
+                $pensionDate->add(new \DateInterval('P56Y'));
+                $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
+            }
+        });
+
+        // Event ketika mengupdate employee
+        static::updating(function ($employee) {
+            // Update usia jika tanggal lahir berubah
+            if ($employee->isDirty('tanggal_lahir') && $employee->tanggal_lahir) {
+                $birthDate = new \DateTime($employee->tanggal_lahir);
+                $today = new \DateTime();
+                $employee->usia = $today->diff($birthDate)->y;
+
+                // Update TMT Pensiun juga
+                $pensionDate = clone $birthDate;
+                $pensionDate->add(new \DateInterval('P56Y'));
+                $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
+            }
+        });
     }
 }
