@@ -14,6 +14,7 @@ class Employee extends Model
     /**
      * UPDATED: NIK sebagai primary key (bukan auto-increment)
      * GAPURA ANGKASA SDM System - Employee Model
+     * FIXED: no_telepon compatibility untuk SDMEmployeeSeeder
      */
     
     protected $table = 'employees';
@@ -28,7 +29,8 @@ class Employee extends Model
     protected $keyType = 'string';
 
     /**
-     * UPDATED: Fillable attributes - REMOVED no_telepon, ensured NIK is included
+     * FIXED: Fillable attributes - Include no_telepon untuk seeder compatibility
+     * no_telepon dimasukkan ke fillable agar seeder tidak error, tapi disembunyikan via hidden
      */
     protected $fillable = [
         'nik', // Primary key - WAJIB ada di fillable untuk create
@@ -69,7 +71,7 @@ class Employee extends Model
         'remarks_pendidikan',
         'tahun_lulus',
         'handphone',
-        // REMOVED: 'no_telepon' - Field dihapus sesuai permintaan dan diabaikan completely
+        'no_telepon', // FIXED: Include untuk seeder compatibility
         'email',
         'kategori_karyawan',
         'tmt_pensiun',
@@ -82,6 +84,14 @@ class Employee extends Model
         'height',
         'organization_id',
         'status'
+    ];
+
+    /**
+     * FIXED: Hidden attributes - Sembunyikan no_telepon dari JSON output
+     * Field tetap ada di database untuk seeder, tapi tidak muncul di API/form
+     */
+    protected $hidden = [
+        'no_telepon'
     ];
 
     protected $casts = [
@@ -97,78 +107,17 @@ class Employee extends Model
         'height' => 'integer',
     ];
 
-    // =====================================================
-    // SEEDER COMPATIBILITY METHODS - ENHANCED
-    // Menangani field no_telepon dengan benar-benar mengabaikannya
-    // TIDAK ADA copy/fallback ke field lain
-    // =====================================================
-
     /**
-     * IMPROVED: Override create method untuk filter out no_telepon field
-     * no_telepon akan benar-benar diabaikan tanpa ada proses copy
+     * FIXED: Override toArray untuk memastikan no_telepon tidak muncul
      */
-    public static function create(array $attributes = [])
+    public function toArray()
     {
-        // Remove no_telepon field jika ada dalam data
-        $originalCount = count($attributes);
-        $attributes = self::filterNoTeleponField($attributes);
+        $array = parent::toArray();
         
-        // Log jika ada perubahan (hanya untuk debugging)
-        if (app()->environment('local', 'development') && count($attributes) != $originalCount) {
-            \Log::info('Employee::create - no_telepon field ignored completely for seeder compatibility');
-        }
+        // Pastikan no_telepon tidak pernah muncul dalam output
+        unset($array['no_telepon']);
         
-        return static::query()->create($attributes);
-    }
-
-    /**
-     * IMPROVED: Override fill method untuk filter out no_telepon field
-     */
-    public function fill(array $attributes)
-    {
-        // Remove no_telepon field jika ada dalam data
-        $attributes = self::filterNoTeleponField($attributes);
-        
-        return parent::fill($attributes);
-    }
-
-    /**
-     * IMPROVED: Override update method untuk filter out no_telepon field
-     */
-    public function update(array $attributes = [], array $options = [])
-    {
-        // Remove no_telepon field jika ada dalam data
-        $attributes = self::filterNoTeleponField($attributes);
-        
-        return parent::update($attributes, $options);
-    }
-
-    /**
-     * IMPROVED: Helper method untuk filter no_telepon field dari array attributes
-     * SESUAI PERMINTAAN: no_telepon benar-benar diabaikan tanpa copy ke handphone
-     */
-    private static function filterNoTeleponField(array $attributes)
-    {
-        // Hapus no_telepon field jika ada - TIDAK ADA COPY ke handphone
-        if (isset($attributes['no_telepon'])) {
-            unset($attributes['no_telepon']);
-        }
-        
-        return $attributes;
-    }
-
-    /**
-     * NEW: Method untuk handle bulk insert dengan proper no_telepon filtering
-     * Ini untuk mengatasi issue jika seeder menggunakan bulk insert
-     */
-    public static function insert(array $values)
-    {
-        // Filter setiap record
-        $filteredValues = array_map(function($record) {
-            return self::filterNoTeleponField($record);
-        }, $values);
-        
-        return static::query()->insert($filteredValues);
+        return $array;
     }
 
     /**
@@ -740,7 +689,7 @@ class Employee extends Model
 
     /**
      * Accessor untuk format handphone yang lebih readable
-     * UPDATED: Tidak ada fallback ke no_telepon karena field sudah dihapus
+     * UPDATED: Tidak ada fallback ke no_telepon karena field disembunyikan
      */
     public function getHandphoneFormattedAttribute()
     {
@@ -1210,7 +1159,7 @@ class Employee extends Model
 
     /**
      * Calculate profile completion percentage
-     * UPDATED: Removed no_telepon from calculation
+     * UPDATED: Tidak include no_telepon dalam perhitungan
      */
     public function getProfileCompletionPercentage()
     {
