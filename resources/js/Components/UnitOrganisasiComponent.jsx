@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Building2, ChevronDown, Loader2 } from "lucide-react";
+import {
+    Building2,
+    ChevronDown,
+    Loader2,
+    AlertCircle,
+    CheckCircle,
+} from "lucide-react";
 
 const UnitOrganisasiComponent = ({
     data,
@@ -14,6 +20,10 @@ const UnitOrganisasiComponent = ({
         unitOrganisasi: false,
         unit: false,
         subUnit: false,
+    });
+    const [apiErrors, setApiErrors] = useState({
+        unit: null,
+        subUnit: null,
     });
 
     // Unit Organisasi options (static dari backend)
@@ -30,47 +40,43 @@ const UnitOrganisasiComponent = ({
     // Initialize unit organisasi options
     useEffect(() => {
         setUnitOrganisasiOptions(staticUnitOrganisasi);
-        console.log(
-            "UnitOrganisasi Component initialized with options:",
-            staticUnitOrganisasi
-        );
     }, []);
 
     // Load units ketika unit organisasi dipilih
     useEffect(() => {
         if (data.unit_organisasi) {
-            console.log("Unit organisasi changed to:", data.unit_organisasi);
             loadUnits(data.unit_organisasi);
         } else {
-            console.log(
-                "Unit organisasi cleared, resetting dependent dropdowns"
-            );
-            setUnitOptions([]);
-            setSubUnitOptions([]);
-            if (typeof setData === "function") {
-                setData("unit_id", "");
-                setData("sub_unit_id", "");
-            }
+            resetDependentFields();
         }
     }, [data.unit_organisasi]);
 
     // Load sub units ketika unit dipilih
     useEffect(() => {
         if (data.unit_id) {
-            console.log("Unit changed to:", data.unit_id);
             loadSubUnits(data.unit_id);
         } else {
-            console.log("Unit cleared, resetting sub units");
             setSubUnitOptions([]);
+            setApiErrors((prev) => ({ ...prev, subUnit: null }));
             if (typeof setData === "function") {
                 setData("sub_unit_id", "");
             }
         }
     }, [data.unit_id]);
 
+    const resetDependentFields = () => {
+        setUnitOptions([]);
+        setSubUnitOptions([]);
+        setApiErrors({ unit: null, subUnit: null });
+        if (typeof setData === "function") {
+            setData("unit_id", "");
+            setData("sub_unit_id", "");
+        }
+    };
+
     const loadUnits = async (unitOrganisasi) => {
         setLoading((prev) => ({ ...prev, unit: true }));
-        console.log("Loading units for unit organisasi:", unitOrganisasi);
+        setApiErrors((prev) => ({ ...prev, unit: null }));
 
         try {
             const response = await fetch(
@@ -87,30 +93,47 @@ const UnitOrganisasiComponent = ({
                 }
             );
 
-            console.log("Units API response status:", response.status);
-
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(
+                    `HTTP ${response.status}: ${response.statusText}`
+                );
             }
 
             const result = await response.json();
-            console.log("Units API response data:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setUnitOptions(result.data);
-                console.log(
-                    `Units loaded successfully: ${result.data.length} units found`
-                );
+
+                if (result.data.length === 0) {
+                    setApiErrors((prev) => ({
+                        ...prev,
+                        unit: `Tidak ada unit ditemukan untuk ${unitOrganisasi}. Pastikan UnitSeeder sudah dijalankan.`,
+                    }));
+                }
             } else {
                 setUnitOptions([]);
-                console.warn(
-                    "Failed to load units or invalid response format:",
-                    result.message || "Unknown error"
-                );
+                const errorMessage =
+                    result.message || "Invalid response format from server";
+                setApiErrors((prev) => ({ ...prev, unit: errorMessage }));
             }
         } catch (error) {
-            console.error("Error loading units:", error);
             setUnitOptions([]);
+
+            let errorMessage = "Error loading units";
+            if (error.message.includes("fetch")) {
+                errorMessage =
+                    "Koneksi ke server gagal. Pastikan server Laravel berjalan.";
+            } else if (error.message.includes("404")) {
+                errorMessage =
+                    "API endpoint tidak ditemukan. Pastikan routes sudah dikonfigurasi.";
+            } else if (error.message.includes("500")) {
+                errorMessage =
+                    "Server error. Pastikan UnitSeeder sudah dijalankan dan database tersambung.";
+            } else {
+                errorMessage = `Error: ${error.message}`;
+            }
+
+            setApiErrors((prev) => ({ ...prev, unit: errorMessage }));
         } finally {
             setLoading((prev) => ({ ...prev, unit: false }));
         }
@@ -118,7 +141,7 @@ const UnitOrganisasiComponent = ({
 
     const loadSubUnits = async (unitId) => {
         setLoading((prev) => ({ ...prev, subUnit: true }));
-        console.log("Loading sub units for unit ID:", unitId);
+        setApiErrors((prev) => ({ ...prev, subUnit: null }));
 
         try {
             const response = await fetch(
@@ -133,72 +156,66 @@ const UnitOrganisasiComponent = ({
                 }
             );
 
-            console.log("Sub units API response status:", response.status);
-
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(
+                    `HTTP ${response.status}: ${response.statusText}`
+                );
             }
 
             const result = await response.json();
-            console.log("Sub units API response data:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setSubUnitOptions(result.data);
-                console.log(
-                    `Sub units loaded successfully: ${result.data.length} sub units found`
-                );
             } else {
                 setSubUnitOptions([]);
-                console.log(
-                    "No sub units found or failed to load:",
-                    result.message || "No data available"
-                );
+                const errorMessage =
+                    result.message || "Invalid response format from server";
+                setApiErrors((prev) => ({ ...prev, subUnit: errorMessage }));
             }
         } catch (error) {
-            console.error("Error loading sub units:", error);
             setSubUnitOptions([]);
+
+            let errorMessage = "Error loading sub units";
+            if (error.message.includes("fetch")) {
+                errorMessage = "Koneksi ke server gagal.";
+            } else if (error.message.includes("404")) {
+                errorMessage =
+                    "Unit tidak ditemukan atau sub unit API tidak tersedia.";
+            } else if (error.message.includes("500")) {
+                errorMessage = "Server error saat memuat sub units.";
+            } else {
+                errorMessage = `Error: ${error.message}`;
+            }
+
+            setApiErrors((prev) => ({ ...prev, subUnit: errorMessage }));
         } finally {
             setLoading((prev) => ({ ...prev, subUnit: false }));
         }
     };
 
     const handleUnitOrganisasiChange = (value) => {
-        console.log("Unit organisasi selection changed to:", value);
-
         if (typeof setData === "function") {
             setData("unit_organisasi", value);
             setData("unit_id", "");
             setData("sub_unit_id", "");
-        } else {
-            console.error("setData is not a function:", typeof setData);
         }
 
-        // Reset dependent fields and options
-        setUnitOptions([]);
-        setSubUnitOptions([]);
+        resetDependentFields();
     };
 
     const handleUnitChange = (value) => {
-        console.log("Unit selection changed to:", value);
-
         if (typeof setData === "function") {
             setData("unit_id", value);
             setData("sub_unit_id", "");
-        } else {
-            console.error("setData is not a function:", typeof setData);
         }
 
-        // Reset dependent field and options
         setSubUnitOptions([]);
+        setApiErrors((prev) => ({ ...prev, subUnit: null }));
     };
 
     const handleSubUnitChange = (value) => {
-        console.log("Sub unit selection changed to:", value);
-
         if (typeof setData === "function") {
             setData("sub_unit_id", value);
-        } else {
-            console.error("setData is not a function:", typeof setData);
         }
     };
 
@@ -210,19 +227,12 @@ const UnitOrganisasiComponent = ({
         onChange,
         loading = false,
         error,
+        apiError,
         placeholder,
         disabled = false,
+        required = true,
     }) => {
         const [focused, setFocused] = useState(false);
-
-        // Debug logging for dropdown
-        useEffect(() => {
-            console.log(
-                `Dropdown ${name} - Options count: ${
-                    options?.length || 0
-                }, Value: ${value}, Disabled: ${disabled}, Loading: ${loading}`
-            );
-        }, [options, value, disabled, loading, name]);
 
         return (
             <div className="space-y-2">
@@ -244,23 +254,13 @@ const UnitOrganisasiComponent = ({
                         value={value || ""}
                         onChange={(e) => {
                             const selectedValue = e.target.value;
-                            console.log(
-                                `Dropdown ${name} changed to:`,
-                                selectedValue
-                            );
                             onChange(selectedValue);
                         }}
-                        onFocus={() => {
-                            console.log(`Dropdown ${name} focused`);
-                            setFocused(true);
-                        }}
-                        onBlur={() => {
-                            console.log(`Dropdown ${name} blurred`);
-                            setFocused(false);
-                        }}
+                        onFocus={() => setFocused(true)}
+                        onBlur={() => setFocused(false)}
                         disabled={disabled || loading}
                         className={`w-full px-4 py-3 pr-10 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 disabled:opacity-50 disabled:cursor-not-allowed appearance-none ${
-                            error
+                            error || apiError
                                 ? "border-red-300 bg-red-50"
                                 : focused
                                 ? "border-[#439454] bg-white shadow-lg"
@@ -276,7 +276,7 @@ const UnitOrganisasiComponent = ({
                                         : option;
                                 const optionLabel =
                                     typeof option === "object"
-                                        ? option.name
+                                        ? option.name || option.label
                                         : option;
 
                                 return (
@@ -294,18 +294,35 @@ const UnitOrganisasiComponent = ({
                         {loading ? (
                             <Loader2 className="w-5 h-5 text-[#439454] animate-spin" />
                         ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                            <ChevronDown
+                                className={`w-5 h-5 transition-all duration-300 ${
+                                    disabled
+                                        ? "text-gray-300"
+                                        : focused
+                                        ? "text-[#439454] scale-110"
+                                        : "text-gray-400"
+                                }`}
+                            />
                         )}
                     </div>
                 </div>
 
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                {/* Debug info - remove in production */}
-                {process.env.NODE_ENV === "development" && (
-                    <div className="text-xs text-gray-400">
-                        Debug: {options?.length || 0} options, Value:{" "}
-                        {value || "empty"}, Loading: {loading.toString()}
+                {(error || apiError) && (
+                    <div className="flex items-start gap-2 p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">
+                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <div className="font-medium">
+                                {error || apiError}
+                            </div>
+                            {apiError && apiError.includes("UnitSeeder") && (
+                                <div className="mt-1 text-xs text-red-600">
+                                    Solusi: Jalankan{" "}
+                                    <code className="px-1 bg-red-100 rounded">
+                                        php artisan db:seed --class=UnitSeeder
+                                    </code>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -315,7 +332,7 @@ const UnitOrganisasiComponent = ({
     return (
         <div className="space-y-6">
             <div className="p-6 bg-gradient-to-r from-[#439454]/5 to-[#367a41]/5 rounded-xl border border-[#439454]/20">
-                <h3 className="flex items-center gap-2 mb-4 text-lg font-bold text-gray-900">
+                <h3 className="flex items-center gap-2 mb-6 text-lg font-bold text-gray-900">
                     <Building2 className="w-5 h-5 text-[#439454]" />
                     Struktur Organisasi
                 </h3>
@@ -331,6 +348,7 @@ const UnitOrganisasiComponent = ({
                         error={errors.unit_organisasi}
                         placeholder="Pilih Unit Organisasi"
                         loading={loading.unitOrganisasi}
+                        required={true}
                     />
 
                     {/* Unit Dropdown - hanya muncul jika unit organisasi dipilih */}
@@ -342,9 +360,11 @@ const UnitOrganisasiComponent = ({
                             options={unitOptions}
                             onChange={handleUnitChange}
                             error={errors.unit_id}
+                            apiError={apiErrors.unit}
                             placeholder="Pilih Unit"
                             loading={loading.unit}
                             disabled={unitOptions.length === 0 && !loading.unit}
+                            required={true}
                         />
                     )}
 
@@ -357,31 +377,34 @@ const UnitOrganisasiComponent = ({
                             options={subUnitOptions}
                             onChange={handleSubUnitChange}
                             error={errors.sub_unit_id}
+                            apiError={apiErrors.subUnit}
                             placeholder="Pilih Sub Unit"
                             loading={loading.subUnit}
                             disabled={
                                 subUnitOptions.length === 0 && !loading.subUnit
                             }
+                            required={true}
                         />
                     )}
                 </div>
 
                 {/* Preview organisasi structure */}
                 {(data.unit_organisasi || data.unit_id || data.sub_unit_id) && (
-                    <div className="p-4 mt-4 bg-white border border-gray-200 rounded-lg">
-                        <h4 className="mb-2 text-sm font-semibold text-gray-600">
-                            Preview Struktur:
+                    <div className="p-4 mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-700">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            Preview Struktur Organisasi:
                         </h4>
-                        <div className="flex items-center gap-2 text-sm text-gray-800">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-800">
                             {data.unit_organisasi && (
-                                <span className="px-2 py-1 bg-[#439454] text-white rounded">
+                                <span className="px-3 py-1 bg-[#439454] text-white rounded-full font-medium">
                                     {data.unit_organisasi}
                                 </span>
                             )}
                             {data.unit_id && unitOptions.length > 0 && (
                                 <>
                                     <span className="text-gray-400">→</span>
-                                    <span className="px-2 py-1 text-blue-800 bg-blue-100 rounded">
+                                    <span className="px-3 py-1 font-medium text-blue-800 bg-blue-100 rounded-full">
                                         {unitOptions.find(
                                             (u) => u.id == data.unit_id
                                         )?.name || `Unit ID: ${data.unit_id}`}
@@ -391,7 +414,7 @@ const UnitOrganisasiComponent = ({
                             {data.sub_unit_id && subUnitOptions.length > 0 && (
                                 <>
                                     <span className="text-gray-400">→</span>
-                                    <span className="px-2 py-1 text-green-800 bg-green-100 rounded">
+                                    <span className="px-3 py-1 font-medium text-green-800 bg-green-100 rounded-full">
                                         {subUnitOptions.find(
                                             (su) => su.id == data.sub_unit_id
                                         )?.name ||
@@ -399,38 +422,6 @@ const UnitOrganisasiComponent = ({
                                     </span>
                                 </>
                             )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Debug Panel - hanya muncul dalam development */}
-                {process.env.NODE_ENV === "development" && (
-                    <div className="p-4 mt-4 bg-gray-100 border border-gray-200 rounded-lg">
-                        <h4 className="mb-2 text-sm font-semibold text-gray-600">
-                            Debug Info:
-                        </h4>
-                        <div className="space-y-1 text-xs text-gray-700">
-                            <div>
-                                Unit Organisasi:{" "}
-                                {data.unit_organisasi || "Not selected"}
-                            </div>
-                            <div>Unit ID: {data.unit_id || "Not selected"}</div>
-                            <div>
-                                Sub Unit ID:{" "}
-                                {data.sub_unit_id || "Not selected"}
-                            </div>
-                            <div>
-                                Unit Options: {unitOptions.length} available
-                            </div>
-                            <div>
-                                Sub Unit Options: {subUnitOptions.length}{" "}
-                                available
-                            </div>
-                            <div>
-                                Loading States: Unit={loading.unit.toString()},
-                                SubUnit={loading.subUnit.toString()}
-                            </div>
-                            <div>setData Type: {typeof setData}</div>
                         </div>
                     </div>
                 )}

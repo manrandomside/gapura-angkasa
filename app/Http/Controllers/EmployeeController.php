@@ -43,7 +43,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * Get units berdasarkan unit organisasi - FIXED with enhanced debugging
+     * Get units berdasarkan unit organisasi - FIXED with better debugging
      */
     public function getUnits(Request $request)
     {
@@ -53,52 +53,44 @@ class EmployeeController extends Controller
             Log::info('Get Units API called', [
                 'unit_organisasi' => $unitOrganisasi,
                 'request_method' => $request->method(),
-                'request_headers' => $request->headers->all(),
-                'ip_address' => $request->ip()
+                'all_params' => $request->all()
             ]);
             
             if (!$unitOrganisasi) {
-                Log::warning('Get Units API - Missing unit_organisasi parameter');
                 return response()->json([
                     'success' => false,
                     'message' => 'Unit organisasi required',
-                    'data' => []
+                    'data' => [],
+                    'debug_info' => [
+                        'available_unit_organisasi' => Unit::UNIT_ORGANISASI_OPTIONS ?? []
+                    ]
                 ], 400);
             }
 
-            // Check if Unit model exists and has data
-            if (!class_exists(Unit::class)) {
-                Log::error('Unit model does not exist');
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unit model not found',
-                    'data' => []
-                ], 500);
-            }
+            // Check if data exists in database
+            $totalUnits = Unit::count();
+            Log::info('Database check', [
+                'total_units_in_db' => $totalUnits,
+                'unit_organisasi_requested' => $unitOrganisasi
+            ]);
 
-            // Check database connection
-            try {
-                DB::connection()->getPdo();
-                Log::info('Database connection successful for getUnits');
-            } catch (\Exception $dbError) {
-                Log::error('Database connection failed in getUnits', [
-                    'error' => $dbError->getMessage()
-                ]);
+            if ($totalUnits === 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Database connection error',
-                    'data' => []
-                ], 500);
+                    'message' => 'No units found in database. Please run UnitSeeder first.',
+                    'data' => [],
+                    'debug_info' => [
+                        'suggestion' => 'Run: php artisan db:seed --class=UnitSeeder',
+                        'total_units_in_db' => 0
+                    ]
+                ], 404);
             }
 
             // Query units with detailed logging
-            $query = Unit::active()->byUnitOrganisasi($unitOrganisasi);
-            Log::info('Unit query SQL', [
-                'sql' => $query->toSql(),
-                'bindings' => $query->getBindings()
-            ]);
-
-            $units = $query->orderBy('name')->get(['id', 'name', 'code', 'description']);
+            $units = Unit::active()
+                ->byUnitOrganisasi($unitOrganisasi)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'description', 'unit_organisasi']);
             
             Log::info('Units query result', [
                 'unit_organisasi' => $unitOrganisasi,
@@ -113,11 +105,10 @@ class EmployeeController extends Controller
                 'debug_info' => [
                     'unit_organisasi' => $unitOrganisasi,
                     'query_count' => $units->count(),
-                    'available_unit_organisasi' => Unit::UNIT_ORGANISASI_OPTIONS ?? []
+                    'total_units_in_db' => $totalUnits
                 ]
             ];
 
-            Log::info('Get Units API response', $response);
             return response()->json($response);
 
         } catch (\Exception $e) {
@@ -125,7 +116,6 @@ class EmployeeController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
                 'unit_organisasi' => $request->get('unit_organisasi')
             ]);
 
@@ -135,15 +125,14 @@ class EmployeeController extends Controller
                 'data' => [],
                 'debug_info' => [
                     'error_type' => get_class($e),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine()
+                    'suggestion' => 'Check if UnitSeeder has been run and database connection is working'
                 ]
             ], 500);
         }
     }
 
     /**
-     * Get sub units berdasarkan unit - FIXED with enhanced debugging
+     * Get sub units berdasarkan unit - FIXED with better debugging
      */
     public function getSubUnits(Request $request)
     {
@@ -153,12 +142,10 @@ class EmployeeController extends Controller
             Log::info('Get Sub Units API called', [
                 'unit_id' => $unitId,
                 'request_method' => $request->method(),
-                'request_headers' => $request->headers->all(),
-                'ip_address' => $request->ip()
+                'all_params' => $request->all()
             ]);
             
             if (!$unitId) {
-                Log::warning('Get Sub Units API - Missing unit_id parameter');
                 return response()->json([
                     'success' => false,
                     'message' => 'Unit ID required',
@@ -168,47 +155,37 @@ class EmployeeController extends Controller
 
             // Validate unit_id is numeric
             if (!is_numeric($unitId)) {
-                Log::warning('Get Sub Units API - Invalid unit_id format', [
-                    'unit_id' => $unitId,
-                    'type' => gettype($unitId)
-                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Unit ID must be numeric',
-                    'data' => []
+                    'data' => [],
+                    'debug_info' => [
+                        'received_unit_id' => $unitId,
+                        'type' => gettype($unitId)
+                    ]
                 ], 400);
-            }
-
-            // Check if SubUnit model exists
-            if (!class_exists(SubUnit::class)) {
-                Log::error('SubUnit model does not exist');
-                return response()->json([
-                    'success' => false,
-                    'message' => 'SubUnit model not found',
-                    'data' => []
-                ], 500);
             }
 
             // Check if the unit exists
             $unit = Unit::find($unitId);
             if (!$unit) {
-                Log::warning('Unit not found', ['unit_id' => $unitId]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Unit not found',
-                    'data' => []
+                    'data' => [],
+                    'debug_info' => [
+                        'unit_id' => $unitId,
+                        'suggestion' => 'Check if unit ID exists in database'
+                    ]
                 ], 404);
             }
 
             // Query sub units with detailed logging
-            $query = SubUnit::active()->byUnit($unitId);
-            Log::info('Sub Unit query SQL', [
-                'sql' => $query->toSql(),
-                'bindings' => $query->getBindings()
-            ]);
-
-            $subUnits = $query->orderBy('name')->get(['id', 'name', 'code', 'description']);
-            
+            $subUnits = SubUnit::active()
+                ->byUnit($unitId)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'description', 'unit_id']);
+                
             Log::info('Sub Units query result', [
                 'unit_id' => $unitId,
                 'unit_name' => $unit->name,
@@ -229,7 +206,6 @@ class EmployeeController extends Controller
                 ]
             ];
 
-            Log::info('Get Sub Units API response', $response);
             return response()->json($response);
 
         } catch (\Exception $e) {
@@ -237,7 +213,6 @@ class EmployeeController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
                 'unit_id' => $request->get('unit_id')
             ]);
 
@@ -247,8 +222,7 @@ class EmployeeController extends Controller
                 'data' => [],
                 'debug_info' => [
                     'error_type' => get_class($e),
-                    'error_file' => $e->getFile(),
-                    'error_line' => $e->getLine()
+                    'suggestion' => 'Check if UnitSeeder has been run and unit exists'
                 ]
             ], 500);
         }
