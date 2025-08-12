@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Head, useForm, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import UnitOrganisasiComponent from "@/Components/UnitOrganisasiComponent";
+import axios from "axios";
 import {
     Save,
     X,
@@ -98,8 +98,11 @@ const InputField = ({
                 >
                     <option value="">{placeholder || `Pilih ${label}`}</option>
                     {options.map((option) => (
-                        <option key={option} value={option}>
-                            {option}
+                        <option
+                            key={option.value || option}
+                            value={option.value || option}
+                        >
+                            {option.label || option}
                         </option>
                     ))}
                 </select>
@@ -246,6 +249,7 @@ export default function Create({
             tempat_lahir: "",
             tanggal_lahir: "",
             alamat: "",
+            kota_domisili: "",
             handphone: "",
             email: "",
             no_bpjs_kesehatan: "",
@@ -255,7 +259,7 @@ export default function Create({
             sub_unit_id: "",
             jabatan: "",
             nama_jabatan: "",
-            status_pegawai: "", // REVISI: Hapus default "PEGAWAI TETAP"
+            status_pegawai: "",
             kelompok_jabatan: "",
             tmt_mulai_jabatan: "",
             tmt_mulai_kerja: "",
@@ -267,7 +271,6 @@ export default function Create({
             tahun_lulus: "",
             jenis_sepatu: "",
             ukuran_sepatu: "",
-            kota_domisili: "",
             height: "",
             weight: "",
             seragam: "",
@@ -278,6 +281,12 @@ export default function Create({
     const [notification, setNotification] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [calculatedAge, setCalculatedAge] = useState(null);
+
+    // FIXED: State untuk cascading dropdown
+    const [availableUnits, setAvailableUnits] = useState([]);
+    const [availableSubUnits, setAvailableSubUnits] = useState([]);
+    const [loadingUnits, setLoadingUnits] = useState(false);
+    const [loadingSubUnits, setLoadingSubUnits] = useState(false);
 
     // Show notification dari session
     useEffect(() => {
@@ -295,6 +304,64 @@ export default function Create({
             });
         }
     }, [success, error]);
+
+    // FIXED: Fetch units berdasarkan unit organisasi
+    const fetchUnits = async (unitOrganisasi) => {
+        if (!unitOrganisasi) {
+            setAvailableUnits([]);
+            setAvailableSubUnits([]);
+            setData("unit_id", "");
+            setData("sub_unit_id", "");
+            return;
+        }
+
+        setLoadingUnits(true);
+        try {
+            const response = await axios.get("/api/units", {
+                params: { unit_organisasi: unitOrganisasi },
+            });
+
+            if (response.data.success && response.data.data) {
+                setAvailableUnits(response.data.data);
+            } else {
+                setAvailableUnits([]);
+                console.warn("No units found for:", unitOrganisasi);
+            }
+        } catch (error) {
+            console.error("Error fetching units:", error);
+            setAvailableUnits([]);
+        } finally {
+            setLoadingUnits(false);
+        }
+    };
+
+    // FIXED: Fetch sub units berdasarkan unit
+    const fetchSubUnits = async (unitId) => {
+        if (!unitId) {
+            setAvailableSubUnits([]);
+            setData("sub_unit_id", "");
+            return;
+        }
+
+        setLoadingSubUnits(true);
+        try {
+            const response = await axios.get("/api/sub-units", {
+                params: { unit_id: unitId },
+            });
+
+            if (response.data.success && response.data.data) {
+                setAvailableSubUnits(response.data.data);
+            } else {
+                setAvailableSubUnits([]);
+                console.warn("No sub units found for unit:", unitId);
+            }
+        } catch (error) {
+            console.error("Error fetching sub units:", error);
+            setAvailableSubUnits([]);
+        } finally {
+            setLoadingSubUnits(false);
+        }
+    };
 
     // REVISI: Auto-calculate pension date dengan logika baru (56 TAHUN)
     useEffect(() => {
@@ -433,9 +500,32 @@ export default function Create({
         return error;
     };
 
-    // Enhanced handleInputChange dengan error clearing
+    // FIXED: Enhanced handleInputChange dengan cascading dropdown dan error clearing
     const handleInputChange = (name, value) => {
         setData(name, value);
+
+        // FIXED: Handle cascading dropdown untuk struktur organisasi
+        if (name === "unit_organisasi") {
+            // Reset unit dan sub unit saat unit organisasi berubah
+            setData("unit_id", "");
+            setData("sub_unit_id", "");
+            setAvailableUnits([]);
+            setAvailableSubUnits([]);
+
+            // Fetch units untuk unit organisasi yang dipilih
+            if (value) {
+                fetchUnits(value);
+            }
+        } else if (name === "unit_id") {
+            // Reset sub unit saat unit berubah
+            setData("sub_unit_id", "");
+            setAvailableSubUnits([]);
+
+            // Fetch sub units untuk unit yang dipilih
+            if (value) {
+                fetchSubUnits(value);
+            }
+        }
 
         // Clear errors saat user mulai mengetik
         if (errors[name]) {
@@ -450,7 +540,7 @@ export default function Create({
             }));
         }
 
-        // Real-time validation for important fields - UPDATED untuk NIK dan NIP
+        // Real-time validation for important fields
         if (["nik", "nip", "email", "handphone"].includes(name)) {
             setTimeout(() => validateField(name, value), 500);
         }
@@ -460,7 +550,7 @@ export default function Create({
         validateField(name, value);
     };
 
-    // REVISI: Validate required fields dengan status_pegawai
+    // FIXED: Validate required fields - SEMUA STRUKTUR ORGANISASI WAJIB
     const validateRequiredFields = () => {
         const requiredFields = {
             nik: "NIK wajib diisi",
@@ -468,15 +558,17 @@ export default function Create({
             nama_lengkap: "Nama lengkap wajib diisi",
             jenis_kelamin: "Jenis kelamin wajib dipilih",
             unit_organisasi: "Unit organisasi wajib dipilih",
+            unit_id: "Unit wajib dipilih",
+            sub_unit_id: "Sub unit wajib dipilih",
             nama_jabatan: "Nama jabatan wajib diisi",
             kelompok_jabatan: "Kelompok jabatan wajib dipilih",
-            status_pegawai: "Status pegawai wajib dipilih", // REVISI: Tambahkan validasi
+            status_pegawai: "Status pegawai wajib dipilih",
         };
 
         const newErrors = {};
 
         Object.entries(requiredFields).forEach(([field, message]) => {
-            if (!data[field] || data[field].trim() === "") {
+            if (!data[field] || data[field].toString().trim() === "") {
                 newErrors[field] = message;
             }
         });
@@ -495,7 +587,9 @@ export default function Create({
         console.log("Gender Value:", data.jenis_kelamin);
         console.log("Kelompok Jabatan Value:", data.kelompok_jabatan);
         console.log("Unit Organisasi:", data.unit_organisasi);
-        console.log("Status Pegawai:", data.status_pegawai); // REVISI: Log status pegawai
+        console.log("Unit ID:", data.unit_id);
+        console.log("Sub Unit ID:", data.sub_unit_id);
+        console.log("Status Pegawai:", data.status_pegawai);
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -505,7 +599,7 @@ export default function Create({
                 type: "error",
                 title: "Data Tidak Lengkap",
                 message:
-                    "Mohon lengkapi semua field yang wajib diisi termasuk NIK, NIP, dan Status Pegawai",
+                    "Mohon lengkapi semua field yang wajib diisi termasuk struktur organisasi lengkap",
             });
             setIsSubmitting(false);
             return;
@@ -525,19 +619,16 @@ export default function Create({
             return;
         }
 
-        // Clean data before submission
+        // Clean data before submission - keep original format for backend
         const cleanData = { ...data };
-
-        // Convert gender value untuk database
-        if (cleanData.jenis_kelamin === "Laki-laki") {
-            cleanData.jenis_kelamin = "L";
-        } else if (cleanData.jenis_kelamin === "Perempuan") {
-            cleanData.jenis_kelamin = "P";
-        }
 
         // Remove empty strings dan convert ke null jika perlu
         Object.keys(cleanData).forEach((key) => {
-            if (cleanData[key] === "") {
+            if (
+                cleanData[key] === "" ||
+                cleanData[key] === null ||
+                cleanData[key] === undefined
+            ) {
                 cleanData[key] = null;
             }
         });
@@ -552,7 +643,7 @@ export default function Create({
                     type: "success",
                     title: "Berhasil!",
                     message:
-                        "Karyawan berhasil ditambahkan dengan NIK sebagai primary key. TMT Pensiun telah dihitung otomatis (56 tahun dengan logika baru). Mengalihkan ke daftar karyawan...",
+                        "Karyawan berhasil ditambahkan dengan struktur organisasi lengkap. Mengalihkan ke daftar karyawan...",
                 });
 
                 // Redirect after 2 seconds
@@ -561,7 +652,7 @@ export default function Create({
                 }, 2000);
             },
             onError: (errors) => {
-                console.log("Form submission errors:", errors);
+                console.error("Form submission errors:", errors);
 
                 let errorMessage = "Terjadi kesalahan saat menyimpan data";
 
@@ -573,19 +664,19 @@ export default function Create({
                         "NIP sudah digunakan atau tidak valid (minimal 6 digit angka)";
                 } else if (errors.email) {
                     errorMessage = "Email sudah digunakan atau tidak valid";
-                } else if (errors.jenis_kelamin) {
-                    errorMessage = "Jenis kelamin tidak valid";
-                } else if (errors.kelompok_jabatan) {
-                    errorMessage = "Kelompok jabatan tidak valid";
                 } else if (errors.unit_organisasi) {
                     errorMessage =
                         "Unit organisasi tidak valid atau belum dipilih";
-                } else if (errors.status_pegawai) {
-                    errorMessage = "Status pegawai belum dipilih";
                 } else if (errors.unit_id) {
-                    errorMessage = "Unit tidak valid";
+                    errorMessage =
+                        "Unit wajib dipilih dan harus sesuai dengan unit organisasi";
                 } else if (errors.sub_unit_id) {
-                    errorMessage = "Sub unit tidak valid";
+                    errorMessage =
+                        "Sub unit wajib dipilih dan harus sesuai dengan unit";
+                } else if (errors.status_pegawai) {
+                    errorMessage = "Status pegawai wajib dipilih";
+                } else if (errors.kelompok_jabatan) {
+                    errorMessage = "Kelompok jabatan wajib dipilih";
                 } else if (Object.keys(errors).length > 0) {
                     const firstError = Object.values(errors)[0];
                     errorMessage =
@@ -642,7 +733,7 @@ export default function Create({
         }
     };
 
-    // UPDATED: renderPersonalSection - HAPUS no_telepon, tambah NIK/NIP required
+    // UPDATED: renderPersonalSection
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -661,7 +752,7 @@ export default function Create({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nik || formValidation.nik}
-                    hint="Nomor Induk Kependudukan (16 digit) - WAJIB DIISI DENGAN BENAR, jangan sampai salah"
+                    hint="Nomor Induk Kependudukan (16 digit) - WAJIB DIISI DENGAN BENAR"
                 />
                 <InputField
                     name="nip"
@@ -741,12 +832,10 @@ export default function Create({
                 error={errors.alamat}
             />
 
-            {/* UPDATED: Data Kontak - HAPUS no_telepon field */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <InputField
                     name="handphone"
                     label="No. Handphone"
-                    required={true}
                     placeholder="0812-3456-7890"
                     icon={Phone}
                     value={data.handphone}
@@ -797,21 +886,131 @@ export default function Create({
         </div>
     );
 
-    // REVISI: renderWorkSection dengan validasi status_pegawai yang diperbaiki
+    // FIXED: renderWorkSection dengan cascading dropdown struktur organisasi lengkap
     const renderWorkSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
                 <Building2 className="w-5 h-5 text-[#439454]" />
-                Data Pekerjaan
+                Data Pekerjaan & Struktur Organisasi
             </h2>
 
-            {/* Unit Organisasi Expert Component */}
-            <UnitOrganisasiComponent
-                data={data}
-                setData={setData}
-                errors={errors}
-                required={true}
-            />
+            {/* FIXED: Struktur Organisasi Section dengan cascading dropdown */}
+            <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                <h3 className="flex items-center gap-2 mb-4 font-semibold text-blue-800">
+                    <Building2 className="w-4 h-4" />
+                    Struktur Organisasi (SEMUA WAJIB)
+                </h3>
+
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <InputField
+                        name="unit_organisasi"
+                        label="Unit Organisasi"
+                        required={true}
+                        options={unitOrganisasiOptions.map((unit) => ({
+                            value: unit,
+                            label: unit,
+                        }))}
+                        placeholder="Pilih Unit Organisasi"
+                        icon={Building2}
+                        value={data.unit_organisasi}
+                        onChange={handleInputChange}
+                        error={
+                            errors.unit_organisasi ||
+                            formValidation.unit_organisasi
+                        }
+                        hint="Pilih unit organisasi terlebih dahulu"
+                    />
+
+                    <InputField
+                        name="unit_id"
+                        label="Unit"
+                        required={true}
+                        options={availableUnits.map((unit) => ({
+                            value: unit.id,
+                            label: unit.name,
+                        }))}
+                        placeholder={
+                            loadingUnits
+                                ? "Loading..."
+                                : availableUnits.length > 0
+                                ? "Pilih Unit"
+                                : "Pilih Unit Organisasi dulu"
+                        }
+                        icon={Building2}
+                        value={data.unit_id}
+                        onChange={handleInputChange}
+                        disabled={!data.unit_organisasi || loadingUnits}
+                        error={errors.unit_id || formValidation.unit_id}
+                        hint="Unit akan muncul setelah memilih unit organisasi"
+                    />
+
+                    <InputField
+                        name="sub_unit_id"
+                        label="Sub Unit"
+                        required={true}
+                        options={availableSubUnits.map((subUnit) => ({
+                            value: subUnit.id,
+                            label: subUnit.name,
+                        }))}
+                        placeholder={
+                            loadingSubUnits
+                                ? "Loading..."
+                                : availableSubUnits.length > 0
+                                ? "Pilih Sub Unit"
+                                : "Pilih Unit dulu"
+                        }
+                        icon={Building2}
+                        value={data.sub_unit_id}
+                        onChange={handleInputChange}
+                        disabled={!data.unit_id || loadingSubUnits}
+                        error={errors.sub_unit_id || formValidation.sub_unit_id}
+                        hint="Sub unit akan muncul setelah memilih unit"
+                    />
+                </div>
+
+                {/* FIXED: Preview Struktur Organisasi */}
+                {data.unit_organisasi && (
+                    <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
+                        <h4 className="mb-2 text-sm font-medium text-green-800">
+                            Preview Struktur Organisasi:
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
+                            <span className="px-2 py-1 bg-green-100 rounded">
+                                {data.unit_organisasi}
+                            </span>
+                            {availableUnits.find(
+                                (u) => u.id == data.unit_id
+                            ) && (
+                                <>
+                                    <span>→</span>
+                                    <span className="px-2 py-1 bg-green-100 rounded">
+                                        {
+                                            availableUnits.find(
+                                                (u) => u.id == data.unit_id
+                                            )?.name
+                                        }
+                                    </span>
+                                </>
+                            )}
+                            {availableSubUnits.find(
+                                (su) => su.id == data.sub_unit_id
+                            ) && (
+                                <>
+                                    <span>→</span>
+                                    <span className="px-2 py-1 bg-green-100 rounded">
+                                        {
+                                            availableSubUnits.find(
+                                                (su) =>
+                                                    su.id == data.sub_unit_id
+                                            )?.name
+                                        }
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <InputField
@@ -838,13 +1037,13 @@ export default function Create({
                                   "TAD PAKET PEKERJAAN",
                               ]
                     }
-                    placeholder="Pilih Status Pegawai" // REVISI: Tambahkan placeholder
+                    placeholder="Pilih Status Pegawai"
                     icon={UserCheck}
                     value={data.status_pegawai}
                     onChange={handleInputChange}
                     error={
                         errors.status_pegawai || formValidation.status_pegawai
-                    } // REVISI: Tambahkan validasi
+                    }
                 />
                 <InputField
                     name="kelompok_jabatan"
@@ -1081,10 +1280,9 @@ export default function Create({
                                 Tambah Karyawan Baru
                             </h1>
                             <p className="text-sm text-gray-600">
-                                Lengkapi data karyawan dengan teliti. NIK dan
-                                NIP wajib diisi dengan benar. Status Pegawai
-                                wajib dipilih. TMT Pensiun akan otomatis
-                                dihitung (56 tahun dengan logika baru)
+                                Lengkapi data karyawan dengan teliti. SEMUA
+                                struktur organisasi (Unit Organisasi, Unit, Sub
+                                Unit) WAJIB diisi.
                             </p>
                         </div>
                     </div>

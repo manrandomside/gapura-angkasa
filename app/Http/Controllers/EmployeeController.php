@@ -647,7 +647,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * FIXED: Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
+     * FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
      */
     public function store(Request $request)
     {
@@ -672,7 +672,7 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // FIXED: Enhanced validation rules with custom validation for unit hierarchy
+            // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced validation rules with custom validation for unit hierarchy
             $validator = Validator::make($request->all(), [
                 // Required basic fields
                 'nik' => [
@@ -692,14 +692,14 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|min:2|max:100',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
                 
-                // FIXED: Enhanced unit organisasi validation
+                // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced unit organisasi validation
                 'unit_organisasi' => [
                     'required',
                     'string',
                     Rule::in($unitOrganisasiOptions)
                 ],
                 'unit_id' => [
-                    'nullable',
+                    'required', // CHANGED: WAJIB dari nullable
                     'integer',
                     'exists:units,id',
                     function ($attribute, $value, $fail) use ($request) {
@@ -712,7 +712,7 @@ class EmployeeController extends Controller
                     }
                 ],
                 'sub_unit_id' => [
-                    'nullable',
+                    'required', // CHANGED: WAJIB dari nullable
                     'integer',
                     'exists:sub_units,id',
                     function ($attribute, $value, $fail) use ($request) {
@@ -721,8 +721,6 @@ class EmployeeController extends Controller
                             if (!$subUnit || $subUnit->unit_id != $request->unit_id) {
                                 $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
                             }
-                        } elseif ($value && !$request->unit_id) {
-                            $fail('Unit harus dipilih terlebih dahulu sebelum memilih sub unit.');
                         }
                     }
                 ],
@@ -741,6 +739,7 @@ class EmployeeController extends Controller
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'agama' => 'nullable|string|max:20',
                 'alamat' => 'nullable|string|max:200',
+                'kota_domisili' => 'nullable|string|max:100',
                 'email' => 'nullable|email|unique:employees,email',
                 'handphone' => [
                     'nullable',
@@ -790,7 +789,9 @@ class EmployeeController extends Controller
                 'nama_lengkap.min' => 'Nama lengkap minimal 2 karakter',
                 'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
                 'unit_organisasi.in' => 'Unit organisasi tidak valid',
+                'unit_id.required' => 'Unit wajib dipilih', // ADDED: Error message untuk unit required
                 'unit_id.exists' => 'Unit tidak valid',
+                'sub_unit_id.required' => 'Sub unit wajib dipilih', // ADDED: Error message untuk sub unit required
                 'sub_unit_id.exists' => 'Sub unit tidak valid',
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi',
                 'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
@@ -832,7 +833,7 @@ class EmployeeController extends Controller
                 // Prepare employee data
                 $employeeData = $request->only([
                     'nik', 'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 'tanggal_lahir',
-                    'agama', 'alamat', 'email', 'handphone', 'no_telepon',
+                    'agama', 'alamat', 'kota_domisili', 'email', 'handphone', 'no_telepon',
                     'unit_organisasi', 'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan',
                     'status_pegawai', 'kelompok_jabatan', 'tmt_mulai_kerja', 'tmt_mulai_jabatan',
                     'pendidikan_terakhir', 'institusi_pendidikan', 'jurusan', 'tahun_lulus',
@@ -871,6 +872,9 @@ class EmployeeController extends Controller
                 // Commit transaction
                 DB::commit();
 
+                // Load relationships untuk response
+                $employee->load(['unit', 'subUnit']);
+
                 // Log successful creation
                 Log::info('Employee Created Successfully', [
                     'employee_nik' => $employee->nik,
@@ -878,7 +882,9 @@ class EmployeeController extends Controller
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
                     'unit_id' => $employee->unit_id,
+                    'unit_name' => $employee->unit?->name,
                     'sub_unit_id' => $employee->sub_unit_id,
+                    'sub_unit_name' => $employee->subUnit?->name,
                     'kelompok_jabatan' => $employee->kelompok_jabatan,
                     'status_pegawai' => $employee->status_pegawai,
                     'tmt_pensiun' => $employee->tmt_pensiun?->format('Y-m-d'),
@@ -887,7 +893,7 @@ class EmployeeController extends Controller
                     'created_at' => $employee->created_at->toDateTimeString()
                 ]);
 
-                // Build success notification
+                // Build success notification dengan struktur organisasi lengkap
                 $successMessage = "Karyawan {$employee->nama_lengkap} berhasil ditambahkan!";
                 $unitInfo = '';
                 if ($employee->unit_organisasi) {
@@ -1068,7 +1074,7 @@ class EmployeeController extends Controller
     /**
      * Update the specified employee
      * UPDATED: Parameter menggunakan NIK, NIK tidak bisa diubah, NIP bisa diubah + Unit/SubUnit handling
-     * REMOVED: no_telepon validation and handling
+     * FIXED: SEMUA STRUKTUR ORGANISASI WAJIB untuk konsistensi dengan store method
      */
     public function update(Request $request, string $nik)
     {
@@ -1082,7 +1088,7 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // UPDATED: Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah + REMOVED no_telepon
+            // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah
             $validator = Validator::make($request->all(), [
                 // NIP bisa diubah tapi harus tetap unique (kecuali untuk employee ini)
                 'nip' => [
@@ -1098,6 +1104,8 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|min:2|max:255',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)],
+                'unit_id' => 'required|exists:units,id', // CHANGED: WAJIB untuk konsistensi
+                'sub_unit_id' => 'required|exists:sub_units,id', // CHANGED: WAJIB untuk konsistensi
                 'nama_jabatan' => 'required|string|max:255',
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
@@ -1107,13 +1115,11 @@ class EmployeeController extends Controller
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
-                'unit_id' => 'nullable|exists:units,id',
-                'sub_unit_id' => 'nullable|exists:sub_units,id',
                 'jabatan' => 'nullable|string|max:255',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
                 
-                // Contact fields - REMOVED: no_telepon
+                // Contact fields
                 'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'email' => [
                     'nullable',
@@ -1147,6 +1153,9 @@ class EmployeeController extends Controller
                 'nip.min' => 'NIP minimal 6 digit',
                 'nip.regex' => 'NIP hanya boleh berisi angka',
                 'nip.unique' => 'NIP sudah terdaftar di sistem',
+                'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
+                'unit_id.required' => 'Unit wajib dipilih', // ADDED: Error message untuk unit required
+                'sub_unit_id.required' => 'Sub unit wajib dipilih', // ADDED: Error message untuk sub unit required
                 // ... other custom messages
             ]);
 
@@ -1225,20 +1234,6 @@ class EmployeeController extends Controller
 
             // Validasi sub unit consistency
             if (!empty($data['sub_unit_id'])) {
-                if (empty($data['unit_id'])) {
-                    return redirect()->back()
-                        ->withInput()
-                        ->withErrors(['sub_unit_id' => 'Unit harus dipilih terlebih dahulu sebelum memilih sub unit'])
-                        ->with([
-                            'error' => 'Unit harus dipilih terlebih dahulu sebelum memilih sub unit',
-                            'notification' => [
-                                'type' => 'error',
-                                'title' => 'Validasi Gagal',
-                                'message' => 'Unit harus dipilih terlebih dahulu sebelum memilih sub unit'
-                            ]
-                        ]);
-                }
-                
                 $subUnit = SubUnit::find($data['sub_unit_id']);
                 if (!$subUnit || $subUnit->unit_id != $data['unit_id']) {
                     return redirect()->back()
