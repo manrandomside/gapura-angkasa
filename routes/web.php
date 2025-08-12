@@ -17,383 +17,41 @@ use Inertia\Inertia;
 | Sistem SDM PT Gapura Angkasa - Bandar Udara Ngurah Rai
 | Enhanced dengan filter sepatu dan ukuran sepatu
 | Updated dengan Unit Organisasi Expert System
-| FIXED: Flexible identifier support untuk NIK dan ID
+| FIXED: Parent-child dropdown dan cascading units
 |
 */
 
 // =====================================================
-// ROOT & DASHBOARD ROUTES
-// =====================================================
-
-// Root redirect ke dashboard
-Route::get('/', function () {
-    return redirect('/dashboard');
-})->name('home');
-
-// Main dashboard route
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-// Dashboard API routes
-Route::prefix('dashboard')->group(function () {
-    Route::get('/statistics', [DashboardController::class, 'getStatistics'])->name('dashboard.statistics');
-    Route::get('/charts', [DashboardController::class, 'getChartData'])->name('dashboard.charts');
-    Route::get('/activities', [DashboardController::class, 'getRecentActivities'])->name('dashboard.activities');
-    Route::post('/export', [DashboardController::class, 'exportData'])->name('dashboard.export');
-    Route::get('/health', [DashboardController::class, 'healthCheck'])->name('dashboard.health');
-});
-
-// =====================================================
-// EMPLOYEE MANAGEMENT ROUTES - FIXED: Flexible identifier support
-// =====================================================
-
-Route::prefix('employees')->group(function () {
-    // Main CRUD operations
-    Route::get('/', [EmployeeController::class, 'index'])->name('employees.index');
-    Route::get('/create', [EmployeeController::class, 'create'])->name('employees.create');
-    Route::post('/', [EmployeeController::class, 'store'])->name('employees.store');
-    
-    // FIXED: Flexible routes yang support both NIK dan ID
-    Route::get('/{identifier}', [EmployeeController::class, 'show'])
-        ->name('employees.show')
-        ->where('identifier', '[0-9]+'); // Support both ID dan NIK (flexible numeric)
-        
-    Route::get('/{identifier}/edit', [EmployeeController::class, 'edit'])
-        ->name('employees.edit')
-        ->where('identifier', '[0-9]+');
-        
-    Route::put('/{identifier}', [EmployeeController::class, 'update'])
-        ->name('employees.update')
-        ->where('identifier', '[0-9]+');
-        
-    Route::patch('/{identifier}', [EmployeeController::class, 'update'])
-        ->name('employees.patch')
-        ->where('identifier', '[0-9]+');
-        
-    Route::delete('/{identifier}', [EmployeeController::class, 'destroy'])
-        ->name('employees.destroy')
-        ->where('identifier', '[0-9]+');
-    
-    // Search and filter
-    Route::get('/search/api', [EmployeeController::class, 'search'])->name('employees.search');
-    Route::get('/suggestions', [EmployeeController::class, 'suggestions'])->name('employees.suggestions');
-    
-    // Statistics and analytics
-    Route::get('/statistics/api', [EmployeeController::class, 'getStatistics'])->name('employees.statistics');
-    
-    // Profile dengan flexible parameter
-    Route::get('/{identifier}/profile', [EmployeeController::class, 'profile'])
-        ->name('employees.profile')
-        ->where('identifier', '[0-9]+');
-    
-    // Data operations
-    Route::post('/import', [EmployeeController::class, 'import'])->name('employees.import');
-    Route::get('/export', [EmployeeController::class, 'export'])->name('employees.export');
-    Route::post('/bulk-action', [EmployeeController::class, 'bulkAction'])->name('employees.bulk.action');
-    Route::post('/validate', [EmployeeController::class, 'validateData'])->name('employees.validate');
-    
-    // Reports
-    Route::post('/generate-report', [EmployeeController::class, 'generateReport'])->name('employees.generate.report');
-    
-    // Additional features dengan flexible parameter
-    Route::get('/{identifier}/id-card', [EmployeeController::class, 'generateIdCard'])
-        ->name('employees.id.card')
-        ->where('identifier', '[0-9]+');
-});
-
-// =====================================================
-// ORGANIZATION MANAGEMENT ROUTES
-// =====================================================
-
-Route::prefix('organisasi')->group(function () {
-    Route::get('/', function () {
-        try {
-            if (class_exists('App\Http\Controllers\OrganizationController')) {
-                return app(OrganizationController::class)->index();
-            }
-            
-            // Fallback jika controller belum ada
-            return Inertia::render('Organizations/Index', [
-                'organizations' => \App\Models\Organization::all(),
-                'message' => 'OrganizationController belum dibuat, menampilkan data dasar'
-            ]);
-        } catch (\Exception $e) {
-            return Inertia::render('Organizations/Index', [
-                'organizations' => [],
-                'error' => 'Error loading organizations: ' . $e->getMessage()
-            ]);
-        }
-    })->name('organizations.index');
-    
-    // Placeholder routes untuk future development
-    Route::get('/create', function () {
-        return Inertia::render('Organizations/Create', [
-            'message' => 'Organization create form - coming soon'
-        ]);
-    })->name('organizations.create');
-    
-    Route::get('/struktur', function () {
-        return Inertia::render('Organizations/Structure', [
-            'message' => 'Organization structure view - coming soon'
-        ]);
-    })->name('organizations.structure');
-    
-    Route::get('/divisi', function () {
-        return Inertia::render('Organizations/Divisions', [
-            'message' => 'Divisions management - coming soon'
-        ]);
-    })->name('organizations.divisions');
-});
-
-// =====================================================
-// REPORTS ROUTES
-// =====================================================
-
-Route::prefix('laporan')->group(function () {
-    Route::get('/', function () {
-        return Inertia::render('Reports/Index', [
-            'message' => 'Reports dashboard - coming soon'
-        ]);
-    })->name('reports.index');
-    
-    Route::get('/karyawan', function () {
-        return Inertia::render('Reports/Employees', [
-            'message' => 'Employee reports - coming soon'
-        ]);
-    })->name('reports.employees');
-    
-    Route::get('/organisasi', function () {
-        return Inertia::render('Reports/Organizations', [
-            'message' => 'Organization reports - coming soon'
-        ]);
-    })->name('reports.organizations');
-    
-    Route::get('/statistik', function () {
-        return Inertia::render('Reports/Statistics', [
-            'message' => 'Statistics reports - coming soon'
-        ]);
-    })->name('reports.statistics');
-    
-    // Enhanced shoe reports
-    Route::get('/sepatu', function () {
-        try {
-            $shoeStatistics = [
-                'total_employees' => \App\Models\Employee::count(),
-                'pantofel_count' => \App\Models\Employee::where('jenis_sepatu', 'Pantofel')->count(),
-                'safety_shoes_count' => \App\Models\Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
-                'no_shoe_data' => \App\Models\Employee::whereNull('jenis_sepatu')->count(),
-                'size_distribution' => \App\Models\Employee::select('ukuran_sepatu')
-                    ->selectRaw('COUNT(*) as count')
-                    ->whereNotNull('ukuran_sepatu')
-                    ->groupBy('ukuran_sepatu')
-                    ->orderBy('ukuran_sepatu')
-                    ->get(),
-                'type_by_gender' => \App\Models\Employee::select('jenis_kelamin', 'jenis_sepatu')
-                    ->selectRaw('COUNT(*) as count')
-                    ->whereNotNull('jenis_sepatu')
-                    ->groupBy('jenis_kelamin', 'jenis_sepatu')
-                    ->get(),
-                'type_by_unit' => \App\Models\Employee::select('unit_organisasi', 'jenis_sepatu')
-                    ->selectRaw('COUNT(*) as count')
-                    ->whereNotNull('jenis_sepatu')
-                    ->whereNotNull('unit_organisasi')
-                    ->groupBy('unit_organisasi', 'jenis_sepatu')
-                    ->get(),
-            ];
-            
-            return Inertia::render('Reports/Shoes', [
-                'statistics' => $shoeStatistics,
-                'message' => 'Laporan distribusi sepatu karyawan PT Gapura Angkasa'
-            ]);
-        } catch (\Exception $e) {
-            return Inertia::render('Reports/Shoes', [
-                'statistics' => [
-                    'total_employees' => 0,
-                    'pantofel_count' => 0,
-                    'safety_shoes_count' => 0,
-                    'no_shoe_data' => 0,
-                    'size_distribution' => [],
-                    'type_by_gender' => [],
-                    'type_by_unit' => [],
-                ],
-                'error' => 'Error loading shoe statistics: ' . $e->getMessage()
-            ]);
-        }
-    })->name('reports.shoes');
-    
-    Route::get('/export', function () {
-        return Inertia::render('Reports/Export', [
-            'message' => 'Export center - coming soon'
-        ]);
-    })->name('reports.export');
-    
-    Route::get('/generate', function () {
-        return Inertia::render('Reports/Generate', [
-            'message' => 'Report generator - coming soon'
-        ]);
-    })->name('reports.generate');
-    
-    // Report generation API
-    Route::post('/generate-employee-report', [EmployeeController::class, 'generateReport'])
-        ->name('reports.generate.employee');
-});
-
-// =====================================================
-// SETTINGS ROUTES
-// =====================================================
-
-Route::prefix('pengaturan')->group(function () {
-    Route::get('/', function () {
-        return Inertia::render('Settings/Index', [
-            'message' => 'Settings dashboard - coming soon'
-        ]);
-    })->name('settings.index');
-    
-    Route::get('/sistem', function () {
-        return Inertia::render('Settings/System', [
-            'message' => 'System settings - coming soon'
-        ]);
-    })->name('settings.system');
-    
-    Route::get('/pengguna', function () {
-        return Inertia::render('Settings/Users', [
-            'message' => 'User management - coming soon'
-        ]);
-    })->name('settings.users');
-    
-    Route::get('/backup', function () {
-        return Inertia::render('Settings/Backup', [
-            'message' => 'Backup & restore - coming soon'
-        ]);
-    })->name('settings.backup');
-    
-    Route::get('/import-export', function () {
-        return Inertia::render('Settings/ImportExport', [
-            'message' => 'Import/Export settings - coming soon'
-        ]);
-    })->name('settings.import.export');
-});
-
-// =====================================================
-// LEGACY & ALIAS ROUTES - UPDATED: Support flexible identifier redirects
-// =====================================================
-
-// Management Karyawan (Indonesian naming) - redirect to employees
-Route::prefix('management-karyawan')->group(function () {
-    Route::get('/', function () {
-        return redirect()->route('employees.index');
-    })->name('management.karyawan.index');
-    
-    Route::get('/tambah', function () {
-        return redirect()->route('employees.create');
-    })->name('management.karyawan.create');
-    
-    Route::get('/import', function () {
-        return redirect()->route('employees.import');
-    })->name('management.karyawan.import');
-    
-    Route::get('/export', function () {
-        return redirect()->route('employees.export');
-    })->name('management.karyawan.export');
-});
-
-// Legacy data-karyawan routes - UPDATED: Handle both old ID and NIK formats
-Route::prefix('data-karyawan')->group(function () {
-    Route::get('/', function () {
-        return redirect()->route('employees.index');
-    });
-    Route::get('/create', function () {
-        return redirect()->route('employees.create');
-    });
-    Route::get('/import', function () {
-        return redirect()->route('employees.import');
-    });
-    
-    // UPDATED: Legacy ID redirect dengan detection NIK vs old ID
-    Route::get('/{identifier}', function ($identifier) {
-        // Jika identifier adalah NIK format (16 digit), redirect langsung
-        if (preg_match('/^[0-9]{16}$/', $identifier)) {
-            return redirect()->route('employees.show', ['identifier' => $identifier]);
-        }
-        
-        // Jika identifier adalah old auto-increment ID, cari berdasarkan ID dan redirect
-        try {
-            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
-            if ($employee) {
-                return redirect()->route('employees.show', ['identifier' => $employee->id]);
-            }
-        } catch (\Exception $e) {
-            // Ignore error dan fallback ke index
-        }
-        
-        // Fallback ke index jika tidak ditemukan
-        return redirect()->route('employees.index')->with('error', 'Employee tidak ditemukan');
-    });
-    
-    Route::get('/{identifier}/edit', function ($identifier) {
-        // UPDATED: Same logic untuk edit route
-        if (preg_match('/^[0-9]{16}$/', $identifier)) {
-            return redirect()->route('employees.edit', ['identifier' => $identifier]);
-        }
-        
-        try {
-            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
-            if ($employee) {
-                return redirect()->route('employees.edit', ['identifier' => $employee->id]);
-            }
-        } catch (\Exception $e) {
-            // Ignore error
-        }
-        
-        return redirect()->route('employees.index')->with('error', 'Employee tidak ditemukan');
-    });
-});
-
-// Total karyawan alias
-Route::get('/total-karyawan', function () {
-    return redirect()->route('employees.index');
-})->name('total.karyawan');
-
-// =====================================================
-// API ROUTES - ENHANCED dengan Unit Organisasi Expert + Flexible identifier Support
+// API ROUTES - PRIORITAS PERTAMA UNTUK UNIT CASCADING
 // =====================================================
 
 Route::prefix('api')->group(function () {
+    // CRITICAL: Unit & Sub Unit API routes untuk parent-child dropdown
+    // Harus didefinisikan PERTAMA untuk menghindari konflik routing
+    Route::get('/units', [EmployeeController::class, 'getUnits'])->name('api.units');
+    Route::get('/sub-units', [EmployeeController::class, 'getSubUnits'])->name('api.sub.units');
+    Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrganisasiOptions'])->name('api.unit.organisasi.options');
+    
+    // Enhanced Unit API untuk debugging dan monitoring
+    Route::get('/units/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
+    Route::get('/units/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
+    
     // Dashboard API
-    Route::get('/dashboard/statistics', [DashboardController::class, 'getStatistics'])
-        ->name('api.dashboard.statistics');
-    Route::get('/dashboard/charts', [DashboardController::class, 'getChartData'])
-        ->name('api.dashboard.charts');
-    Route::get('/dashboard/activities', [DashboardController::class, 'getRecentActivities'])
-        ->name('api.dashboard.activities');
+    Route::get('/dashboard/statistics', [DashboardController::class, 'getStatistics'])->name('api.dashboard.statistics');
+    Route::get('/dashboard/charts', [DashboardController::class, 'getChartData'])->name('api.dashboard.charts');
+    Route::get('/dashboard/activities', [DashboardController::class, 'getRecentActivities'])->name('api.dashboard.activities');
     
     // Employee API dengan filter enhancement - UPDATED: Flexible identifier support
-    Route::get('/employees/search', [EmployeeController::class, 'search'])
-        ->name('api.employees.search');
-    Route::get('/employees/statistics', [EmployeeController::class, 'getStatistics'])
-        ->name('api.employees.statistics');
+    Route::get('/employees/search', [EmployeeController::class, 'search'])->name('api.employees.search');
+    Route::get('/employees/statistics', [EmployeeController::class, 'getStatistics'])->name('api.employees.statistics');
     
     // UPDATED: Profile API menggunakan flexible identifier parameter
     Route::get('/employees/{identifier}/profile', [EmployeeController::class, 'profile'])
         ->name('api.employees.profile')
         ->where('identifier', '[0-9]+');
         
-    Route::post('/employees/validate', [EmployeeController::class, 'validateData'])
-        ->name('api.employees.validate');
-    Route::post('/employees/bulk-action', [EmployeeController::class, 'bulkAction'])
-        ->name('api.employees.bulk.action');
-    
-    // =====================================================
-    // UNIT ORGANISASI EXPERT API - COMPLETE
-    // =====================================================
-    
-    // Core Unit & Sub Unit API routes untuk cascading dropdown
-    Route::get('/units', [EmployeeController::class, 'getUnits'])->name('api.units');
-    Route::get('/sub-units', [EmployeeController::class, 'getSubUnits'])->name('api.sub.units');
-    Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrganisasiOptions'])->name('api.unit.organisasi.options');
-    
-    // Enhanced Unit API - BARU
-    Route::get('/units/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
-    Route::get('/units/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
+    Route::post('/employees/validate', [EmployeeController::class, 'validateData'])->name('api.employees.validate');
+    Route::post('/employees/bulk-action', [EmployeeController::class, 'bulkAction'])->name('api.employees.bulk.action');
     
     // UPDATED: Enhanced filter options API dengan flexible identifier validation support
     Route::get('/employees/filter-options', function() {
@@ -761,7 +419,356 @@ Route::prefix('api')->group(function () {
             'message' => $exists ? 'NIP sudah terdaftar' : 'NIP tersedia'
         ]);
     });
+
+    // FIXED: Simple validation endpoints for frontend validation
+    Route::get('/validate/nik/{nik}', function ($nik) {
+        $exists = \App\Models\Employee::where('nik', $nik)->exists();
+        return response()->json([
+            'available' => !$exists,
+            'message' => $exists ? 'NIK sudah terdaftar' : 'NIK tersedia'
+        ]);
+    });
+    
+    Route::get('/validate/nip/{nip}', function ($nip) {
+        $exists = \App\Models\Employee::where('nip', $nip)->exists();
+        return response()->json([
+            'available' => !$exists,
+            'message' => $exists ? 'NIP sudah terdaftar' : 'NIP tersedia'
+        ]);
+    });
 });
+
+// =====================================================
+// ROOT & DASHBOARD ROUTES
+// =====================================================
+
+// Root redirect ke dashboard
+Route::get('/', function () {
+    return redirect('/dashboard');
+})->name('home');
+
+// Main dashboard route
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+// Dashboard API routes
+Route::prefix('dashboard')->group(function () {
+    Route::get('/statistics', [DashboardController::class, 'getStatistics'])->name('dashboard.statistics');
+    Route::get('/charts', [DashboardController::class, 'getChartData'])->name('dashboard.charts');
+    Route::get('/activities', [DashboardController::class, 'getRecentActivities'])->name('dashboard.activities');
+    Route::post('/export', [DashboardController::class, 'exportData'])->name('dashboard.export');
+    Route::get('/health', [DashboardController::class, 'healthCheck'])->name('dashboard.health');
+});
+
+// =====================================================
+// EMPLOYEE MANAGEMENT ROUTES - FIXED: Flexible identifier support
+// =====================================================
+
+Route::prefix('employees')->group(function () {
+    // Main CRUD operations
+    Route::get('/', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::get('/create', [EmployeeController::class, 'create'])->name('employees.create');
+    Route::post('/', [EmployeeController::class, 'store'])->name('employees.store');
+    
+    // FIXED: Flexible routes yang support both NIK dan ID
+    Route::get('/{identifier}', [EmployeeController::class, 'show'])
+        ->name('employees.show')
+        ->where('identifier', '[0-9]+'); // Support both ID dan NIK (flexible numeric)
+        
+    Route::get('/{identifier}/edit', [EmployeeController::class, 'edit'])
+        ->name('employees.edit')
+        ->where('identifier', '[0-9]+');
+        
+    Route::put('/{identifier}', [EmployeeController::class, 'update'])
+        ->name('employees.update')
+        ->where('identifier', '[0-9]+');
+        
+    Route::patch('/{identifier}', [EmployeeController::class, 'update'])
+        ->name('employees.patch')
+        ->where('identifier', '[0-9]+');
+        
+    Route::delete('/{identifier}', [EmployeeController::class, 'destroy'])
+        ->name('employees.destroy')
+        ->where('identifier', '[0-9]+');
+    
+    // Search and filter
+    Route::get('/search/api', [EmployeeController::class, 'search'])->name('employees.search');
+    Route::get('/suggestions', [EmployeeController::class, 'suggestions'])->name('employees.suggestions');
+    
+    // Statistics and analytics
+    Route::get('/statistics/api', [EmployeeController::class, 'getStatistics'])->name('employees.statistics');
+    
+    // Profile dengan flexible parameter
+    Route::get('/{identifier}/profile', [EmployeeController::class, 'profile'])
+        ->name('employees.profile')
+        ->where('identifier', '[0-9]+');
+    
+    // Data operations
+    Route::post('/import', [EmployeeController::class, 'import'])->name('employees.import');
+    Route::get('/export', [EmployeeController::class, 'export'])->name('employees.export');
+    Route::post('/bulk-action', [EmployeeController::class, 'bulkAction'])->name('employees.bulk.action');
+    Route::post('/validate', [EmployeeController::class, 'validateData'])->name('employees.validate');
+    
+    // Reports
+    Route::post('/generate-report', [EmployeeController::class, 'generateReport'])->name('employees.generate.report');
+    
+    // Additional features dengan flexible parameter
+    Route::get('/{identifier}/id-card', [EmployeeController::class, 'generateIdCard'])
+        ->name('employees.id.card')
+        ->where('identifier', '[0-9]+');
+});
+
+// =====================================================
+// ORGANIZATION MANAGEMENT ROUTES
+// =====================================================
+
+Route::prefix('organisasi')->group(function () {
+    Route::get('/', function () {
+        try {
+            if (class_exists('App\Http\Controllers\OrganizationController')) {
+                return app(OrganizationController::class)->index();
+            }
+            
+            // Fallback jika controller belum ada
+            return Inertia::render('Organizations/Index', [
+                'organizations' => \App\Models\Organization::all(),
+                'message' => 'OrganizationController belum dibuat, menampilkan data dasar'
+            ]);
+        } catch (\Exception $e) {
+            return Inertia::render('Organizations/Index', [
+                'organizations' => [],
+                'error' => 'Error loading organizations: ' . $e->getMessage()
+            ]);
+        }
+    })->name('organizations.index');
+    
+    // Placeholder routes untuk future development
+    Route::get('/create', function () {
+        return Inertia::render('Organizations/Create', [
+            'message' => 'Organization create form - coming soon'
+        ]);
+    })->name('organizations.create');
+    
+    Route::get('/struktur', function () {
+        return Inertia::render('Organizations/Structure', [
+            'message' => 'Organization structure view - coming soon'
+        ]);
+    })->name('organizations.structure');
+    
+    Route::get('/divisi', function () {
+        return Inertia::render('Organizations/Divisions', [
+            'message' => 'Divisions management - coming soon'
+        ]);
+    })->name('organizations.divisions');
+});
+
+// =====================================================
+// REPORTS ROUTES
+// =====================================================
+
+Route::prefix('laporan')->group(function () {
+    Route::get('/', function () {
+        return Inertia::render('Reports/Index', [
+            'message' => 'Reports dashboard - coming soon'
+        ]);
+    })->name('reports.index');
+    
+    Route::get('/karyawan', function () {
+        return Inertia::render('Reports/Employees', [
+            'message' => 'Employee reports - coming soon'
+        ]);
+    })->name('reports.employees');
+    
+    Route::get('/organisasi', function () {
+        return Inertia::render('Reports/Organizations', [
+            'message' => 'Organization reports - coming soon'
+        ]);
+    })->name('reports.organizations');
+    
+    Route::get('/statistik', function () {
+        return Inertia::render('Reports/Statistics', [
+            'message' => 'Statistics reports - coming soon'
+        ]);
+    })->name('reports.statistics');
+    
+    // Enhanced shoe reports
+    Route::get('/sepatu', function () {
+        try {
+            $shoeStatistics = [
+                'total_employees' => \App\Models\Employee::count(),
+                'pantofel_count' => \App\Models\Employee::where('jenis_sepatu', 'Pantofel')->count(),
+                'safety_shoes_count' => \App\Models\Employee::where('jenis_sepatu', 'Safety Shoes')->count(),
+                'no_shoe_data' => \App\Models\Employee::whereNull('jenis_sepatu')->count(),
+                'size_distribution' => \App\Models\Employee::select('ukuran_sepatu')
+                    ->selectRaw('COUNT(*) as count')
+                    ->whereNotNull('ukuran_sepatu')
+                    ->groupBy('ukuran_sepatu')
+                    ->orderBy('ukuran_sepatu')
+                    ->get(),
+                'type_by_gender' => \App\Models\Employee::select('jenis_kelamin', 'jenis_sepatu')
+                    ->selectRaw('COUNT(*) as count')
+                    ->whereNotNull('jenis_sepatu')
+                    ->groupBy('jenis_kelamin', 'jenis_sepatu')
+                    ->get(),
+                'type_by_unit' => \App\Models\Employee::select('unit_organisasi', 'jenis_sepatu')
+                    ->selectRaw('COUNT(*) as count')
+                    ->whereNotNull('jenis_sepatu')
+                    ->whereNotNull('unit_organisasi')
+                    ->groupBy('unit_organisasi', 'jenis_sepatu')
+                    ->get(),
+            ];
+            
+            return Inertia::render('Reports/Shoes', [
+                'statistics' => $shoeStatistics,
+                'message' => 'Laporan distribusi sepatu karyawan PT Gapura Angkasa'
+            ]);
+        } catch (\Exception $e) {
+            return Inertia::render('Reports/Shoes', [
+                'statistics' => [
+                    'total_employees' => 0,
+                    'pantofel_count' => 0,
+                    'safety_shoes_count' => 0,
+                    'no_shoe_data' => 0,
+                    'size_distribution' => [],
+                    'type_by_gender' => [],
+                    'type_by_unit' => [],
+                ],
+                'error' => 'Error loading shoe statistics: ' . $e->getMessage()
+            ]);
+        }
+    })->name('reports.shoes');
+    
+    Route::get('/export', function () {
+        return Inertia::render('Reports/Export', [
+            'message' => 'Export center - coming soon'
+        ]);
+    })->name('reports.export');
+    
+    Route::get('/generate', function () {
+        return Inertia::render('Reports/Generate', [
+            'message' => 'Report generator - coming soon'
+        ]);
+    })->name('reports.generate');
+    
+    // Report generation API
+    Route::post('/generate-employee-report', [EmployeeController::class, 'generateReport'])
+        ->name('reports.generate.employee');
+});
+
+// =====================================================
+// SETTINGS ROUTES
+// =====================================================
+
+Route::prefix('pengaturan')->group(function () {
+    Route::get('/', function () {
+        return Inertia::render('Settings/Index', [
+            'message' => 'Settings dashboard - coming soon'
+        ]);
+    })->name('settings.index');
+    
+    Route::get('/sistem', function () {
+        return Inertia::render('Settings/System', [
+            'message' => 'System settings - coming soon'
+        ]);
+    })->name('settings.system');
+    
+    Route::get('/pengguna', function () {
+        return Inertia::render('Settings/Users', [
+            'message' => 'User management - coming soon'
+        ]);
+    })->name('settings.users');
+    
+    Route::get('/backup', function () {
+        return Inertia::render('Settings/Backup', [
+            'message' => 'Backup & restore - coming soon'
+        ]);
+    })->name('settings.backup');
+    
+    Route::get('/import-export', function () {
+        return Inertia::render('Settings/ImportExport', [
+            'message' => 'Import/Export settings - coming soon'
+        ]);
+    })->name('settings.import.export');
+});
+
+// =====================================================
+// LEGACY & ALIAS ROUTES - UPDATED: Support flexible identifier redirects
+// =====================================================
+
+// Management Karyawan (Indonesian naming) - redirect to employees
+Route::prefix('management-karyawan')->group(function () {
+    Route::get('/', function () {
+        return redirect()->route('employees.index');
+    })->name('management.karyawan.index');
+    
+    Route::get('/tambah', function () {
+        return redirect()->route('employees.create');
+    })->name('management.karyawan.create');
+    
+    Route::get('/import', function () {
+        return redirect()->route('employees.import');
+    })->name('management.karyawan.import');
+    
+    Route::get('/export', function () {
+        return redirect()->route('employees.export');
+    })->name('management.karyawan.export');
+});
+
+// Legacy data-karyawan routes - UPDATED: Handle both old ID and NIK formats
+Route::prefix('data-karyawan')->group(function () {
+    Route::get('/', function () {
+        return redirect()->route('employees.index');
+    });
+    Route::get('/create', function () {
+        return redirect()->route('employees.create');
+    });
+    Route::get('/import', function () {
+        return redirect()->route('employees.import');
+    });
+    
+    // UPDATED: Legacy ID redirect dengan detection NIK vs old ID
+    Route::get('/{identifier}', function ($identifier) {
+        // Jika identifier adalah NIK format (16 digit), redirect langsung
+        if (preg_match('/^[0-9]{16}$/', $identifier)) {
+            return redirect()->route('employees.show', ['identifier' => $identifier]);
+        }
+        
+        // Jika identifier adalah old auto-increment ID, cari berdasarkan ID dan redirect
+        try {
+            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
+            if ($employee) {
+                return redirect()->route('employees.show', ['identifier' => $employee->id]);
+            }
+        } catch (\Exception $e) {
+            // Ignore error dan fallback ke index
+        }
+        
+        // Fallback ke index jika tidak ditemukan
+        return redirect()->route('employees.index')->with('error', 'Employee tidak ditemukan');
+    });
+    
+    Route::get('/{identifier}/edit', function ($identifier) {
+        // UPDATED: Same logic untuk edit route
+        if (preg_match('/^[0-9]{16}$/', $identifier)) {
+            return redirect()->route('employees.edit', ['identifier' => $identifier]);
+        }
+        
+        try {
+            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
+            if ($employee) {
+                return redirect()->route('employees.edit', ['identifier' => $employee->id]);
+            }
+        } catch (\Exception $e) {
+            // Ignore error
+        }
+        
+        return redirect()->route('employees.index')->with('error', 'Employee tidak ditemukan');
+    });
+});
+
+// Total karyawan alias
+Route::get('/total-karyawan', function () {
+    return redirect()->route('employees.index');
+})->name('total.karyawan');
 
 // =====================================================
 // FILE MANAGEMENT ROUTES
@@ -869,14 +876,14 @@ Route::prefix('utilities')->group(function () {
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
             'timestamp' => now()->toISOString(),
-            'version' => '1.4.0', // UPDATED: Version bump
+            'version' => '1.5.0', // UPDATED: Version bump untuk fixed parent-child dropdown
         ]);
     })->name('utilities.health.check');
     
     Route::get('/system-info', function () {
         return response()->json([
             'system_name' => 'GAPURA ANGKASA SDM System',
-            'version' => '1.4.0', // UPDATED: Version bump
+            'version' => '1.5.0', // UPDATED: Version bump
             'features' => [
                 'employee_management' => 'active',
                 'shoe_filtering' => 'active',
@@ -885,13 +892,14 @@ Route::prefix('utilities')->group(function () {
                 'real_time_filtering' => 'active',
                 'shoe_reports' => 'active',
                 'unit_organisasi_expert' => 'active',
-                'cascading_dropdown' => 'active',
+                'cascading_dropdown' => 'active', // FIXED
                 'unit_sub_unit_management' => 'active',
                 'unit_hierarchy_api' => 'active',
                 'unit_statistics_api' => 'active',
                 'flexible_identifier_system' => 'active', // UPDATED: New feature
                 'nik_and_id_support' => 'active', // UPDATED: New feature
                 'legacy_compatibility' => 'active', // UPDATED: New feature
+                'parent_child_dropdown' => 'fixed', // NEW: Fixed feature indicator
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -924,7 +932,7 @@ Route::prefix('utilities')->group(function () {
 });
 
 // =====================================================
-// DEVELOPMENT ROUTES (hanya untuk local environment) - UPDATED: Flexible identifier testing
+// DEVELOPMENT ROUTES (hanya untuk local environment) - ENHANCED FOR DEBUGGING
 // =====================================================
 
 if (app()->environment('local', 'development')) {
@@ -934,6 +942,326 @@ if (app()->environment('local', 'development')) {
                 'message' => 'Component testing page'
             ]);
         })->name('dev.test.components');
+        
+        // CRITICAL: Test unit API endpoints langsung
+        Route::get('/test-unit-api', function () {
+            try {
+                $results = [
+                    'timestamp' => now(),
+                    'tests' => []
+                ];
+                
+                // Test 1: Unit Organisasi Options
+                try {
+                    $response = app(EmployeeController::class)->getUnitOrganisasiOptions();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['unit_organisasi_options'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'data_count' => count($data['data'] ?? []),
+                        'sample_data' => array_slice($data['data'] ?? [], 0, 3)
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['unit_organisasi_options'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 2: Units for SSQC
+                try {
+                    $request = new \Illuminate\Http\Request(['unit_organisasi' => 'SSQC']);
+                    $response = app(EmployeeController::class)->getUnits($request);
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['units_for_ssqc'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'units_found' => count($data['data'] ?? []),
+                        'sample_units' => array_slice($data['data'] ?? [], 0, 2)
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['units_for_ssqc'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 3: Sub Units for first unit
+                try {
+                    $firstUnit = \App\Models\Unit::first();
+                    if ($firstUnit) {
+                        $request = new \Illuminate\Http\Request(['unit_id' => $firstUnit->id]);
+                        $response = app(EmployeeController::class)->getSubUnits($request);
+                        $data = json_decode($response->getContent(), true);
+                        $results['tests']['sub_units_for_first_unit'] = [
+                            'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                            'unit_tested' => $firstUnit->name,
+                            'sub_units_found' => count($data['data'] ?? []),
+                            'sample_sub_units' => array_slice($data['data'] ?? [], 0, 2)
+                        ];
+                    } else {
+                        $results['tests']['sub_units_for_first_unit'] = [
+                            'status' => 'SKIP',
+                            'reason' => 'No units found in database'
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $results['tests']['sub_units_for_first_unit'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Summary
+                $passCount = 0;
+                $totalTests = count($results['tests']);
+                foreach ($results['tests'] as $test) {
+                    if ($test['status'] === 'PASS') $passCount++;
+                }
+                
+                $results['summary'] = [
+                    'total_tests' => $totalTests,
+                    'passed' => $passCount,
+                    'failed' => $totalTests - $passCount,
+                    'success_rate' => $totalTests > 0 ? round(($passCount / $totalTests) * 100, 2) . '%' : '0%'
+                ];
+                
+                return response()->json([
+                    'message' => 'Unit API Testing Completed',
+                    'results' => $results
+                ], 200, [], JSON_PRETTY_PRINT);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Unit API Testing Failed',
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ], 500);
+            }
+        })->name('dev.test.unit.api');
+
+        // CRITICAL: Debug unit structure
+        Route::get('/debug-units', function() {
+            try {
+                $debug = [
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                    'database_check' => [],
+                    'unit_organisasi_options' => [],
+                    'units_data' => [],
+                    'sub_units_data' => [],
+                    'api_tests' => [],
+                    'employees_count' => 0,
+                ];
+
+                // Check database connection
+                try {
+                    \DB::connection()->getPdo();
+                    $debug['database_check'] = [
+                        'status' => 'Connected',
+                        'driver' => config('database.default'),
+                        'host' => config('database.connections.mysql.host'),
+                        'database' => config('database.connections.mysql.database')
+                    ];
+                } catch (\Exception $e) {
+                    $debug['database_check'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                // Check Unit Organisasi Options
+                try {
+                    $options = \App\Models\Unit::UNIT_ORGANISASI_OPTIONS ?? [];
+                    $debug['unit_organisasi_options'] = [
+                        'status' => 'OK',
+                        'count' => count($options),
+                        'options' => $options
+                    ];
+                } catch (\Exception $e) {
+                    $debug['unit_organisasi_options'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                // Check Units Data
+                try {
+                    $units = \App\Models\Unit::all();
+                    $groupedUnits = [];
+                    
+                    foreach (\App\Models\Unit::UNIT_ORGANISASI_OPTIONS as $unitOrg) {
+                        $unitsInOrg = \App\Models\Unit::where('unit_organisasi', $unitOrg)->get();
+                        $groupedUnits[$unitOrg] = [
+                            'count' => $unitsInOrg->count(),
+                            'units' => $unitsInOrg->map(function($unit) {
+                                return [
+                                    'id' => $unit->id,
+                                    'name' => $unit->name,
+                                    'code' => $unit->code,
+                                    'is_active' => $unit->is_active,
+                                    'sub_units_count' => $unit->subUnits()->count()
+                                ];
+                            })
+                        ];
+                    }
+                    
+                    $debug['units_data'] = [
+                        'status' => 'OK',
+                        'total_units' => $units->count(),
+                        'active_units' => \App\Models\Unit::where('is_active', true)->count(),
+                        'grouped_by_unit_organisasi' => $groupedUnits
+                    ];
+                } catch (\Exception $e) {
+                    $debug['units_data'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                // Check Sub Units Data
+                try {
+                    $subUnits = \App\Models\SubUnit::all();
+                    $subUnitsWithParent = \App\Models\SubUnit::with('unit')->get()->map(function($subUnit) {
+                        return [
+                            'id' => $subUnit->id,
+                            'name' => $subUnit->name,
+                            'code' => $subUnit->code,
+                            'unit_id' => $subUnit->unit_id,
+                            'unit_name' => $subUnit->unit->name ?? 'Unknown',
+                            'unit_organisasi' => $subUnit->unit->unit_organisasi ?? 'Unknown',
+                            'is_active' => $subUnit->is_active
+                        ];
+                    });
+                    
+                    $debug['sub_units_data'] = [
+                        'status' => 'OK',
+                        'total_sub_units' => $subUnits->count(),
+                        'active_sub_units' => \App\Models\SubUnit::where('is_active', true)->count(),
+                        'sub_units_with_parent' => $subUnitsWithParent
+                    ];
+                } catch (\Exception $e) {
+                    $debug['sub_units_data'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                // Test API Endpoints
+                $tests = [];
+                
+                // Test 1: Get units for SSQC
+                try {
+                    $units = \App\Models\Unit::active()
+                        ->byUnitOrganisasi('SSQC')
+                        ->orderBy('name')
+                        ->get(['id', 'name', 'code', 'description']);
+                        
+                    $tests['get_units_ssqc'] = [
+                        'status' => 'OK',
+                        'count' => $units->count(),
+                        'data' => $units
+                    ];
+                } catch (\Exception $e) {
+                    $tests['get_units_ssqc'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                // Test 2: Get sub units for first unit
+                try {
+                    $firstUnit = \App\Models\Unit::first();
+                    if ($firstUnit) {
+                        $subUnits = \App\Models\SubUnit::active()
+                            ->byUnit($firstUnit->id)
+                            ->orderBy('name')
+                            ->get(['id', 'name', 'code', 'description']);
+                            
+                        $tests['get_sub_units_first_unit'] = [
+                            'status' => 'OK',
+                            'unit_id' => $firstUnit->id,
+                            'unit_name' => $firstUnit->name,
+                            'count' => $subUnits->count(),
+                            'data' => $subUnits
+                        ];
+                    } else {
+                        $tests['get_sub_units_first_unit'] = [
+                            'status' => 'No units found'
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $tests['get_sub_units_first_unit'] = [
+                        'status' => 'Error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+
+                $debug['api_tests'] = $tests;
+                $debug['employees_count'] = \App\Models\Employee::count();
+
+                return response()->json($debug, 200, [], JSON_PRETTY_PRINT);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ], 500);
+            }
+        })->name('dev.debug.units');
+
+        // Test API langsung dengan parameter
+        Route::get('/test-api/{endpoint}', function($endpoint, \Illuminate\Http\Request $request) {
+            $unitOrganisasi = $request->get('unit_organisasi', 'SSQC');
+            $unitId = $request->get('unit_id', 1);
+
+            switch ($endpoint) {
+                case 'units':
+                    try {
+                        $units = \App\Models\Unit::active()
+                            ->byUnitOrganisasi($unitOrganisasi)
+                            ->orderBy('name')
+                            ->get(['id', 'name', 'code', 'description']);
+
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Units retrieved successfully',
+                            'data' => $units,
+                            'count' => $units->count()
+                        ]);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Error retrieving units',
+                            'error' => $e->getMessage()
+                        ], 500);
+                    }
+
+                case 'sub-units':
+                    try {
+                        $subUnits = \App\Models\SubUnit::active()
+                            ->byUnit($unitId)
+                            ->orderBy('name')
+                            ->get(['id', 'name', 'code', 'description']);
+
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Sub units retrieved successfully',
+                            'data' => $subUnits,
+                            'count' => $subUnits->count()
+                        ]);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Error retrieving sub units',
+                            'error' => $e->getMessage()
+                        ], 500);
+                    }
+
+                default:
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unknown endpoint'
+                    ], 400);
+            }
+        })->name('dev.test.api');
         
         Route::get('/test-seeder', function () {
             try {
@@ -1073,58 +1401,6 @@ if (app()->environment('local', 'development')) {
                 ], 500);
             }
         })->name('dev.test.shoe.filters');
-
-        // Enhanced unit API testing route
-        Route::get('/test-unit-api', function () {
-            try {
-                $results = [
-                    'timestamp' => now(),
-                    'tests' => []
-                ];
-                
-                // Test 1: Unit Organisasi Options
-                try {
-                    $response = app(EmployeeController::class)->getUnitOrganisasiOptions();
-                    $data = json_decode($response->getContent(), true);
-                    $results['tests']['unit_organisasi_options'] = [
-                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                        'data_count' => count($data['data'] ?? []),
-                        'sample_data' => array_slice($data['data'] ?? [], 0, 3)
-                    ];
-                } catch (\Exception $e) {
-                    $results['tests']['unit_organisasi_options'] = [
-                        'status' => 'ERROR',
-                        'error' => $e->getMessage()
-                    ];
-                }
-                
-                // Summary
-                $passCount = 0;
-                $totalTests = count($results['tests']);
-                foreach ($results['tests'] as $test) {
-                    if ($test['status'] === 'PASS') $passCount++;
-                }
-                
-                $results['summary'] = [
-                    'total_tests' => $totalTests,
-                    'passed' => $passCount,
-                    'failed' => $totalTests - $passCount,
-                    'success_rate' => $totalTests > 0 ? round(($passCount / $totalTests) * 100, 2) . '%' : '0%'
-                ];
-                
-                return response()->json([
-                    'message' => 'Unit API Testing Completed',
-                    'results' => $results
-                ], 200, [], JSON_PRETTY_PRINT);
-                
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Unit API Testing Failed',
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ], 500);
-            }
-        })->name('dev.test.unit.api');
 
         // UPDATED: Test flexible identifier system
         Route::get('/test-identifier-system', function () {
@@ -1298,8 +1574,15 @@ Route::fallback(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan Flexible Identifier System v1.4.0
+| Route Documentation - Enhanced dengan Fixed Parent-Child Dropdown v1.5.0
 |--------------------------------------------------------------------------
+|
+| CRITICAL FIXES untuk Parent-Child Dropdown:
+| ✅ API routes diprioritaskan di bagian atas untuk menghindari konflik
+| ✅ Enhanced debugging routes untuk troubleshooting
+| ✅ Dedicated test endpoints untuk unit API
+| ✅ Direct API testing dengan parameter
+| ✅ Comprehensive logging dan error handling
 |
 | MAIN ROUTES:
 | - /dashboard                 - Dashboard utama dengan statistik
@@ -1309,58 +1592,38 @@ Route::fallback(function () {
 | - /laporan/sepatu           - Laporan khusus distribusi sepatu
 | - /pengaturan               - Settings sistem
 |
-| UPDATED EMPLOYEE ROUTES dengan Flexible Identifier Parameter:
-| - /employees/{identifier}                     - Show employee (support ID, NIK, or NIP)
-| - /employees/{identifier}/edit                - Edit employee (flexible identifier)
-| - /employees/{identifier}/profile             - Employee profile (flexible identifier)  
-| - /employees/{identifier}/id-card             - Generate ID card (flexible identifier)
-| - PUT/PATCH /employees/{identifier}           - Update employee (flexible identifier)
-| - DELETE /employees/{identifier}              - Delete employee (flexible identifier)
+| CRITICAL API ROUTES untuk Parent-Child Dropdown:
+| - /api/units                            - Get units berdasarkan unit_organisasi (FIXED)
+| - /api/sub-units                        - Get sub units berdasarkan unit_id (FIXED)
+| - /api/unit-organisasi-options          - Get unit organisasi options (FIXED)
+| - /api/units/hierarchy                  - Get complete unit hierarchy
+| - /api/units/statistics                 - Get unit statistics
 |
-| ENHANCED API ROUTES untuk Flexible Identifier System:
-| - /api/employees/{identifier}/profile         - Get employee profile by any identifier
-| - /api/employees/{identifier}/summary         - Get employee summary by any identifier
-| - /api/validate/nik                           - Validate NIK format and uniqueness
-| - /api/validate/nip                           - Validate NIP uniqueness
-| - /api/employees/search/advanced              - Advanced search with flexible identifier support
+| ENHANCED DEBUGGING ROUTES (development only):
+| - /dev/debug-units                      - Comprehensive unit structure debug
+| - /dev/test-api/{endpoint}              - Direct API testing dengan parameter
+| - /dev/test-unit-api                    - Complete unit API testing suite
+| - /dev/test-unit-seeder                 - Test unit seeder
 |
-| LEGACY SUPPORT & REDIRECTS:
-| - /data-karyawan/{identifier}                 - Smart redirect (flexible identifier detection)
-| - /employees/{id}/legacy-redirect             - Legacy ID redirect
+| TESTING ENDPOINTS:
+| - /dev/test-api/units?unit_organisasi=SSQC     - Test units API
+| - /dev/test-api/sub-units?unit_id=1            - Test sub units API
+| - /dev/debug-units                             - Debug complete structure
 |
-| FLEXIBLE IDENTIFIER FEATURES v1.4.0:
-| ✓ Support untuk auto-increment ID, NIK, dan NIP
-| ✓ Backward compatibility dengan sistem lama
-| ✓ Smart identifier detection dan routing
-| ✓ Enhanced search dengan multiple identifier types
-| ✓ Flexible validation API endpoints
-| ✓ Comprehensive testing suite
-| ✓ Enhanced error handling dan fallback
-| ✓ Database statistics untuk monitoring
+| NEW FEATURES v1.5.0:
+| ✅ Fixed parent-child dropdown routing conflicts
+| ✅ Enhanced API debugging dan testing
+| ✅ Comprehensive unit structure validation
+| ✅ Direct API testing dengan parameter
+| ✅ Real-time debugging capabilities
+| ✅ Enhanced error handling dan logging
+| ✅ Improved route prioritization
 |
-| DEVELOPMENT ROUTES (local only) - UPDATED:
-| - /dev/test-seeder                  - Test SDM Employee Seeder
-| - /dev/test-unit-seeder             - Test Unit Seeder
-| - /dev/test-database                - Test database dengan flexible identifier stats
-| - /dev/test-identifier-system       - Comprehensive flexible identifier testing (NEW)
-| - /dev/test-unit-api                - Enhanced unit API testing
-| - /dev/test-shoe-filters            - Test shoe filtering functionality
-|
-| UTILITY ROUTES - UPDATED:
-| - /utilities/health-check           - Enhanced dengan flexible identifier statistics
-| - /utilities/system-info            - Updated dengan flexible identifier features info
-|
-| ROUTE CONSTRAINTS:
-| - {identifier} parameters: '[0-9]+' (supports auto-increment ID, NIK, NIP)
-| - Backward compatible dengan legacy systems
-|
-| NEW FEATURES v1.4.0:
-| ✓ Complete flexible identifier system
-| ✓ Support untuk multiple identifier types
-| ✓ Enhanced backward compatibility
-| ✓ Smart identifier detection
-| ✓ Flexible validation dan search
-| ✓ Comprehensive testing dan monitoring
-| ✓ Enhanced error handling
+| ROUTE PRIORITIES (order matters):
+| 1. API routes (highest priority)
+| 2. Main application routes
+| 3. Legacy compatibility routes
+| 4. Development/debugging routes
+| 5. Fallback routes (lowest priority)
 |
 */
