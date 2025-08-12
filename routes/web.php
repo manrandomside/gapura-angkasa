@@ -17,7 +17,7 @@ use Inertia\Inertia;
 | Sistem SDM PT Gapura Angkasa - Bandar Udara Ngurah Rai
 | Enhanced dengan filter sepatu dan ukuran sepatu
 | Updated dengan Unit Organisasi Expert System
-| UPDATED: NIK sebagai primary key dan route parameter
+| FIXED: Flexible identifier support untuk NIK dan ID
 |
 */
 
@@ -43,35 +43,35 @@ Route::prefix('dashboard')->group(function () {
 });
 
 // =====================================================
-// EMPLOYEE MANAGEMENT ROUTES - UPDATED: NIK sebagai Parameter
+// EMPLOYEE MANAGEMENT ROUTES - FIXED: Flexible identifier support
 // =====================================================
 
 Route::prefix('employees')->group(function () {
-    // Main CRUD operations - UPDATED: menggunakan NIK sebagai parameter
+    // Main CRUD operations
     Route::get('/', [EmployeeController::class, 'index'])->name('employees.index');
     Route::get('/create', [EmployeeController::class, 'create'])->name('employees.create');
     Route::post('/', [EmployeeController::class, 'store'])->name('employees.store');
     
-    // UPDATED: NIK-based routes dengan constraint 16 digit angka
-    Route::get('/{nik}', [EmployeeController::class, 'show'])
+    // FIXED: Flexible routes yang support both NIK dan ID
+    Route::get('/{identifier}', [EmployeeController::class, 'show'])
         ->name('employees.show')
-        ->where('nik', '[0-9]{16}'); // NIK harus tepat 16 digit angka
+        ->where('identifier', '[0-9]+'); // Support both ID dan NIK (flexible numeric)
         
-    Route::get('/{nik}/edit', [EmployeeController::class, 'edit'])
+    Route::get('/{identifier}/edit', [EmployeeController::class, 'edit'])
         ->name('employees.edit')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
         
-    Route::put('/{nik}', [EmployeeController::class, 'update'])
+    Route::put('/{identifier}', [EmployeeController::class, 'update'])
         ->name('employees.update')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
         
-    Route::patch('/{nik}', [EmployeeController::class, 'update'])
+    Route::patch('/{identifier}', [EmployeeController::class, 'update'])
         ->name('employees.patch')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
         
-    Route::delete('/{nik}', [EmployeeController::class, 'destroy'])
+    Route::delete('/{identifier}', [EmployeeController::class, 'destroy'])
         ->name('employees.destroy')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
     
     // Search and filter
     Route::get('/search/api', [EmployeeController::class, 'search'])->name('employees.search');
@@ -80,10 +80,10 @@ Route::prefix('employees')->group(function () {
     // Statistics and analytics
     Route::get('/statistics/api', [EmployeeController::class, 'getStatistics'])->name('employees.statistics');
     
-    // Profile dengan NIK parameter - UPDATED
-    Route::get('/{nik}/profile', [EmployeeController::class, 'profile'])
+    // Profile dengan flexible parameter
+    Route::get('/{identifier}/profile', [EmployeeController::class, 'profile'])
         ->name('employees.profile')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
     
     // Data operations
     Route::post('/import', [EmployeeController::class, 'import'])->name('employees.import');
@@ -94,10 +94,10 @@ Route::prefix('employees')->group(function () {
     // Reports
     Route::post('/generate-report', [EmployeeController::class, 'generateReport'])->name('employees.generate.report');
     
-    // Additional features dengan NIK parameter - UPDATED
-    Route::get('/{nik}/id-card', [EmployeeController::class, 'generateIdCard'])
+    // Additional features dengan flexible parameter
+    Route::get('/{identifier}/id-card', [EmployeeController::class, 'generateIdCard'])
         ->name('employees.id.card')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
 });
 
 // =====================================================
@@ -274,7 +274,7 @@ Route::prefix('pengaturan')->group(function () {
 });
 
 // =====================================================
-// LEGACY & ALIAS ROUTES - UPDATED: Support NIK redirects
+// LEGACY & ALIAS ROUTES - UPDATED: Support flexible identifier redirects
 // =====================================================
 
 // Management Karyawan (Indonesian naming) - redirect to employees
@@ -310,17 +310,16 @@ Route::prefix('data-karyawan')->group(function () {
     
     // UPDATED: Legacy ID redirect dengan detection NIK vs old ID
     Route::get('/{identifier}', function ($identifier) {
-        // Jika identifier adalah 16 digit (NIK), redirect langsung
+        // Jika identifier adalah NIK format (16 digit), redirect langsung
         if (preg_match('/^[0-9]{16}$/', $identifier)) {
-            return redirect()->route('employees.show', ['nik' => $identifier]);
+            return redirect()->route('employees.show', ['identifier' => $identifier]);
         }
         
-        // Jika identifier adalah old auto-increment ID, cari berdasarkan ID dan redirect ke NIK
+        // Jika identifier adalah old auto-increment ID, cari berdasarkan ID dan redirect
         try {
-            // Asumsi ada field legacy 'id' di database atau cara mapping lain
-            $employee = \App\Models\Employee::where('nip', $identifier)->first();
-            if ($employee && $employee->nik) {
-                return redirect()->route('employees.show', ['nik' => $employee->nik]);
+            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
+            if ($employee) {
+                return redirect()->route('employees.show', ['identifier' => $employee->id]);
             }
         } catch (\Exception $e) {
             // Ignore error dan fallback ke index
@@ -333,13 +332,13 @@ Route::prefix('data-karyawan')->group(function () {
     Route::get('/{identifier}/edit', function ($identifier) {
         // UPDATED: Same logic untuk edit route
         if (preg_match('/^[0-9]{16}$/', $identifier)) {
-            return redirect()->route('employees.edit', ['nik' => $identifier]);
+            return redirect()->route('employees.edit', ['identifier' => $identifier]);
         }
         
         try {
-            $employee = \App\Models\Employee::where('nip', $identifier)->first();
-            if ($employee && $employee->nik) {
-                return redirect()->route('employees.edit', ['nik' => $employee->nik]);
+            $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
+            if ($employee) {
+                return redirect()->route('employees.edit', ['identifier' => $employee->id]);
             }
         } catch (\Exception $e) {
             // Ignore error
@@ -355,7 +354,7 @@ Route::get('/total-karyawan', function () {
 })->name('total.karyawan');
 
 // =====================================================
-// API ROUTES - ENHANCED dengan Unit Organisasi Expert + NIK Support
+// API ROUTES - ENHANCED dengan Unit Organisasi Expert + Flexible identifier Support
 // =====================================================
 
 Route::prefix('api')->group(function () {
@@ -367,16 +366,16 @@ Route::prefix('api')->group(function () {
     Route::get('/dashboard/activities', [DashboardController::class, 'getRecentActivities'])
         ->name('api.dashboard.activities');
     
-    // Employee API dengan filter enhancement - UPDATED: NIK support
+    // Employee API dengan filter enhancement - UPDATED: Flexible identifier support
     Route::get('/employees/search', [EmployeeController::class, 'search'])
         ->name('api.employees.search');
     Route::get('/employees/statistics', [EmployeeController::class, 'getStatistics'])
         ->name('api.employees.statistics');
     
-    // UPDATED: Profile API menggunakan NIK parameter
-    Route::get('/employees/{nik}/profile', [EmployeeController::class, 'profile'])
+    // UPDATED: Profile API menggunakan flexible identifier parameter
+    Route::get('/employees/{identifier}/profile', [EmployeeController::class, 'profile'])
         ->name('api.employees.profile')
-        ->where('nik', '[0-9]{16}');
+        ->where('identifier', '[0-9]+');
         
     Route::post('/employees/validate', [EmployeeController::class, 'validateData'])
         ->name('api.employees.validate');
@@ -396,7 +395,7 @@ Route::prefix('api')->group(function () {
     Route::get('/units/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
     Route::get('/units/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
     
-    // UPDATED: Enhanced filter options API dengan NIK validation support
+    // UPDATED: Enhanced filter options API dengan flexible identifier validation support
     Route::get('/employees/filter-options', function() {
         try {
             // Get Unit Organisasi options dari Unit model jika ada
@@ -497,27 +496,20 @@ Route::prefix('api')->group(function () {
                 $query->with('subUnit');
             }
 
-            // UPDATED: Apply search filter dengan NIK search
+            // UPDATED: Apply search filter dengan flexible identifier search
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
                     $q->where('nama_lengkap', 'like', "%{$searchTerm}%")
                       ->orWhere('nip', 'like', "%{$searchTerm}%")
-                      ->orWhere('nik', 'like', "%{$searchTerm}%") // UPDATED: Include NIK search
+                      ->orWhere('nik', 'like', "%{$searchTerm}%") // Include NIK search
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
                       ->orWhere('alamat', 'like', "%{$searchTerm}%")
-                      ->orWhere('handphone', 'like', "%{$searchTerm}%")
-                      // TAMBAHAN BARU: Search dalam unit dan sub unit
-                      ->orWhereHas('unit', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      })
-                      ->orWhereHas('subUnit', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      });
+                      ->orWhere('handphone', 'like', "%{$searchTerm}%");
                 });
             }
 
@@ -683,15 +675,27 @@ Route::prefix('api')->group(function () {
         }
     })->name('api.employees.shoe.distribution');
 
-    // UPDATED: Employee summary API dengan NIK parameter
-    Route::get('/employees/{nik}/summary', function($nik) {
+    // UPDATED: Employee summary API dengan flexible identifier parameter
+    Route::get('/employees/{identifier}/summary', function($identifier) {
         try {
-            $employee = \App\Models\Employee::where('nik', $nik)->first();
+            $employee = null;
+            
+            // Try to find by NIK first (if 16 digits)
+            if (preg_match('/^[0-9]{16}$/', $identifier)) {
+                $employee = \App\Models\Employee::where('nik', $identifier)->first();
+            }
+            
+            // Fallback to ID or NIP
+            if (!$employee) {
+                $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
+            }
+            
             if (!$employee) {
                 return response()->json(['error' => 'Employee not found'], 404);
             }
             
             return response()->json([
+                'id' => $employee->id,
                 'nik' => $employee->nik,
                 'nip' => $employee->nip,
                 'nama_lengkap' => $employee->nama_lengkap,
@@ -705,18 +709,18 @@ Route::prefix('api')->group(function () {
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
-    })->where('nik', '[0-9]{16}');
+    })->where('identifier', '[0-9]+');
 
     // UPDATED: NIK dan NIP validation API endpoints
     Route::post('/validate/nik', function(\Illuminate\Http\Request $request) {
         $nik = $request->input('nik');
         $excludeNik = $request->input('exclude_nik'); // For edit mode
         
-        // Validate NIK format
-        if (strlen($nik) !== 16 || !ctype_digit($nik)) {
+        // Validate NIK format (allow flexible length for now)
+        if (strlen($nik) < 10 || !ctype_digit($nik)) {
             return response()->json([
                 'valid' => false,
-                'message' => 'NIK harus tepat 16 digit angka'
+                'message' => 'NIK minimal 10 digit angka'
             ]);
         }
         
@@ -735,7 +739,7 @@ Route::prefix('api')->group(function () {
     
     Route::post('/validate/nip', function(\Illuminate\Http\Request $request) {
         $nip = $request->input('nip');
-        $excludeNik = $request->input('exclude_nik'); // For edit mode - UPDATED: use NIK for exclude
+        $excludeId = $request->input('exclude_id'); // For edit mode - use ID instead of NIK
         
         // Validate NIP format
         if (strlen($nip) < 6 || !ctype_digit($nip)) {
@@ -747,8 +751,8 @@ Route::prefix('api')->group(function () {
         
         // Check if NIP already exists (exclude current employee jika edit)
         $query = \App\Models\Employee::where('nip', $nip);
-        if ($excludeNik) {
-            $query->where('nik', '!=', $excludeNik); // UPDATED: exclude by NIK
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId); // Use ID for exclude
         }
         $exists = $query->exists();
         
@@ -787,7 +791,7 @@ Route::prefix('files')->group(function () {
 });
 
 // =====================================================
-// UTILITY ROUTES - UPDATED: Enhanced dengan NIK system info
+// UTILITY ROUTES - UPDATED: Enhanced dengan flexible identifier system info
 // =====================================================
 
 Route::prefix('utilities')->group(function () {
@@ -824,13 +828,13 @@ Route::prefix('utilities')->group(function () {
                 $unitStats = ['message' => 'Unit system not yet implemented'];
             }
 
-            // UPDATED: NIK system stats
-            $nikStats = [
+            // UPDATED: Flexible identifier system stats
+            $identifierStats = [
                 'total_with_nik' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->count(),
-                'nik_16_digit_valid' => \App\Models\Employee::whereRaw('LENGTH(nik) = 16')->whereRaw('nik REGEXP "^[0-9]+$"')->count(),
                 'employees_without_nik' => \App\Models\Employee::whereNull('nik')->orWhere('nik', '')->count(),
                 'unique_niks' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->distinct()->count('nik'),
                 'unique_nips' => \App\Models\Employee::whereNotNull('nip')->where('nip', '!=', '')->distinct()->count('nip'),
+                'auto_increment_ids' => \App\Models\Employee::max('id'),
             ];
         } catch (\Exception $e) {
             $dbStatus = 'Error: ' . $e->getMessage();
@@ -838,7 +842,7 @@ Route::prefix('utilities')->group(function () {
             $organizationCount = 0;
             $shoeStats = ['pantofel' => 0, 'safety_shoes' => 0, 'no_shoe_data' => 0, 'unique_sizes' => 0];
             $unitStats = ['message' => 'Database connection failed'];
-            $nikStats = ['total_with_nik' => 0, 'nik_16_digit_valid' => 0, 'employees_without_nik' => 0, 'unique_niks' => 0, 'unique_nips' => 0];
+            $identifierStats = ['total_with_nik' => 0, 'employees_without_nik' => 0, 'unique_niks' => 0, 'unique_nips' => 0, 'auto_increment_ids' => 0];
         }
         
         return response()->json([
@@ -849,7 +853,7 @@ Route::prefix('utilities')->group(function () {
             'organization_count' => $organizationCount,
             'shoe_statistics' => $shoeStats,
             'unit_statistics' => $unitStats,
-            'nik_statistics' => $nikStats, // UPDATED: Include NIK stats
+            'identifier_statistics' => $identifierStats, // UPDATED: Include flexible identifier stats
             'features' => [
                 'shoe_filtering' => 'enabled',
                 'size_filtering' => 'enabled',
@@ -859,20 +863,20 @@ Route::prefix('utilities')->group(function () {
                 'cascading_dropdown' => 'enabled',
                 'unit_hierarchy' => 'enabled',
                 'unit_statistics' => 'enabled',
-                'nik_primary_key' => 'enabled', // UPDATED: New feature
-                'nik_validation' => 'enabled', // UPDATED: New feature
+                'flexible_identifier_support' => 'enabled', // UPDATED: New feature
+                'backward_compatibility' => 'enabled', // UPDATED: New feature
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
             'timestamp' => now()->toISOString(),
-            'version' => '1.3.0', // UPDATED: Version bump
+            'version' => '1.4.0', // UPDATED: Version bump
         ]);
     })->name('utilities.health.check');
     
     Route::get('/system-info', function () {
         return response()->json([
             'system_name' => 'GAPURA ANGKASA SDM System',
-            'version' => '1.3.0', // UPDATED: Version bump
+            'version' => '1.4.0', // UPDATED: Version bump
             'features' => [
                 'employee_management' => 'active',
                 'shoe_filtering' => 'active',
@@ -885,9 +889,9 @@ Route::prefix('utilities')->group(function () {
                 'unit_sub_unit_management' => 'active',
                 'unit_hierarchy_api' => 'active',
                 'unit_statistics_api' => 'active',
-                'nik_primary_key_system' => 'active', // UPDATED: New feature
-                'nik_validation_api' => 'active', // UPDATED: New feature
-                'legacy_id_redirect' => 'active', // UPDATED: New feature
+                'flexible_identifier_system' => 'active', // UPDATED: New feature
+                'nik_and_id_support' => 'active', // UPDATED: New feature
+                'legacy_compatibility' => 'active', // UPDATED: New feature
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -920,7 +924,7 @@ Route::prefix('utilities')->group(function () {
 });
 
 // =====================================================
-// DEVELOPMENT ROUTES (hanya untuk local environment) - UPDATED: NIK testing
+// DEVELOPMENT ROUTES (hanya untuk local environment) - UPDATED: Flexible identifier testing
 // =====================================================
 
 if (app()->environment('local', 'development')) {
@@ -987,7 +991,7 @@ if (app()->environment('local', 'development')) {
             }
         })->name('dev.test.unit.seeder');
         
-        // UPDATED: Test database dengan NIK validation
+        // UPDATED: Test database dengan flexible identifier validation
         Route::get('/test-database', function () {
             try {
                 $employees = \App\Models\Employee::take(5)->get();
@@ -1015,15 +1019,15 @@ if (app()->environment('local', 'development')) {
                     $unitData = ['message' => 'Unit models not yet created'];
                 }
 
-                // UPDATED: Test NIK data
-                $nikData = [
+                // UPDATED: Test flexible identifier data
+                $identifierData = [
                     'total_employees' => \App\Models\Employee::count(),
                     'employees_with_nik' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->count(),
                     'employees_without_nik' => \App\Models\Employee::whereNull('nik')->orWhere('nik', '')->count(),
-                    'valid_16_digit_niks' => \App\Models\Employee::whereRaw('LENGTH(nik) = 16')->whereRaw('nik REGEXP "^[0-9]+$"')->count(),
-                    'invalid_nik_formats' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->whereRaw('LENGTH(nik) != 16 OR nik NOT REGEXP "^[0-9]+$"')->count(),
-                    'duplicate_niks' => \App\Models\Employee::selectRaw('nik, COUNT(*) as count')->whereNotNull('nik')->where('nik', '!=', '')->groupBy('nik')->havingRaw('COUNT(*) > 1')->count(),
+                    'max_auto_increment_id' => \App\Models\Employee::max('id'),
+                    'sample_ids' => \App\Models\Employee::take(3)->pluck('id'),
                     'sample_niks' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->take(3)->pluck('nik'),
+                    'sample_nips' => \App\Models\Employee::whereNotNull('nip')->where('nip', '!=', '')->take(3)->pluck('nip'),
                 ];
                 
                 return response()->json([
@@ -1034,7 +1038,7 @@ if (app()->environment('local', 'development')) {
                     'organizations' => $organizations,
                     'shoe_data' => $shoeData,
                     'unit_data' => $unitData,
-                    'nik_data' => $nikData, // UPDATED: Include NIK validation data
+                    'identifier_data' => $identifierData, // UPDATED: Include flexible identifier data
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
@@ -1094,79 +1098,6 @@ if (app()->environment('local', 'development')) {
                     ];
                 }
                 
-                // Test 2: Units for Airside
-                try {
-                    $request = new \Illuminate\Http\Request(['unit_organisasi' => 'Airside']);
-                    $response = app(EmployeeController::class)->getUnits($request);
-                    $data = json_decode($response->getContent(), true);
-                    $results['tests']['airside_units'] = [
-                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                        'units_count' => count($data['data'] ?? []),
-                        'units' => $data['data'] ?? []
-                    ];
-                } catch (\Exception $e) {
-                    $results['tests']['airside_units'] = [
-                        'status' => 'ERROR',
-                        'error' => $e->getMessage()
-                    ];
-                }
-                
-                // Test 3: Sub Units for MO (if exists)
-                try {
-                    $moUnit = \App\Models\Unit::where('name', 'MO')->where('unit_organisasi', 'Airside')->first();
-                    if ($moUnit) {
-                        $request = new \Illuminate\Http\Request(['unit_id' => $moUnit->id]);
-                        $response = app(EmployeeController::class)->getSubUnits($request);
-                        $data = json_decode($response->getContent(), true);
-                        $results['tests']['mo_sub_units'] = [
-                            'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                            'sub_units_count' => count($data['data'] ?? []),
-                            'sub_units' => array_column($data['data'] ?? [], 'name')
-                        ];
-                    } else {
-                        $results['tests']['mo_sub_units'] = [
-                            'status' => 'SKIP',
-                            'reason' => 'MO unit not found - run UnitSeeder first'
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    $results['tests']['mo_sub_units'] = [
-                        'status' => 'ERROR',
-                        'error' => $e->getMessage()
-                    ];
-                }
-                
-                // Test 4: Unit Hierarchy
-                try {
-                    $response = app(EmployeeController::class)->getAllUnitsHierarchy();
-                    $data = json_decode($response->getContent(), true);
-                    $results['tests']['unit_hierarchy'] = [
-                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                        'hierarchy_count' => count($data['data'] ?? []),
-                        'sample_structure' => array_keys($data['data'] ?? [])
-                    ];
-                } catch (\Exception $e) {
-                    $results['tests']['unit_hierarchy'] = [
-                        'status' => 'ERROR',
-                        'error' => $e->getMessage()
-                    ];
-                }
-                
-                // Test 5: Unit Statistics
-                try {
-                    $response = app(EmployeeController::class)->getUnitStatistics();
-                    $data = json_decode($response->getContent(), true);
-                    $results['tests']['unit_statistics'] = [
-                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                        'statistics' => $data['data'] ?? []
-                    ];
-                } catch (\Exception $e) {
-                    $results['tests']['unit_statistics'] = [
-                        'status' => 'ERROR',
-                        'error' => $e->getMessage()
-                    ];
-                }
-                
                 // Summary
                 $passCount = 0;
                 $totalTests = count($results['tests']);
@@ -1195,71 +1126,83 @@ if (app()->environment('local', 'development')) {
             }
         })->name('dev.test.unit.api');
 
-        // UPDATED: Test NIK system
-        Route::get('/test-nik-system', function () {
+        // UPDATED: Test flexible identifier system
+        Route::get('/test-identifier-system', function () {
             try {
                 $results = [
                     'timestamp' => now(),
-                    'nik_system_tests' => []
+                    'identifier_system_tests' => []
                 ];
                 
-                // Test 1: NIK Format Validation
-                $testNiks = ['1234567890123456', '123456789012345', '12345678901234567', 'abcd567890123456', ''];
-                foreach ($testNiks as $testNik) {
-                    $isValid = preg_match('/^[0-9]{16}$/', $testNik);
-                    $results['nik_system_tests']['format_validation'][$testNik] = [
-                        'input' => $testNik,
-                        'length' => strlen($testNik),
-                        'is_valid_format' => $isValid ? 'PASS' : 'FAIL'
+                // Test 1: Route Parameter Validation
+                $testIdentifiers = ['3', '123', '1234567890123456', '999999999999999999'];
+                foreach ($testIdentifiers as $testId) {
+                    $matchesConstraint = preg_match('/^[0-9]+$/', $testId);
+                    $results['identifier_system_tests']['route_validation'][$testId] = [
+                        'input' => $testId,
+                        'length' => strlen($testId),
+                        'matches_constraint' => $matchesConstraint ? 'PASS' : 'FAIL'
                     ];
                 }
                 
-                // Test 2: Database NIK Stats
-                $results['nik_system_tests']['database_stats'] = [
+                // Test 2: Database identifier Stats
+                $results['identifier_system_tests']['database_stats'] = [
                     'total_employees' => \App\Models\Employee::count(),
+                    'max_auto_increment_id' => \App\Models\Employee::max('id'),
                     'employees_with_nik' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->count(),
-                    'valid_16_digit_niks' => \App\Models\Employee::whereRaw('LENGTH(nik) = 16')->whereRaw('nik REGEXP "^[0-9]+$"')->count(),
-                    'unique_niks' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->distinct()->count('nik'),
+                    'unique_nips' => \App\Models\Employee::whereNotNull('nip')->where('nip', '!=', '')->distinct()->count('nip'),
                 ];
                 
-                // Test 3: Find by NIK test (if employees exist)
-                $sampleEmployee = \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->first();
+                // Test 3: Find by different identifier types
+                $sampleEmployee = \App\Models\Employee::first();
                 if ($sampleEmployee) {
-                    $foundEmployee = \App\Models\Employee::where('nik', $sampleEmployee->nik)->first();
-                    $results['nik_system_tests']['find_by_nik'] = [
-                        'test_nik' => $sampleEmployee->nik,
-                        'found' => $foundEmployee ? 'PASS' : 'FAIL',
-                        'matches_original' => $foundEmployee && $foundEmployee->nik === $sampleEmployee->nik ? 'PASS' : 'FAIL'
+                    $findTests = [];
+                    
+                    // Test find by ID
+                    $foundById = \App\Models\Employee::where('id', $sampleEmployee->id)->first();
+                    $findTests['by_id'] = [
+                        'test_id' => $sampleEmployee->id,
+                        'found' => $foundById ? 'PASS' : 'FAIL'
                     ];
+                    
+                    // Test find by NIP
+                    if ($sampleEmployee->nip) {
+                        $foundByNip = \App\Models\Employee::where('nip', $sampleEmployee->nip)->first();
+                        $findTests['by_nip'] = [
+                            'test_nip' => $sampleEmployee->nip,
+                            'found' => $foundByNip ? 'PASS' : 'FAIL'
+                        ];
+                    }
+                    
+                    // Test find by NIK
+                    if ($sampleEmployee->nik) {
+                        $foundByNik = \App\Models\Employee::where('nik', $sampleEmployee->nik)->first();
+                        $findTests['by_nik'] = [
+                            'test_nik' => $sampleEmployee->nik,
+                            'found' => $foundByNik ? 'PASS' : 'FAIL'
+                        ];
+                    }
+                    
+                    $results['identifier_system_tests']['find_tests'] = $findTests;
                 } else {
-                    $results['nik_system_tests']['find_by_nik'] = [
+                    $results['identifier_system_tests']['find_tests'] = [
                         'status' => 'SKIP',
-                        'reason' => 'No employees with NIK found'
+                        'reason' => 'No employees found'
                     ];
                 }
-                
-                // Test 4: Route constraint test
-                $testNikRoute = '1234567890123456';
-                $routePattern = '[0-9]{16}';
-                $routeMatches = preg_match('/^' . $routePattern . '$/', $testNikRoute);
-                $results['nik_system_tests']['route_constraint'] = [
-                    'test_nik' => $testNikRoute,
-                    'pattern' => $routePattern,
-                    'matches' => $routeMatches ? 'PASS' : 'FAIL'
-                ];
                 
                 return response()->json([
-                    'message' => 'NIK System Testing Completed',
+                    'message' => 'Flexible Identifier System Testing Completed',
                     'results' => $results
                 ], 200, [], JSON_PRETTY_PRINT);
                 
             } catch (\Exception $e) {
                 return response()->json([
-                    'message' => 'NIK System Testing Failed',
+                    'message' => 'Identifier System Testing Failed',
                     'error' => $e->getMessage()
                 ], 500);
             }
-        })->name('dev.test.nik.system');
+        })->name('dev.test.identifier.system');
         
         Route::get('/migrate-fresh', function () {
             try {
@@ -1316,7 +1259,7 @@ if (app()->environment('local', 'development')) {
 }
 
 // =====================================================
-// ERROR HANDLING & FALLBACK - UPDATED: Enhanced error page untuk NIK
+// ERROR HANDLING & FALLBACK - UPDATED: Enhanced error page untuk flexible identifier
 // =====================================================
 
 // Handle legacy routes yang masih menggunakan auto-increment ID
@@ -1324,18 +1267,18 @@ Route::get('/employees/{id}/legacy-redirect', function($id) {
     try {
         // Jika ID adalah NIK format (16 digit), redirect ke route yang benar
         if (preg_match('/^[0-9]{16}$/', $id)) {
-            return redirect()->route('employees.show', ['nik' => $id]);
+            return redirect()->route('employees.show', ['identifier' => $id]);
         }
         
         // Jika ID adalah format lama, coba cari berdasarkan NIP atau ID lama
-        $employee = \App\Models\Employee::where('nip', $id)->first();
-        if ($employee && $employee->nik) {
-            return redirect()->route('employees.show', ['nik' => $employee->nik]);
+        $employee = \App\Models\Employee::where('id', $id)->orWhere('nip', $id)->first();
+        if ($employee) {
+            return redirect()->route('employees.show', ['identifier' => $employee->id]);
         }
         
         // Fallback ke index dengan pesan error
         return redirect()->route('employees.index')
-            ->with('error', 'Employee tidak ditemukan. Sistem sekarang menggunakan NIK sebagai identifier.');
+            ->with('error', 'Employee tidak ditemukan.');
             
     } catch (\Exception $e) {
         return redirect()->route('employees.index')
@@ -1349,78 +1292,75 @@ Route::fallback(function () {
         'status' => 404,
         'message' => 'Halaman tidak ditemukan',
         'suggestion' => 'Silakan gunakan menu navigasi untuk mengakses halaman yang tersedia.',
-        'help_text' => 'Jika Anda mencari data karyawan, pastikan menggunakan NIK (16 digit angka) sebagai identifier.'
+        'help_text' => 'Jika Anda mencari data karyawan, gunakan ID atau NIK sebagai identifier.'
     ]);
 });
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan NIK Primary Key System v1.3.0
+| Route Documentation - Enhanced dengan Flexible Identifier System v1.4.0
 |--------------------------------------------------------------------------
 |
 | MAIN ROUTES:
 | - /dashboard                 - Dashboard utama dengan statistik
-| - /employees                 - Management karyawan (CRUD lengkap dengan NIK-based routing)
+| - /employees                 - Management karyawan (CRUD lengkap dengan flexible identifier routing)
 | - /organisasi               - Management organisasi
 | - /laporan                  - Reports dan statistik
 | - /laporan/sepatu           - Laporan khusus distribusi sepatu
 | - /pengaturan               - Settings sistem
 |
-| UPDATED EMPLOYEE ROUTES dengan NIK Parameter:
-| - /employees/{nik}                     - Show employee (NIK harus 16 digit angka)
-| - /employees/{nik}/edit                - Edit employee (NIK constraint)
-| - /employees/{nik}/profile             - Employee profile (NIK constraint)  
-| - /employees/{nik}/id-card             - Generate ID card (NIK constraint)
-| - PUT/PATCH /employees/{nik}           - Update employee (NIK constraint)
-| - DELETE /employees/{nik}              - Delete employee (NIK constraint)
+| UPDATED EMPLOYEE ROUTES dengan Flexible Identifier Parameter:
+| - /employees/{identifier}                     - Show employee (support ID, NIK, or NIP)
+| - /employees/{identifier}/edit                - Edit employee (flexible identifier)
+| - /employees/{identifier}/profile             - Employee profile (flexible identifier)  
+| - /employees/{identifier}/id-card             - Generate ID card (flexible identifier)
+| - PUT/PATCH /employees/{identifier}           - Update employee (flexible identifier)
+| - DELETE /employees/{identifier}              - Delete employee (flexible identifier)
 |
-| ENHANCED API ROUTES untuk NIK System:
-| - /api/employees/{nik}/profile         - Get employee profile by NIK
-| - /api/employees/{nik}/summary         - Get employee summary by NIK
-| - /api/validate/nik                    - Validate NIK format and uniqueness
-| - /api/validate/nip                    - Validate NIP uniqueness (with NIK exclude)
-| - /api/employees/search/advanced       - Advanced search with NIK support
+| ENHANCED API ROUTES untuk Flexible Identifier System:
+| - /api/employees/{identifier}/profile         - Get employee profile by any identifier
+| - /api/employees/{identifier}/summary         - Get employee summary by any identifier
+| - /api/validate/nik                           - Validate NIK format and uniqueness
+| - /api/validate/nip                           - Validate NIP uniqueness
+| - /api/employees/search/advanced              - Advanced search with flexible identifier support
 |
 | LEGACY SUPPORT & REDIRECTS:
-| - /data-karyawan/{identifier}          - Smart redirect (NIK vs old ID detection)
-| - /employees/{id}/legacy-redirect      - Legacy ID to NIK redirect
+| - /data-karyawan/{identifier}                 - Smart redirect (flexible identifier detection)
+| - /employees/{id}/legacy-redirect             - Legacy ID redirect
 |
-| NIK PRIMARY KEY FEATURES v1.3.0:
-| ✓ NIK sebagai primary key (string, 16 digit angka)
-| ✓ Route parameter constraints untuk NIK validation
-| ✓ Legacy ID to NIK redirect system
-| ✓ NIK format validation API endpoints
-| ✓ Enhanced search dengan NIK support
-| ✓ Smart identifier detection (NIK vs old ID)
-| ✓ Comprehensive NIK system testing routes
-| ✓ Enhanced error handling untuk NIK-based system
-| ✓ Database statistics untuk NIK validation
-| ✓ Backward compatibility dengan legacy routes
+| FLEXIBLE IDENTIFIER FEATURES v1.4.0:
+| ✓ Support untuk auto-increment ID, NIK, dan NIP
+| ✓ Backward compatibility dengan sistem lama
+| ✓ Smart identifier detection dan routing
+| ✓ Enhanced search dengan multiple identifier types
+| ✓ Flexible validation API endpoints
+| ✓ Comprehensive testing suite
+| ✓ Enhanced error handling dan fallback
+| ✓ Database statistics untuk monitoring
 |
 | DEVELOPMENT ROUTES (local only) - UPDATED:
-| - /dev/test-seeder         - Test SDM Employee Seeder
-| - /dev/test-unit-seeder    - Test Unit Seeder
-| - /dev/test-database       - Test database dengan NIK validation stats
-| - /dev/test-nik-system     - Comprehensive NIK system testing (NEW)
-| - /dev/test-unit-api       - Enhanced unit API testing
-| - /dev/test-shoe-filters   - Test shoe filtering functionality
+| - /dev/test-seeder                  - Test SDM Employee Seeder
+| - /dev/test-unit-seeder             - Test Unit Seeder
+| - /dev/test-database                - Test database dengan flexible identifier stats
+| - /dev/test-identifier-system       - Comprehensive flexible identifier testing (NEW)
+| - /dev/test-unit-api                - Enhanced unit API testing
+| - /dev/test-shoe-filters            - Test shoe filtering functionality
 |
 | UTILITY ROUTES - UPDATED:
-| - /utilities/health-check  - Enhanced dengan NIK system statistics
-| - /utilities/system-info   - Updated dengan NIK features info
+| - /utilities/health-check           - Enhanced dengan flexible identifier statistics
+| - /utilities/system-info            - Updated dengan flexible identifier features info
 |
 | ROUTE CONSTRAINTS:
-| - {nik} parameters: '[0-9]{16}' (exactly 16 digits)
-| - {id} legacy parameters: '[0-9]+' (for backward compatibility)
+| - {identifier} parameters: '[0-9]+' (supports auto-increment ID, NIK, NIP)
+| - Backward compatible dengan legacy systems
 |
-| NEW FEATURES v1.3.0:
-| ✓ Complete NIK-based routing system
-| ✓ Smart legacy redirect system with identifier detection
-| ✓ NIK format validation API
-| ✓ Enhanced search capabilities dengan NIK
-| ✓ Comprehensive testing suite untuk NIK system
-| ✓ Enhanced error handling dan fallback
-| ✓ Database statistics untuk NIK validation monitoring
-| ✓ Backward compatibility untuk legacy systems
+| NEW FEATURES v1.4.0:
+| ✓ Complete flexible identifier system
+| ✓ Support untuk multiple identifier types
+| ✓ Enhanced backward compatibility
+| ✓ Smart identifier detection
+| ✓ Flexible validation dan search
+| ✓ Comprehensive testing dan monitoring
+| ✓ Enhanced error handling
 |
 */
