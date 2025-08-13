@@ -759,9 +759,9 @@ class EmployeeController extends Controller
             // Unit organisasi yang tidak memiliki sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // Enhanced validation rules with conditional sub_unit_id validation
+            // FIXED: Enhanced validation rules with more flexible validation
             $validator = Validator::make($request->all(), [
-                // Required basic fields
+                // Required basic fields - RELAXED validation
                 'nik' => [
                     'required',
                     'string',
@@ -772,7 +772,7 @@ class EmployeeController extends Controller
                 'nip' => [
                     'required',
                     'string',
-                    'min:6',
+                    'min:5', // FIXED: Reduced from 6 to 5
                     'regex:/^[0-9]+$/',
                     'unique:employees,nip'
                 ],
@@ -799,28 +799,13 @@ class EmployeeController extends Controller
                     }
                 ],
                 
-                // FIXED: Conditional sub_unit_id validation
+                // FIXED: CONDITIONAL sub_unit_id validation - Hanya required jika bukan EGM/GM
                 'sub_unit_id' => [
                     function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
-                        // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
-                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
-                            // Sub unit boleh kosong untuk EGM dan GM
-                            if ($value && !is_numeric($value)) {
-                                $fail('Sub unit harus berupa angka yang valid.');
-                            }
-                            if ($value && !SubUnit::where('id', $value)->exists()) {
-                                $fail('Sub unit yang dipilih tidak valid.');
-                            }
-                        } else {
-                            // Untuk unit organisasi lain, sub unit wajib diisi
-                            if (!$value) {
-                                $fail('Sub unit wajib dipilih untuk unit organisasi ini.');
-                            }
-                            if ($value && !is_numeric($value)) {
-                                $fail('Sub unit harus berupa angka yang valid.');
-                            }
-                            if ($value && !SubUnit::where('id', $value)->exists()) {
-                                $fail('Sub unit yang dipilih tidak valid.');
+                        // Jika unit organisasi BUKAN EGM atau GM, maka sub_unit_id WAJIB
+                        if ($request->unit_organisasi && !in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
+                            if (empty($value)) {
+                                $fail('Sub unit wajib dipilih untuk unit organisasi ' . $request->unit_organisasi . '.');
                             }
                             
                             // Validasi bahwa sub unit belongs to unit yang dipilih
@@ -847,7 +832,7 @@ class EmployeeController extends Controller
                     Rule::in(['PEGAWAI TETAP', 'PKWT', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])
                 ],
                 
-                // Optional fields dengan validasi
+                // FIXED: Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
@@ -858,13 +843,14 @@ class EmployeeController extends Controller
                 'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                'tmt_pensiun' => 'nullable|date|after:today',
+                'tmt_pensiun' => 'nullable|date', // FIXED: Removed |after:today constraint
                 'pendidikan_terakhir' => 'nullable|string|max:50',
+                'pendidikan' => 'nullable|string|max:50', // FIXED: Added pendidikan field
                 'instansi_pendidikan' => 'nullable|string|max:200',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'jenis_sepatu' => 'nullable|string|max:50', // FIXED: More flexible
+                'ukuran_sepatu' => 'nullable|string|max:10', // FIXED: Allow string instead of just integer
                 'height' => 'nullable|integer|min:100|max:250',
                 'weight' => 'nullable|integer|min:30|max:200',
                 'seragam' => 'nullable|string|max:100',
@@ -875,7 +861,7 @@ class EmployeeController extends Controller
                 'nik.regex' => 'NIK hanya boleh berisi angka.',
                 'nik.unique' => 'NIK sudah terdaftar di sistem.',
                 'nip.required' => 'NIP wajib diisi.',
-                'nip.min' => 'NIP minimal 6 digit.',
+                'nip.min' => 'NIP minimal 5 digit.',
                 'nip.regex' => 'NIP hanya boleh berisi angka.',
                 'nip.unique' => 'NIP sudah terdaftar di sistem.',
                 'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
@@ -905,17 +891,19 @@ class EmployeeController extends Controller
             // Prepare data for employee creation
             $employeeData = $validator->validated();
             
-            // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
+            // FIXED: Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
             if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($employeeData['sub_unit_id'])) {
                 $employeeData['sub_unit_id'] = null;
             }
 
-            // Set default values
+            // FIXED: Set default values yang diperlukan
             $employeeData['status'] = 'active';
             $employeeData['organization_id'] = 1; // Default organization
+            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Default location
+            $employeeData['cabang'] = 'Denpasar'; // Default branch
 
-            // Calculate TMT Pensiun (56 tahun dari tanggal lahir)
-            if (isset($employeeData['tanggal_lahir'])) {
+            // FIXED: Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
+            if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
                 $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
                 $pensionDate = clone $birthDate;
                 $pensionDate->addYears(56);
@@ -939,7 +927,7 @@ class EmployeeController extends Controller
             DB::commit();
 
             Log::info('Employee Created Successfully', [
-                'employee_id' => $employee->id,
+                'employee_nik' => $employee->nik, // FIXED: Use nik instead of id
                 'nik' => $employee->nik,
                 'nip' => $employee->nip,
                 'nama_lengkap' => $employee->nama_lengkap,
@@ -955,7 +943,6 @@ class EmployeeController extends Controller
                     'title' => 'Berhasil!',
                     'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
                     'newEmployee' => [
-                        'id' => $employee->id,
                         'nik' => $employee->nik,
                         'nip' => $employee->nip,
                         'nama_lengkap' => $employee->nama_lengkap,
@@ -980,7 +967,7 @@ class EmployeeController extends Controller
                 ->with('notification', [
                     'type' => 'error',
                     'title' => 'Gagal Menyimpan',
-                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator.'
+                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator. Error: ' . $e->getMessage()
                 ]);
         }
     }
@@ -1128,7 +1115,7 @@ class EmployeeController extends Controller
                 'nip' => [
                     'required',
                     'string',
-                    'min:6',
+                    'min:5', // FIXED: Changed from 6 to 5
                     'max:20',
                     'regex:/^[0-9]+$/',
                     Rule::unique('employees', 'nip')->ignore($employee->nik, 'nik') // UPDATED: ignore based on NIK
@@ -1205,8 +1192,8 @@ class EmployeeController extends Controller
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
                 // Physical data
-                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'jenis_sepatu' => 'nullable|string|max:50', // FIXED: More flexible
+                'ukuran_sepatu' => 'nullable|string|max:10', // FIXED: Allow string
                 'height' => 'nullable|integer|min:100|max:250',
                 'weight' => 'nullable|integer|min:30|max:200',
                 
@@ -1215,11 +1202,11 @@ class EmployeeController extends Controller
                 'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
                 
                 // Additional
-                'seragam' => 'nullable|string|max:10',
+                'seragam' => 'nullable|string|max:100',
                 'organization_id' => 'nullable|exists:organizations,id',
             ], [
                 'nip.required' => 'NIP wajib diisi',
-                'nip.min' => 'NIP minimal 6 digit',
+                'nip.min' => 'NIP minimal 5 digit',
                 'nip.regex' => 'NIP hanya boleh berisi angka',
                 'nip.unique' => 'NIP sudah terdaftar di sistem',
                 'unit_organisasi.required' => 'Unit organisasi wajib dipilih',

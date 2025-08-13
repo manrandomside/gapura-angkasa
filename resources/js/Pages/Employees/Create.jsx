@@ -435,8 +435,8 @@ export default function Create({
             case "nip":
                 if (value && !/^[0-9]+$/.test(value)) {
                     error = "NIP hanya boleh berisi angka";
-                } else if (value && value.length < 6) {
-                    error = "NIP minimal 6 digit";
+                } else if (value && value.length < 5) {
+                    error = "NIP minimal 5 digit";
                 } else if (!value || value.trim() === "") {
                     error = "NIP wajib diisi";
                 }
@@ -596,7 +596,7 @@ export default function Create({
         return newErrors;
     };
 
-    // Enhanced form submission dengan better error handling
+    // FIXED: Enhanced form submission dengan better error handling
     const handleSubmit = (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -647,7 +647,7 @@ export default function Create({
             return;
         }
 
-        // Clean data before submission - keep original format for backend
+        // FIXED: Clean data before submission - proper format for backend
         const cleanData = { ...data };
 
         // Remove empty strings dan convert ke null jika perlu
@@ -661,10 +661,38 @@ export default function Create({
             }
         });
 
+        // Ensure required fields are not null
+        const requiredFieldsForBackend = [
+            "nik",
+            "nip",
+            "nama_lengkap",
+            "jenis_kelamin",
+            "unit_organisasi",
+            "unit_id",
+            "nama_jabatan",
+            "kelompok_jabatan",
+            "status_pegawai",
+        ];
+
+        requiredFieldsForBackend.forEach((field) => {
+            if (!cleanData[field] || cleanData[field] === null) {
+                cleanData[field] = data[field] || "";
+            }
+        });
+
         console.log("Clean Data for Submission:", cleanData);
 
-        post(route("employees.store"), {
-            data: cleanData,
+        // FIXED: Submit data langsung tanpa wrapper object - correct Inertia format
+        post(route("employees.store"), cleanData, {
+            onBefore: () => {
+                console.log("Starting form submission...");
+            },
+            onStart: () => {
+                console.log("Form submission started");
+            },
+            onProgress: (progress) => {
+                console.log("Upload progress:", progress);
+            },
             onSuccess: (response) => {
                 console.log("Form submitted successfully:", response);
                 setNotification({
@@ -674,6 +702,8 @@ export default function Create({
                         "Karyawan berhasil ditambahkan dengan struktur organisasi lengkap. Mengalihkan ke daftar karyawan...",
                 });
 
+                setIsSubmitting(false);
+
                 // Redirect after 2 seconds
                 setTimeout(() => {
                     router.visit(route("employees.index"));
@@ -681,6 +711,7 @@ export default function Create({
             },
             onError: (errors) => {
                 console.error("Form submission errors:", errors);
+                setIsSubmitting(false);
 
                 let errorMessage = "Terjadi kesalahan saat menyimpan data";
 
@@ -689,7 +720,7 @@ export default function Create({
                         "NIK sudah digunakan atau tidak valid (harus 16 digit angka)";
                 } else if (errors.nip) {
                     errorMessage =
-                        "NIP sudah digunakan atau tidak valid (minimal 6 digit angka)";
+                        "NIP sudah digunakan atau tidak valid (minimal 5 digit angka)";
                 } else if (errors.email) {
                     errorMessage = "Email sudah digunakan atau tidak valid";
                 } else if (errors.unit_organisasi) {
@@ -721,8 +752,6 @@ export default function Create({
                     message: errorMessage,
                 });
 
-                setIsSubmitting(false);
-
                 // Focus ke field pertama yang error
                 const firstErrorField = Object.keys(errors)[0];
                 if (firstErrorField) {
@@ -740,6 +769,12 @@ export default function Create({
                     }, 100);
                 }
             },
+            onFinish: () => {
+                console.log("Form submission finished");
+                setIsSubmitting(false);
+            },
+            preserveScroll: true,
+            preserveState: true,
         });
     };
 
@@ -792,7 +827,7 @@ export default function Create({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nip || formValidation.nip}
-                    hint="Nomor Induk Pegawai (minimal 6 digit) - WAJIB DIISI"
+                    hint="Nomor Induk Pegawai (minimal 5 digit) - WAJIB DIISI"
                 />
                 <InputField
                     name="nama_lengkap"
