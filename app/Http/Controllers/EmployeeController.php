@@ -43,7 +43,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * Get units berdasarkan unit organisasi - FIXED with better debugging
+     * Get units berdasarkan unit organisasi - ENHANCED dengan better error handling
      */
     public function getUnits(Request $request)
     {
@@ -59,15 +59,33 @@ class EmployeeController extends Controller
             if (!$unitOrganisasi) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unit organisasi required',
+                    'message' => 'Unit organisasi parameter required',
                     'data' => [],
                     'debug_info' => [
-                        'available_unit_organisasi' => Unit::UNIT_ORGANISASI_OPTIONS ?? []
+                        'available_unit_organisasi' => Unit::UNIT_ORGANISASI_OPTIONS ?? [],
+                        'example_usage' => '/api/units/by-organisasi?unit_organisasi=EGM'
                     ]
                 ], 400);
             }
 
-            // Check if data exists in database
+            // Validate unit organisasi
+            $validUnitOrganisasi = Unit::UNIT_ORGANISASI_OPTIONS ?? [
+                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
+            ];
+            
+            if (!in_array($unitOrganisasi, $validUnitOrganisasi)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid unit organisasi',
+                    'data' => [],
+                    'debug_info' => [
+                        'provided' => $unitOrganisasi,
+                        'valid_options' => $validUnitOrganisasi
+                    ]
+                ], 400);
+            }
+
+            // Check total units in database
             $totalUnits = Unit::count();
             Log::info('Database check', [
                 'total_units_in_db' => $totalUnits,
@@ -80,59 +98,79 @@ class EmployeeController extends Controller
                     'message' => 'No units found in database. Please run UnitSeeder first.',
                     'data' => [],
                     'debug_info' => [
-                        'suggestion' => 'Run: php artisan db:seed --class=UnitSeeder',
+                        'seeder_command' => 'php artisan db:seed --class=UnitSeeder',
                         'total_units_in_db' => 0
                     ]
                 ], 404);
             }
 
-            // Query units with detailed logging
-            $units = Unit::active()
-                ->byUnitOrganisasi($unitOrganisasi)
+            // Get units for the specified unit organisasi
+            $units = Unit::where('unit_organisasi', $unitOrganisasi)
+                ->where('is_active', true)
+                ->select('id', 'name', 'code', 'description', 'unit_organisasi')
                 ->orderBy('name')
-                ->get(['id', 'name', 'code', 'description', 'unit_organisasi']);
-            
+                ->get();
+
             Log::info('Units query result', [
                 'unit_organisasi' => $unitOrganisasi,
-                'units_count' => $units->count(),
-                'units_data' => $units->toArray()
+                'units_found' => $units->count(),
+                'units' => $units->pluck('name')->toArray()
             ]);
 
-            $response = [
+            // Unit organisasi yang tidak memiliki sub unit
+            $unitWithoutSubUnits = ['EGM', 'GM'];
+            $requiresSubUnit = !in_array($unitOrganisasi, $unitWithoutSubUnits);
+
+            if ($units->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "No units found for unit organisasi: {$unitOrganisasi}",
+                    'data' => [],
+                    'debug_info' => [
+                        'unit_organisasi' => $unitOrganisasi,
+                        'total_units_in_db' => $totalUnits,
+                        'available_unit_organisasi_in_db' => Unit::distinct('unit_organisasi')->pluck('unit_organisasi')->toArray(),
+                        'suggestion' => 'Check if UnitSeeder was run correctly or if unit_organisasi name matches exactly'
+                    ]
+                ], 404);
+            }
+
+            return response()->json([
                 'success' => true,
                 'message' => 'Units retrieved successfully',
                 'data' => $units,
-                'debug_info' => [
+                'meta' => [
                     'unit_organisasi' => $unitOrganisasi,
-                    'query_count' => $units->count(),
-                    'total_units_in_db' => $totalUnits
+                    'total_count' => $units->count(),
+                    'requires_sub_unit' => $requiresSubUnit,
+                    'filters_applied' => [
+                        'unit_organisasi' => $unitOrganisasi,
+                        'is_active' => true
+                    ],
+                    'note' => $requiresSubUnit 
+                        ? 'Unit organisasi ini memerlukan sub unit' 
+                        : 'Unit organisasi ini tidak memerlukan sub unit'
                 ]
-            ];
-
-            return response()->json($response);
+            ]);
 
         } catch (\Exception $e) {
-            Log::error('Get Units Error', [
+            Log::error('Get Units API Error', [
+                'unit_organisasi' => $request->get('unit_organisasi'),
                 'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'unit_organisasi' => $request->get('unit_organisasi')
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving units: ' . $e->getMessage(),
-                'data' => [],
-                'debug_info' => [
-                    'error_type' => get_class($e),
-                    'suggestion' => 'Check if UnitSeeder has been run and database connection is working'
-                ]
+                'message' => 'Error retrieving units',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error',
+                'data' => []
             ], 500);
         }
     }
 
     /**
-     * Get sub units berdasarkan unit - FIXED with better debugging
+     * Get sub units berdasarkan unit - ENHANCED untuk handle unit tanpa sub unit
      */
     public function getSubUnits(Request $request)
     {
@@ -149,24 +187,14 @@ class EmployeeController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Unit ID required',
-                    'data' => []
-                ], 400);
-            }
-
-            // Validate unit_id is numeric
-            if (!is_numeric($unitId)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unit ID must be numeric',
                     'data' => [],
                     'debug_info' => [
-                        'received_unit_id' => $unitId,
-                        'type' => gettype($unitId)
+                        'example_usage' => '/api/sub-units/by-unit?unit_id=1'
                     ]
                 ], 400);
             }
 
-            // Check if the unit exists
+            // Validate unit exists
             $unit = Unit::find($unitId);
             if (!$unit) {
                 return response()->json([
@@ -174,56 +202,111 @@ class EmployeeController extends Controller
                     'message' => 'Unit not found',
                     'data' => [],
                     'debug_info' => [
-                        'unit_id' => $unitId,
-                        'suggestion' => 'Check if unit ID exists in database'
+                        'unit_id_provided' => $unitId,
+                        'available_units' => Unit::select('id', 'name', 'unit_organisasi')->get()
                     ]
                 ], 404);
             }
 
-            // Query sub units with detailed logging
-            $subUnits = SubUnit::active()
-                ->byUnit($unitId)
-                ->orderBy('name')
-                ->get(['id', 'name', 'code', 'description', 'unit_id']);
+            // Unit organisasi yang tidak memiliki sub unit
+            $unitWithoutSubUnits = ['EGM', 'GM'];
+            
+            // Check if this unit organisasi should have sub units
+            if (in_array($unit->unit_organisasi, $unitWithoutSubUnits)) {
+                Log::info('Unit does not require sub units', [
+                    'unit_id' => $unitId,
+                    'unit_name' => $unit->name,
+                    'unit_organisasi' => $unit->unit_organisasi
+                ]);
                 
-            Log::info('Sub Units query result', [
+                return response()->json([
+                    'success' => true,
+                    'message' => "Unit {$unit->name} ({$unit->unit_organisasi}) tidak memiliki sub unit",
+                    'data' => [],
+                    'meta' => [
+                        'unit_info' => [
+                            'id' => $unit->id,
+                            'name' => $unit->name,
+                            'unit_organisasi' => $unit->unit_organisasi,
+                            'requires_sub_unit' => false
+                        ],
+                        'total_count' => 0,
+                        'note' => 'Unit organisasi ini tidak memerlukan sub unit'
+                    ]
+                ]);
+            }
+
+            // Get sub units for units that should have them
+            $subUnits = SubUnit::where('unit_id', $unitId)
+                ->where('is_active', true)
+                ->select('id', 'name', 'code', 'description', 'unit_id')
+                ->orderBy('name')
+                ->get();
+
+            Log::info('Sub units retrieved', [
                 'unit_id' => $unitId,
                 'unit_name' => $unit->name,
                 'unit_organisasi' => $unit->unit_organisasi,
                 'sub_units_count' => $subUnits->count(),
-                'sub_units_data' => $subUnits->toArray()
+                'sub_units' => $subUnits->pluck('name')->toArray()
             ]);
 
-            $response = [
+            // Check if unit should have sub units but none found
+            if ($subUnits->isEmpty()) {
+                Log::warning('No sub units found for unit that should have them', [
+                    'unit_id' => $unitId,
+                    'unit_name' => $unit->name,
+                    'unit_organisasi' => $unit->unit_organisasi
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => "Tidak ada sub unit ditemukan untuk unit {$unit->name}",
+                    'data' => [],
+                    'meta' => [
+                        'unit_info' => [
+                            'id' => $unit->id,
+                            'name' => $unit->name,
+                            'unit_organisasi' => $unit->unit_organisasi,
+                            'requires_sub_unit' => true
+                        ],
+                        'total_count' => 0,
+                        'warning' => 'Unit ini seharusnya memiliki sub unit. Pastikan UnitSeeder sudah dijalankan dengan benar.'
+                    ]
+                ]);
+            }
+
+            return response()->json([
                 'success' => true,
                 'message' => 'Sub units retrieved successfully',
                 'data' => $subUnits,
-                'debug_info' => [
-                    'unit_id' => $unitId,
-                    'unit_name' => $unit->name,
-                    'unit_organisasi' => $unit->unit_organisasi,
-                    'query_count' => $subUnits->count()
+                'meta' => [
+                    'unit_info' => [
+                        'id' => $unit->id,
+                        'name' => $unit->name,
+                        'unit_organisasi' => $unit->unit_organisasi,
+                        'requires_sub_unit' => true
+                    ],
+                    'total_count' => $subUnits->count(),
+                    'filters_applied' => [
+                        'unit_id' => $unitId,
+                        'is_active' => true
+                    ]
                 ]
-            ];
-
-            return response()->json($response);
+            ]);
 
         } catch (\Exception $e) {
-            Log::error('Get Sub Units Error', [
+            Log::error('Get Sub Units API Error', [
+                'unit_id' => $request->get('unit_id'),
                 'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'unit_id' => $request->get('unit_id')
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving sub units: ' . $e->getMessage(),
-                'data' => [],
-                'debug_info' => [
-                    'error_type' => get_class($e),
-                    'suggestion' => 'Check if UnitSeeder has been run and unit exists'
-                ]
+                'message' => 'Error retrieving sub units',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error',
+                'data' => []
             ], 500);
         }
     }
@@ -647,7 +730,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
+     * FIXED: CONDITIONAL SUB UNIT VALIDATION - Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
      */
     public function store(Request $request)
     {
@@ -672,7 +755,10 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced validation rules with custom validation for unit hierarchy
+            // Unit organisasi yang tidak memiliki sub unit
+            $unitWithoutSubUnits = ['EGM', 'GM'];
+
+            // Enhanced validation rules with conditional sub_unit_id validation
             $validator = Validator::make($request->all(), [
                 // Required basic fields
                 'nik' => [
@@ -692,14 +778,14 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|min:2|max:100',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
                 
-                // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Enhanced unit organisasi validation
+                // Unit organisasi validation
                 'unit_organisasi' => [
                     'required',
                     'string',
                     Rule::in($unitOrganisasiOptions)
                 ],
                 'unit_id' => [
-                    'required', // CHANGED: WAJIB dari nullable
+                    'required',
                     'integer',
                     'exists:units,id',
                     function ($attribute, $value, $fail) use ($request) {
@@ -711,246 +797,153 @@ class EmployeeController extends Controller
                         }
                     }
                 ],
+                // FIXED: Sub unit validation - conditional based on unit organisasi
                 'sub_unit_id' => [
-                    'required', // CHANGED: WAJIB dari nullable
-                    'integer',
-                    'exists:sub_units,id',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->unit_id) {
-                            $subUnit = SubUnit::find($value);
-                            if (!$subUnit || $subUnit->unit_id != $request->unit_id) {
-                                $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
+                    function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
+                        // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
+                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
+                            // Sub unit boleh kosong untuk EGM dan GM
+                            if ($value && !is_numeric($value)) {
+                                $fail('Sub unit harus berupa angka yang valid.');
+                            }
+                            if ($value && !SubUnit::where('id', $value)->exists()) {
+                                $fail('Sub unit yang dipilih tidak valid.');
+                            }
+                        } else {
+                            // Untuk unit organisasi lain, sub unit wajib diisi
+                            if (!$value) {
+                                $fail('Sub unit wajib dipilih untuk unit organisasi ini.');
+                            }
+                            if ($value && !is_numeric($value)) {
+                                $fail('Sub unit harus berupa angka yang valid.');
+                            }
+                            if ($value && !SubUnit::where('id', $value)->exists()) {
+                                $fail('Sub unit yang dipilih tidak valid.');
+                            }
+                            
+                            // Validasi bahwa sub unit belongs to unit yang dipilih
+                            if ($value && $request->unit_id) {
+                                $subUnit = SubUnit::find($value);
+                                if ($subUnit && $subUnit->unit_id != $request->unit_id) {
+                                    $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
+                                }
                             }
                         }
                     }
                 ],
+                
+                // Job related fields
                 'nama_jabatan' => 'required|string|min:2|max:100',
-                'status_pegawai' => [
-                    'required',
-                    Rule::in(self::STATUS_PEGAWAI_OPTIONS)
-                ],
                 'kelompok_jabatan' => [
                     'required',
-                    Rule::in(self::KELOMPOK_JABATAN_OPTIONS)
-                ],
-                
-                // Optional fields
-                'tempat_lahir' => 'nullable|string|max:50',
-                'tanggal_lahir' => 'nullable|date|before:today',
-                'agama' => 'nullable|string|max:20',
-                'alamat' => 'nullable|string|max:200',
-                'kota_domisili' => 'nullable|string|max:100',
-                'email' => 'nullable|email|unique:employees,email',
-                'handphone' => [
-                    'nullable',
                     'string',
-                    'regex:/^(\+62|62|0)[0-9]{9,13}$/'
+                    Rule::in(['GENERAL MANAGER', 'MANAGER', 'ASISTEN MANAGER', 'SUPERVISOR', 'SENIOR STAFF', 'STAFF'])
                 ],
+                'status_pegawai' => [
+                    'required', 
+                    'string',
+                    Rule::in(['PEGAWAI TETAP', 'PEGAWAI KONTRAK', 'PEGAWAI MAGANG'])
+                ],
+                
+                // Optional fields with validation when present
+                'tmt_mulai_kerja' => 'nullable|date|before_or_equal:today',
                 'no_telepon' => 'nullable|string|max:20',
-                
-                // Work related
-                'jabatan' => 'nullable|string|max:100',
-                'tmt_mulai_kerja' => 'nullable|date',
-                'tmt_mulai_jabatan' => 'nullable|date',
-                'tmt_pensiun' => 'nullable|date|after:today',
-                
-                // Education
-                'pendidikan_terakhir' => 'nullable|in:SD,SMP,SMA,D1,D2,D3,S1,S2,S3',
-                'institusi_pendidikan' => 'nullable|string|max:100',
-                'jurusan' => 'nullable|string|max:100',
-                'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                
-                // Physical data
-                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
-                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
-                'height' => 'nullable|integer|min:100|max:250',
-                'weight' => 'nullable|integer|min:30|max:200',
-                
-                // BPJS
-                'no_bpjs_kesehatan' => 'nullable|string|max:20',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
-                
-                // Additional
-                'seragam' => 'nullable|string|max:10',
-                'organization_id' => 'nullable|exists:organizations,id',
-            ], [
-                // Enhanced error messages
-                'nik.required' => 'NIK wajib diisi',
-                'nik.size' => 'NIK harus tepat 16 digit',
-                'nik.regex' => 'NIK hanya boleh berisi angka',
-                'nik.unique' => 'NIK sudah terdaftar di sistem',
-                
-                'nip.required' => 'NIP wajib diisi',
-                'nip.min' => 'NIP minimal 6 digit',
-                'nip.regex' => 'NIP hanya boleh berisi angka',
-                'nip.unique' => 'NIP sudah terdaftar di sistem',
-                
-                'nama_lengkap.required' => 'Nama lengkap wajib diisi',
-                'nama_lengkap.min' => 'Nama lengkap minimal 2 karakter',
-                'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
-                'unit_organisasi.in' => 'Unit organisasi tidak valid',
-                'unit_id.required' => 'Unit wajib dipilih', // ADDED: Error message untuk unit required
-                'unit_id.exists' => 'Unit tidak valid',
-                'sub_unit_id.required' => 'Sub unit wajib dipilih', // ADDED: Error message untuk sub unit required
-                'sub_unit_id.exists' => 'Sub unit tidak valid',
-                'nama_jabatan.required' => 'Nama jabatan wajib diisi',
-                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih',
-                'jenis_kelamin.in' => 'Jenis kelamin tidak valid',
-                'status_pegawai.required' => 'Status pegawai wajib dipilih',
-                'status_pegawai.in' => 'Status pegawai tidak valid',
-                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih',
-                'kelompok_jabatan.in' => 'Kelompok jabatan tidak valid',
-                'email.unique' => 'Email sudah terdaftar di sistem',
-                'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini',
-                'handphone.regex' => 'Format nomor handphone tidak valid',
+                'email' => 'nullable|email|unique:employees,email',
+                'tempat_lahir' => 'nullable|string|max:100',
+                'tanggal_lahir' => 'nullable|date|before:today',
+                'alamat' => 'nullable|string|max:500'
+            ]);
+
+            // Custom error messages
+            $validator->setCustomMessages([
+                'nik.required' => 'NIK wajib diisi.',
+                'nik.size' => 'NIK harus tepat 16 digit.',
+                'nik.regex' => 'NIK hanya boleh berisi angka.',
+                'nik.unique' => 'NIK sudah terdaftar di sistem.',
+                'nip.required' => 'NIP wajib diisi.',
+                'nip.min' => 'NIP minimal 6 digit.',
+                'nip.regex' => 'NIP hanya boleh berisi angka.',
+                'nip.unique' => 'NIP sudah terdaftar di sistem.',
+                'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
+                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih.',
+                'unit_organisasi.required' => 'Unit organisasi wajib dipilih.',
+                'unit_id.required' => 'Unit wajib dipilih.',
+                'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
+                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
+                'status_pegawai.required' => 'Status pegawai wajib dipilih.',
+                'email.unique' => 'Email sudah terdaftar di sistem.'
             ]);
 
             if ($validator->fails()) {
                 Log::warning('Employee Store Validation Failed', [
+                    'errors' => $validator->errors()->toArray(),
                     'nik' => $request->nik,
-                    'nip' => $request->nip,
-                    'errors' => $validator->errors()->toArray()
+                    'nip' => $request->nip
                 ]);
 
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput()
-                    ->with([
-                        'error' => 'Data yang diisi tidak valid. Mohon periksa kembali.',
-                        'notification' => [
-                            'type' => 'error',
-                            'title' => 'Validasi Gagal',
-                            'message' => 'Mohon periksa kembali data yang diisi. Ada beberapa field yang tidak valid.',
-                            'duration' => 8000
-                        ]
-                    ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data tidak valid. Silakan periksa kembali.',
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
-            // Start database transaction
+            // Prepare data for employee creation
+            $employeeData = $validator->validated();
+            
+            // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
+            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($employeeData['sub_unit_id'])) {
+                $employeeData['sub_unit_id'] = null;
+            }
+
+            // Set default values
+            $employeeData['status'] = 'active';
+            $employeeData['organization_id'] = 1; // Default organization
+
+            // Calculate TMT Pensiun (65 tahun dari tanggal lahir)
+            if (isset($employeeData['tanggal_lahir'])) {
+                $employeeData['tmt_pensiun'] = Carbon::parse($employeeData['tanggal_lahir'])->addYears(65);
+            }
+
+            // Create employee
             DB::beginTransaction();
+            
+            $employee = Employee::create($employeeData);
+            
+            DB::commit();
 
-            try {
-                // Prepare employee data
-                $employeeData = $request->only([
-                    'nik', 'nip', 'nama_lengkap', 'jenis_kelamin', 'tempat_lahir', 'tanggal_lahir',
-                    'agama', 'alamat', 'kota_domisili', 'email', 'handphone', 'no_telepon',
-                    'unit_organisasi', 'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan',
-                    'status_pegawai', 'kelompok_jabatan', 'tmt_mulai_kerja', 'tmt_mulai_jabatan',
-                    'pendidikan_terakhir', 'institusi_pendidikan', 'jurusan', 'tahun_lulus',
-                    'jenis_sepatu', 'ukuran_sepatu', 'height', 'weight',
-                    'no_bpjs_kesehatan', 'no_bpjs_ketenagakerjaan', 'seragam', 'organization_id'
-                ]);
-
-                // FIXED: Convert gender untuk database storage
-                if (isset($employeeData['jenis_kelamin'])) {
-                    $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'Laki-laki' ? 'L' : 'P';
-                }
-
-                // FIXED: Calculate TMT Pensiun dengan logika baru (56 tahun)
-                if (isset($employeeData['tanggal_lahir']) && $employeeData['tanggal_lahir']) {
-                    $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
-                    $pensionDate = $birthDate->copy()->addYears(56);
-                    
-                    // REVISI: Logika baru TMT Pensiun
-                    if ($birthDate->day < 10) {
-                        $employeeData['tmt_pensiun'] = $pensionDate->format('Y-m-d');
-                    } else {
-                        $employeeData['tmt_pensiun'] = $pensionDate->addMonth()->format('Y-m-d');
-                    }
-                }
-
-                // Set default status
-                $employeeData['status'] = 'active';
-
-                // Create employee dengan NIK sebagai primary key
-                $employee = Employee::create($employeeData);
-
-                if (!$employee) {
-                    throw new \Exception('Failed to create employee record in database');
-                }
-
-                // Commit transaction
-                DB::commit();
-
-                // Load relationships untuk response
-                $employee->load(['unit', 'subUnit']);
-
-                // Log successful creation
-                Log::info('Employee Created Successfully', [
-                    'employee_nik' => $employee->nik,
-                    'employee_nip' => $employee->nip,
-                    'nama_lengkap' => $employee->nama_lengkap,
-                    'unit_organisasi' => $employee->unit_organisasi,
-                    'unit_id' => $employee->unit_id,
-                    'unit_name' => $employee->unit?->name,
-                    'sub_unit_id' => $employee->sub_unit_id,
-                    'sub_unit_name' => $employee->subUnit?->name,
-                    'kelompok_jabatan' => $employee->kelompok_jabatan,
-                    'status_pegawai' => $employee->status_pegawai,
-                    'tmt_pensiun' => $employee->tmt_pensiun?->format('Y-m-d'),
-                    'pension_calculation' => $employee->tanggal_lahir ? 
-                        (Carbon::parse($employee->tanggal_lahir)->day < 10 ? 'Same month' : 'Next month') : 'N/A',
-                    'created_at' => $employee->created_at->toDateTimeString()
-                ]);
-
-                // Build success notification dengan struktur organisasi lengkap
-                $successMessage = "Karyawan {$employee->nama_lengkap} berhasil ditambahkan!";
-                $unitInfo = '';
-                if ($employee->unit_organisasi) {
-                    $unitInfo .= " Unit Organisasi: {$employee->unit_organisasi}";
-                }
-                if ($employee->unit && $employee->unit->name) {
-                    $unitInfo .= " - Unit: {$employee->unit->name}";
-                }
-                if ($employee->subUnit && $employee->subUnit->name) {
-                    $unitInfo .= " - Sub Unit: {$employee->subUnit->name}";
-                }
-
-                return redirect()->route('employees.index')
-                    ->with([
-                        'success' => $successMessage,
-                        'message' => $successMessage . $unitInfo,
-                        'notification' => [
-                            'type' => 'success',
-                            'title' => 'Data Berhasil Disimpan',
-                            'message' => $successMessage . $unitInfo,
-                            'duration' => 5000
-                        ]
-                    ]);
-
-            } catch (\Exception $e) {
-                DB::rollback();
-                
-                Log::error('Employee Creation Database Error', [
-                    'nik' => $request->nik,
-                    'nip' => $request->nip,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                
-                throw new \Exception('Gagal menyimpan data ke database: ' . $e->getMessage());
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Employee Store General Error', [
-                'nik' => $request->nik ?? 'N/A',
-                'nip' => $request->nip ?? 'N/A',
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+            Log::info('Employee Created Successfully', [
+                'employee_id' => $employee->id,
+                'nik' => $employee->nik,
+                'nip' => $employee->nip,
+                'nama_lengkap' => $employee->nama_lengkap,
+                'unit_organisasi' => $employee->unit_organisasi,
+                'has_sub_unit' => !is_null($employee->sub_unit_id)
             ]);
 
-            return redirect()->back()
-                ->withInput()
-                ->with([
-                    'error' => 'Terjadi kesalahan saat menyimpan data karyawan: ' . $e->getMessage(),
-                    'notification' => [
-                        'type' => 'error',
-                        'title' => 'Gagal Menyimpan Data',
-                        'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
-                        'duration' => 10000
-                    ]
-                ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Data karyawan berhasil disimpan!',
+                'data' => [
+                    'employee' => $employee->load(['unit', 'subUnit']),
+                    'redirect_url' => route('employees.index')
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Employee Store Failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['password'])
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
 
@@ -1074,7 +1067,7 @@ class EmployeeController extends Controller
     /**
      * Update the specified employee
      * UPDATED: Parameter menggunakan NIK, NIK tidak bisa diubah, NIP bisa diubah + Unit/SubUnit handling
-     * FIXED: SEMUA STRUKTUR ORGANISASI WAJIB untuk konsistensi dengan store method
+     * FIXED: CONDITIONAL SUB UNIT VALIDATION untuk konsistensi dengan store method
      */
     public function update(Request $request, string $nik)
     {
@@ -1088,7 +1081,10 @@ class EmployeeController extends Controller
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
 
-            // FIXED: SEMUA STRUKTUR ORGANISASI WAJIB - Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah
+            // Unit organisasi yang tidak memiliki sub unit
+            $unitWithoutSubUnits = ['EGM', 'GM'];
+
+            // FIXED: CONDITIONAL SUB UNIT VALIDATION - Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah
             $validator = Validator::make($request->all(), [
                 // NIP bisa diubah tapi harus tetap unique (kecuali untuk employee ini)
                 'nip' => [
@@ -1104,8 +1100,43 @@ class EmployeeController extends Controller
                 'nama_lengkap' => 'required|string|min:2|max:255',
                 'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
                 'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)],
-                'unit_id' => 'required|exists:units,id', // CHANGED: WAJIB untuk konsistensi
-                'sub_unit_id' => 'required|exists:sub_units,id', // CHANGED: WAJIB untuk konsistensi
+                'unit_id' => 'required|exists:units,id',
+                
+                // FIXED: Conditional sub unit validation
+                'sub_unit_id' => [
+                    function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
+                        // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
+                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
+                            // Sub unit boleh kosong untuk EGM dan GM
+                            if ($value && !is_numeric($value)) {
+                                $fail('Sub unit harus berupa angka yang valid.');
+                            }
+                            if ($value && !SubUnit::where('id', $value)->exists()) {
+                                $fail('Sub unit yang dipilih tidak valid.');
+                            }
+                        } else {
+                            // Untuk unit organisasi lain, sub unit wajib diisi
+                            if (!$value) {
+                                $fail('Sub unit wajib dipilih untuk unit organisasi ini.');
+                            }
+                            if ($value && !is_numeric($value)) {
+                                $fail('Sub unit harus berupa angka yang valid.');
+                            }
+                            if ($value && !SubUnit::where('id', $value)->exists()) {
+                                $fail('Sub unit yang dipilih tidak valid.');
+                            }
+                            
+                            // Validasi bahwa sub unit belongs to unit yang dipilih
+                            if ($value && $request->unit_id) {
+                                $subUnit = SubUnit::find($value);
+                                if ($subUnit && $subUnit->unit_id != $request->unit_id) {
+                                    $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
+                                }
+                            }
+                        }
+                    }
+                ],
+                
                 'nama_jabatan' => 'required|string|max:255',
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
@@ -1154,8 +1185,7 @@ class EmployeeController extends Controller
                 'nip.regex' => 'NIP hanya boleh berisi angka',
                 'nip.unique' => 'NIP sudah terdaftar di sistem',
                 'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
-                'unit_id.required' => 'Unit wajib dipilih', // ADDED: Error message untuk unit required
-                'sub_unit_id.required' => 'Sub unit wajib dipilih', // ADDED: Error message untuk sub unit required
+                'unit_id.required' => 'Unit wajib dipilih',
                 // ... other custom messages
             ]);
 
@@ -1185,6 +1215,11 @@ class EmployeeController extends Controller
                 } else {
                     $data['jenis_kelamin'] = 'P';
                 }
+            }
+
+            // Handle sub_unit_id untuk EGM dan GM
+            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($data['sub_unit_id'])) {
+                $data['sub_unit_id'] = null;
             }
 
             // REVISI: Enhanced TMT Pensiun calculation dengan logika baru
@@ -1232,8 +1267,8 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Validasi sub unit consistency
-            if (!empty($data['sub_unit_id'])) {
+            // Validasi sub unit consistency (hanya jika required)
+            if (!in_array($data['unit_organisasi'], $unitWithoutSubUnits) && !empty($data['sub_unit_id'])) {
                 $subUnit = SubUnit::find($data['sub_unit_id']);
                 if (!$subUnit || $subUnit->unit_id != $data['unit_id']) {
                     return redirect()->back()

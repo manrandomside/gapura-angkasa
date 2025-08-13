@@ -5,6 +5,7 @@ import {
     Loader2,
     AlertCircle,
     CheckCircle,
+    Info,
 } from "lucide-react";
 
 const UnitOrganisasiComponent = ({
@@ -12,6 +13,7 @@ const UnitOrganisasiComponent = ({
     setData,
     errors = {},
     required = false,
+    clearErrors = null, // Add clearErrors function support
 }) => {
     const [unitOrganisasiOptions, setUnitOrganisasiOptions] = useState([]);
     const [unitOptions, setUnitOptions] = useState([]);
@@ -25,6 +27,7 @@ const UnitOrganisasiComponent = ({
         unit: null,
         subUnit: null,
     });
+    const [isSubUnitRequired, setIsSubUnitRequired] = useState(true);
 
     // Unit Organisasi options (static dari backend)
     const staticUnitOrganisasi = [
@@ -37,10 +40,36 @@ const UnitOrganisasiComponent = ({
         "Ancillary",
     ];
 
+    // Unit organisasi yang tidak memiliki sub unit
+    const unitWithoutSubUnits = ["EGM", "GM"];
+
     // Initialize unit organisasi options
     useEffect(() => {
         setUnitOrganisasiOptions(staticUnitOrganisasi);
     }, []);
+
+    // Check if sub unit is required based on unit organisasi
+    useEffect(() => {
+        if (data.unit_organisasi) {
+            const isRequired = !unitWithoutSubUnits.includes(
+                data.unit_organisasi
+            );
+            setIsSubUnitRequired(isRequired);
+
+            // Jika unit organisasi tidak memerlukan sub unit, kosongkan sub_unit_id dan clear error
+            if (!isRequired) {
+                if (typeof setData === "function") {
+                    setData("sub_unit_id", "");
+                }
+                // Clear sub_unit_id error dari parent component
+                if (typeof clearErrors === "function") {
+                    clearErrors("sub_unit_id");
+                }
+                // Clear local API error
+                setApiErrors((prev) => ({ ...prev, subUnit: null }));
+            }
+        }
+    }, [data.unit_organisasi, setData, clearErrors]);
 
     // Load units ketika unit organisasi dipilih
     useEffect(() => {
@@ -51,26 +80,39 @@ const UnitOrganisasiComponent = ({
         }
     }, [data.unit_organisasi]);
 
-    // Load sub units ketika unit dipilih
+    // Load sub units ketika unit dipilih (hanya jika required)
     useEffect(() => {
-        if (data.unit_id) {
+        if (data.unit_id && isSubUnitRequired) {
             loadSubUnits(data.unit_id);
         } else {
             setSubUnitOptions([]);
             setApiErrors((prev) => ({ ...prev, subUnit: null }));
-            if (typeof setData === "function") {
-                setData("sub_unit_id", "");
+            // Hanya reset sub_unit_id jika tidak required atau unit_id kosong
+            if (!isSubUnitRequired || !data.unit_id) {
+                if (typeof setData === "function") {
+                    setData("sub_unit_id", "");
+                }
+                // Clear error jika sub unit tidak required
+                if (!isSubUnitRequired && typeof clearErrors === "function") {
+                    clearErrors("sub_unit_id");
+                }
             }
         }
-    }, [data.unit_id]);
+    }, [data.unit_id, isSubUnitRequired, setData, clearErrors]);
 
     const resetDependentFields = () => {
         setUnitOptions([]);
         setSubUnitOptions([]);
         setApiErrors({ unit: null, subUnit: null });
+        setIsSubUnitRequired(true);
         if (typeof setData === "function") {
             setData("unit_id", "");
             setData("sub_unit_id", "");
+        }
+        // Clear errors when resetting
+        if (typeof clearErrors === "function") {
+            clearErrors("unit_id");
+            clearErrors("sub_unit_id");
         }
     };
 
@@ -80,7 +122,7 @@ const UnitOrganisasiComponent = ({
 
         try {
             const response = await fetch(
-                `/api/units?unit_organisasi=${encodeURIComponent(
+                `/api/units/by-organisasi?unit_organisasi=${encodeURIComponent(
                     unitOrganisasi
                 )}`,
                 {
@@ -103,6 +145,13 @@ const UnitOrganisasiComponent = ({
 
             if (result.success && Array.isArray(result.data)) {
                 setUnitOptions(result.data);
+
+                // Auto-select jika hanya ada satu unit
+                if (result.data.length === 1) {
+                    if (typeof setData === "function") {
+                        setData("unit_id", result.data[0].id.toString());
+                    }
+                }
 
                 if (result.data.length === 0) {
                     setApiErrors((prev) => ({
@@ -145,7 +194,7 @@ const UnitOrganisasiComponent = ({
 
         try {
             const response = await fetch(
-                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`,
+                `/api/sub-units/by-unit?unit_id=${encodeURIComponent(unitId)}`,
                 {
                     method: "GET",
                     headers: {
@@ -164,8 +213,31 @@ const UnitOrganisasiComponent = ({
 
             const result = await response.json();
 
-            if (result.success && Array.isArray(result.data)) {
-                setSubUnitOptions(result.data);
+            if (result.success) {
+                if (Array.isArray(result.data)) {
+                    setSubUnitOptions(result.data);
+
+                    // Auto-select jika hanya ada satu sub unit
+                    if (result.data.length === 1) {
+                        if (typeof setData === "function") {
+                            setData(
+                                "sub_unit_id",
+                                result.data[0].id.toString()
+                            );
+                        }
+                    }
+                } else {
+                    // Handle kasus unit tanpa sub unit (EGM, GM)
+                    setSubUnitOptions([]);
+                    if (
+                        result.meta &&
+                        result.meta.unit_info &&
+                        !result.meta.unit_info.requires_sub_unit
+                    ) {
+                        // Unit tidak memerlukan sub unit, ini normal
+                        setApiErrors((prev) => ({ ...prev, subUnit: null }));
+                    }
+                }
             } else {
                 setSubUnitOptions([]);
                 const errorMessage =
@@ -211,6 +283,11 @@ const UnitOrganisasiComponent = ({
 
         setSubUnitOptions([]);
         setApiErrors((prev) => ({ ...prev, subUnit: null }));
+
+        // Clear sub unit error when changing unit
+        if (typeof clearErrors === "function") {
+            clearErrors("sub_unit_id");
+        }
     };
 
     const handleSubUnitChange = (value) => {
@@ -231,6 +308,7 @@ const UnitOrganisasiComponent = ({
         placeholder,
         disabled = false,
         required = true,
+        note = null,
     }) => {
         const [focused, setFocused] = useState(false);
 
@@ -246,7 +324,19 @@ const UnitOrganisasiComponent = ({
                     />
                     {label}
                     {required && <span className="text-red-500">*</span>}
+                    {!required && (
+                        <span className="text-xs text-gray-500">
+                            (Optional)
+                        </span>
+                    )}
                 </label>
+
+                {note && (
+                    <div className="flex items-center gap-2 p-3 text-sm text-blue-700 border border-blue-200 rounded-lg bg-blue-50">
+                        <Info className="flex-shrink-0 w-4 h-4" />
+                        <span>{note}</span>
+                    </div>
+                )}
 
                 <div className="relative">
                     <select
@@ -335,6 +425,9 @@ const UnitOrganisasiComponent = ({
                 <h3 className="flex items-center gap-2 mb-6 text-lg font-bold text-gray-900">
                     <Building2 className="w-5 h-5 text-[#439454]" />
                     Struktur Organisasi
+                    <span className="text-sm font-normal text-gray-600">
+                        (Lengkapi sesuai struktur organisasi)
+                    </span>
                 </h3>
 
                 <div className="grid grid-cols-1 gap-6">
@@ -361,30 +454,76 @@ const UnitOrganisasiComponent = ({
                             onChange={handleUnitChange}
                             error={errors.unit_id}
                             apiError={apiErrors.unit}
-                            placeholder="Pilih Unit"
+                            placeholder={
+                                unitOptions.length === 0 && !loading.unit
+                                    ? "Tidak ada unit tersedia"
+                                    : "Pilih Unit"
+                            }
                             loading={loading.unit}
                             disabled={unitOptions.length === 0 && !loading.unit}
                             required={true}
                         />
                     )}
 
-                    {/* Sub Unit Dropdown - hanya muncul jika unit dipilih */}
+                    {/* Sub Unit Dropdown - conditional berdasarkan unit organisasi */}
                     {data.unit_id && (
-                        <DropdownField
-                            label="Sub Unit"
-                            name="sub_unit_id"
-                            value={data.sub_unit_id}
-                            options={subUnitOptions}
-                            onChange={handleSubUnitChange}
-                            error={errors.sub_unit_id}
-                            apiError={apiErrors.subUnit}
-                            placeholder="Pilih Sub Unit"
-                            loading={loading.subUnit}
-                            disabled={
-                                subUnitOptions.length === 0 && !loading.subUnit
-                            }
-                            required={true}
-                        />
+                        <>
+                            {!isSubUnitRequired ? (
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                        <Building2 className="w-4 h-4 text-gray-400" />
+                                        Sub Unit
+                                        <span className="text-xs text-gray-500">
+                                            (Tidak diperlukan)
+                                        </span>
+                                    </label>
+                                    <div className="flex items-center gap-2 p-4 text-sm text-blue-700 border border-blue-200 rounded-xl bg-blue-50">
+                                        <Info className="flex-shrink-0 w-5 h-5" />
+                                        <div>
+                                            <div className="font-medium">
+                                                Unit organisasi{" "}
+                                                {data.unit_organisasi} tidak
+                                                memiliki struktur sub unit
+                                            </div>
+                                            <div className="mt-1 text-xs text-blue-600">
+                                                Struktur organisasi untuk{" "}
+                                                {data.unit_organisasi} hanya
+                                                sampai level unit
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <DropdownField
+                                    label="Sub Unit"
+                                    name="sub_unit_id"
+                                    value={data.sub_unit_id}
+                                    options={subUnitOptions}
+                                    onChange={handleSubUnitChange}
+                                    error={errors.sub_unit_id}
+                                    apiError={apiErrors.subUnit}
+                                    placeholder={
+                                        subUnitOptions.length === 0 &&
+                                        !loading.subUnit
+                                            ? "Tidak ada sub unit tersedia"
+                                            : "Pilih Sub Unit"
+                                    }
+                                    loading={loading.subUnit}
+                                    disabled={
+                                        subUnitOptions.length === 0 &&
+                                        !loading.subUnit
+                                    }
+                                    required={true}
+                                    note={
+                                        data.unit_id &&
+                                        subUnitOptions.length === 0 &&
+                                        !loading.subUnit
+                                            ? "Sub unit akan muncul setelah data dimuat dari server"
+                                            : null
+                                    }
+                                />
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -411,16 +550,83 @@ const UnitOrganisasiComponent = ({
                                     </span>
                                 </>
                             )}
-                            {data.sub_unit_id && subUnitOptions.length > 0 && (
+                            {isSubUnitRequired ? (
+                                data.sub_unit_id &&
+                                subUnitOptions.length > 0 && (
+                                    <>
+                                        <span className="text-gray-400">→</span>
+                                        <span className="px-3 py-1 font-medium text-green-800 bg-green-100 rounded-full">
+                                            {subUnitOptions.find(
+                                                (su) =>
+                                                    su.id == data.sub_unit_id
+                                            )?.name ||
+                                                `Sub Unit ID: ${data.sub_unit_id}`}
+                                        </span>
+                                    </>
+                                )
+                            ) : (
                                 <>
                                     <span className="text-gray-400">→</span>
-                                    <span className="px-3 py-1 font-medium text-green-800 bg-green-100 rounded-full">
-                                        {subUnitOptions.find(
-                                            (su) => su.id == data.sub_unit_id
-                                        )?.name ||
-                                            `Sub Unit ID: ${data.sub_unit_id}`}
+                                    <span className="px-3 py-1 font-medium text-gray-600 bg-gray-100 rounded-full">
+                                        Tidak ada sub unit
                                     </span>
                                 </>
+                            )}
+                        </div>
+
+                        {/* Status indicator */}
+                        <div className="mt-3 text-xs text-gray-600">
+                            {isSubUnitRequired ? (
+                                data.sub_unit_id ? (
+                                    <span className="flex items-center gap-1 text-green-600">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Struktur organisasi lengkap
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1 text-orange-600">
+                                        <AlertCircle className="w-3 h-3" />
+                                        Sub unit masih perlu dipilih
+                                    </span>
+                                )
+                            ) : (
+                                <span className="flex items-center gap-1 text-blue-600">
+                                    <Info className="w-3 h-3" />
+                                    Struktur organisasi sesuai untuk{" "}
+                                    {data.unit_organisasi}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Information panel */}
+                {data.unit_organisasi && (
+                    <div className="p-3 mt-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="text-xs text-gray-600">
+                            <div className="mb-1 font-medium text-gray-700">
+                                Informasi:
+                            </div>
+                            {unitWithoutSubUnits.includes(
+                                data.unit_organisasi
+                            ) ? (
+                                <div>
+                                    • Unit organisasi{" "}
+                                    <span className="font-medium">
+                                        {data.unit_organisasi}
+                                    </span>{" "}
+                                    tidak memiliki struktur sub unit
+                                    <br />• Struktur berakhir di level unit
+                                </div>
+                            ) : (
+                                <div>
+                                    • Unit organisasi{" "}
+                                    <span className="font-medium">
+                                        {data.unit_organisasi}
+                                    </span>{" "}
+                                    memiliki struktur sub unit
+                                    <br />• Sub unit wajib dipilih untuk
+                                    melengkapi struktur organisasi
+                                </div>
                             )}
                         </div>
                     </div>
