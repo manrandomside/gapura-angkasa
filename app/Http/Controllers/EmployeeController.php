@@ -731,6 +731,7 @@ class EmployeeController extends Controller
     /**
      * Store a newly created employee with comprehensive validation
      * FIXED: CONDITIONAL SUB UNIT VALIDATION - Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
+     * FIXED: Return Inertia compatible response instead of JSON
      */
     public function store(Request $request)
     {
@@ -797,7 +798,8 @@ class EmployeeController extends Controller
                         }
                     }
                 ],
-                // FIXED: Sub unit validation - conditional based on unit organisasi
+                
+                // FIXED: Conditional sub_unit_id validation
                 'sub_unit_id' => [
                     function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
                         // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
@@ -832,30 +834,42 @@ class EmployeeController extends Controller
                     }
                 ],
                 
-                // Job related fields
+                // Required job fields
                 'nama_jabatan' => 'required|string|min:2|max:100',
                 'kelompok_jabatan' => [
                     'required',
                     'string',
-                    Rule::in(['GENERAL MANAGER', 'MANAGER', 'ASISTEN MANAGER', 'SUPERVISOR', 'SENIOR STAFF', 'STAFF'])
+                    Rule::in(['SUPERVISOR', 'STAFF', 'MANAGER', 'EXECUTIVE GENERAL MANAGER', 'ACCOUNT EXECUTIVE/AE'])
                 ],
                 'status_pegawai' => [
-                    'required', 
+                    'required',
                     'string',
-                    Rule::in(['PEGAWAI TETAP', 'PEGAWAI KONTRAK', 'PEGAWAI MAGANG'])
+                    Rule::in(['PEGAWAI TETAP', 'PKWT', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])
                 ],
                 
-                // Optional fields with validation when present
-                'tmt_mulai_kerja' => 'nullable|date|before_or_equal:today',
-                'no_telepon' => 'nullable|string|max:20',
-                'email' => 'nullable|email|unique:employees,email',
+                // Optional fields dengan validasi
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat' => 'nullable|string|max:500'
-            ]);
-
-            // Custom error messages
-            $validator->setCustomMessages([
+                'alamat' => 'nullable|string|max:500',
+                'kota_domisili' => 'nullable|string|max:100',
+                'handphone' => 'nullable|string|max:20',
+                'email' => 'nullable|email|max:100|unique:employees,email',
+                'no_bpjs_kesehatan' => 'nullable|string|max:50',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                'tmt_mulai_jabatan' => 'nullable|date',
+                'tmt_mulai_kerja' => 'nullable|date',
+                'tmt_pensiun' => 'nullable|date|after:today',
+                'pendidikan_terakhir' => 'nullable|string|max:50',
+                'instansi_pendidikan' => 'nullable|string|max:200',
+                'jurusan' => 'nullable|string|max:100',
+                'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
+                'jenis_sepatu' => 'nullable|in:Pantofel,Safety Shoes',
+                'ukuran_sepatu' => 'nullable|integer|min:30|max:50',
+                'height' => 'nullable|integer|min:100|max:250',
+                'weight' => 'nullable|integer|min:30|max:200',
+                'seragam' => 'nullable|string|max:100',
+            ], [
+                // Custom error messages
                 'nik.required' => 'NIK wajib diisi.',
                 'nik.size' => 'NIK harus tepat 16 digit.',
                 'nik.regex' => 'NIK hanya boleh berisi angka.',
@@ -874,6 +888,7 @@ class EmployeeController extends Controller
                 'email.unique' => 'Email sudah terdaftar di sistem.'
             ]);
 
+            // FIXED: Return validation errors using Inertia redirect back
             if ($validator->fails()) {
                 Log::warning('Employee Store Validation Failed', [
                     'errors' => $validator->errors()->toArray(),
@@ -881,11 +896,10 @@ class EmployeeController extends Controller
                     'nip' => $request->nip
                 ]);
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data tidak valid. Silakan periksa kembali.',
-                    'errors' => $validator->errors()
-                ], 422);
+                return redirect()->back()
+                    ->withErrors($validator->errors())
+                    ->withInput()
+                    ->with('error', 'Data tidak valid. Silakan periksa kembali form.');
             }
 
             // Prepare data for employee creation
@@ -900,9 +914,21 @@ class EmployeeController extends Controller
             $employeeData['status'] = 'active';
             $employeeData['organization_id'] = 1; // Default organization
 
-            // Calculate TMT Pensiun (65 tahun dari tanggal lahir)
+            // Calculate TMT Pensiun (56 tahun dari tanggal lahir)
             if (isset($employeeData['tanggal_lahir'])) {
-                $employeeData['tmt_pensiun'] = Carbon::parse($employeeData['tanggal_lahir'])->addYears(65);
+                $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
+                $pensionDate = clone $birthDate;
+                $pensionDate->addYears(56);
+                
+                // Apply logic: if birth date < 10th, pension on 1st of same month, else 1st of next month
+                if ($birthDate->day < 10) {
+                    $pensionDate->day = 1;
+                } else {
+                    $pensionDate->day = 1;
+                    $pensionDate->addMonth();
+                }
+                
+                $employeeData['tmt_pensiun'] = $pensionDate;
             }
 
             // Create employee
@@ -921,14 +947,22 @@ class EmployeeController extends Controller
                 'has_sub_unit' => !is_null($employee->sub_unit_id)
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data karyawan berhasil disimpan!',
-                'data' => [
-                    'employee' => $employee->load(['unit', 'subUnit']),
-                    'redirect_url' => route('employees.index')
-                ]
-            ], 201);
+            // FIXED: Return Inertia redirect with success message
+            return redirect()->route('employees.index')
+                ->with('success', 'Karyawan berhasil ditambahkan!')
+                ->with('notification', [
+                    'type' => 'success',
+                    'title' => 'Berhasil!',
+                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
+                    'newEmployee' => [
+                        'id' => $employee->id,
+                        'nik' => $employee->nik,
+                        'nip' => $employee->nip,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'created_at' => $employee->created_at->format('d/m/Y H:i:s')
+                    ]
+                ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -939,11 +973,15 @@ class EmployeeController extends Controller
                 'request_data' => $request->except(['password'])
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.',
-                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
-            ], 500);
+            // FIXED: Return Inertia redirect with error message
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.')
+                ->with('notification', [
+                    'type' => 'error',
+                    'title' => 'Gagal Menyimpan',
+                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator.'
+                ]);
         }
     }
 

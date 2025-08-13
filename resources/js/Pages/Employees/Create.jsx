@@ -288,6 +288,9 @@ export default function Create({
     const [loadingUnits, setLoadingUnits] = useState(false);
     const [loadingSubUnits, setLoadingSubUnits] = useState(false);
 
+    // FIXED: Unit organisasi yang tidak memiliki sub unit
+    const unitWithoutSubUnits = ["EGM", "GM"];
+
     // Show notification dari session
     useEffect(() => {
         if (success) {
@@ -512,6 +515,15 @@ export default function Create({
             setAvailableUnits([]);
             setAvailableSubUnits([]);
 
+            // Clear sub_unit_id error jika unit organisasi tidak memerlukan sub unit
+            if (unitWithoutSubUnits.includes(value)) {
+                clearErrors("sub_unit_id");
+                setFormValidation((prev) => ({
+                    ...prev,
+                    sub_unit_id: "",
+                }));
+            }
+
             // Fetch units untuk unit organisasi yang dipilih
             if (value) {
                 fetchUnits(value);
@@ -521,8 +533,8 @@ export default function Create({
             setData("sub_unit_id", "");
             setAvailableSubUnits([]);
 
-            // Fetch sub units untuk unit yang dipilih
-            if (value) {
+            // Fetch sub units untuk unit yang dipilih (hanya jika required)
+            if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
                 fetchSubUnits(value);
             }
         }
@@ -550,7 +562,7 @@ export default function Create({
         validateField(name, value);
     };
 
-    // FIXED: Validate required fields - SEMUA STRUKTUR ORGANISASI WAJIB
+    // FIXED: Conditional validation untuk sub_unit_id berdasarkan unit_organisasi
     const validateRequiredFields = () => {
         const requiredFields = {
             nik: "NIK wajib diisi",
@@ -559,11 +571,19 @@ export default function Create({
             jenis_kelamin: "Jenis kelamin wajib dipilih",
             unit_organisasi: "Unit organisasi wajib dipilih",
             unit_id: "Unit wajib dipilih",
-            sub_unit_id: "Sub unit wajib dipilih",
             nama_jabatan: "Nama jabatan wajib diisi",
             kelompok_jabatan: "Kelompok jabatan wajib dipilih",
             status_pegawai: "Status pegawai wajib dipilih",
         };
+
+        // FIXED: Conditional sub_unit_id validation
+        // Hanya tambahkan sub_unit_id ke required fields jika unit_organisasi bukan EGM atau GM
+        if (
+            data.unit_organisasi &&
+            !unitWithoutSubUnits.includes(data.unit_organisasi)
+        ) {
+            requiredFields.sub_unit_id = "Sub unit wajib dipilih";
+        }
 
         const newErrors = {};
 
@@ -595,11 +615,19 @@ export default function Create({
         const requiredFieldErrors = validateRequiredFields();
         if (Object.keys(requiredFieldErrors).length > 0) {
             setFormValidation((prev) => ({ ...prev, ...requiredFieldErrors }));
+
+            // FIXED: Conditional notification message
+            const isEgmOrGm = unitWithoutSubUnits.includes(
+                data.unit_organisasi
+            );
+            const message = isEgmOrGm
+                ? "Mohon lengkapi semua field yang wajib diisi"
+                : "Mohon lengkapi semua field yang wajib diisi termasuk struktur organisasi lengkap";
+
             setNotification({
                 type: "error",
                 title: "Data Tidak Lengkap",
-                message:
-                    "Mohon lengkapi semua field yang wajib diisi termasuk struktur organisasi lengkap",
+                message: message,
             });
             setIsSubmitting(false);
             return;
@@ -887,221 +915,259 @@ export default function Create({
     );
 
     // FIXED: renderWorkSection dengan cascading dropdown struktur organisasi lengkap
-    const renderWorkSection = () => (
-        <div className="space-y-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Building2 className="w-5 h-5 text-[#439454]" />
-                Data Pekerjaan & Struktur Organisasi
-            </h2>
+    const renderWorkSection = () => {
+        // FIXED: Determine if sub unit is required
+        const isSubUnitRequired =
+            data.unit_organisasi &&
+            !unitWithoutSubUnits.includes(data.unit_organisasi);
 
-            {/* FIXED: Struktur Organisasi Section dengan cascading dropdown */}
-            <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
-                <h3 className="flex items-center gap-2 mb-4 font-semibold text-blue-800">
-                    <Building2 className="w-4 h-4" />
-                    Struktur Organisasi (SEMUA WAJIB)
-                </h3>
+        return (
+            <div className="space-y-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                    <Building2 className="w-5 h-5 text-[#439454]" />
+                    Data Pekerjaan & Struktur Organisasi
+                </h2>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                    <InputField
-                        name="unit_organisasi"
-                        label="Unit Organisasi"
-                        required={true}
-                        options={unitOrganisasiOptions.map((unit) => ({
-                            value: unit,
-                            label: unit,
-                        }))}
-                        placeholder="Pilih Unit Organisasi"
-                        icon={Building2}
-                        value={data.unit_organisasi}
-                        onChange={handleInputChange}
-                        error={
-                            errors.unit_organisasi ||
-                            formValidation.unit_organisasi
-                        }
-                        hint="Pilih unit organisasi terlebih dahulu"
-                    />
+                {/* FIXED: Struktur Organisasi Section dengan cascading dropdown */}
+                <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                    <h3 className="flex items-center gap-2 mb-4 font-semibold text-blue-800">
+                        <Building2 className="w-4 h-4" />
+                        Struktur Organisasi (SEMUA WAJIB)
+                    </h3>
 
-                    <InputField
-                        name="unit_id"
-                        label="Unit"
-                        required={true}
-                        options={availableUnits.map((unit) => ({
-                            value: unit.id,
-                            label: unit.name,
-                        }))}
-                        placeholder={
-                            loadingUnits
-                                ? "Loading..."
-                                : availableUnits.length > 0
-                                ? "Pilih Unit"
-                                : "Pilih Unit Organisasi dulu"
-                        }
-                        icon={Building2}
-                        value={data.unit_id}
-                        onChange={handleInputChange}
-                        disabled={!data.unit_organisasi || loadingUnits}
-                        error={errors.unit_id || formValidation.unit_id}
-                        hint="Unit akan muncul setelah memilih unit organisasi"
-                    />
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <InputField
+                            name="unit_organisasi"
+                            label="Unit Organisasi"
+                            required={true}
+                            options={unitOrganisasiOptions.map((unit) => ({
+                                value: unit,
+                                label: unit,
+                            }))}
+                            placeholder="Pilih Unit Organisasi"
+                            icon={Building2}
+                            value={data.unit_organisasi}
+                            onChange={handleInputChange}
+                            error={
+                                errors.unit_organisasi ||
+                                formValidation.unit_organisasi
+                            }
+                            hint="Pilih unit organisasi terlebih dahulu"
+                        />
 
-                    <InputField
-                        name="sub_unit_id"
-                        label="Sub Unit"
-                        required={true}
-                        options={availableSubUnits.map((subUnit) => ({
-                            value: subUnit.id,
-                            label: subUnit.name,
-                        }))}
-                        placeholder={
-                            loadingSubUnits
-                                ? "Loading..."
-                                : availableSubUnits.length > 0
-                                ? "Pilih Sub Unit"
-                                : "Pilih Unit dulu"
-                        }
-                        icon={Building2}
-                        value={data.sub_unit_id}
-                        onChange={handleInputChange}
-                        disabled={!data.unit_id || loadingSubUnits}
-                        error={errors.sub_unit_id || formValidation.sub_unit_id}
-                        hint="Sub unit akan muncul setelah memilih unit"
-                    />
+                        <InputField
+                            name="unit_id"
+                            label="Unit"
+                            required={true}
+                            options={availableUnits.map((unit) => ({
+                                value: unit.id,
+                                label: unit.name,
+                            }))}
+                            placeholder={
+                                loadingUnits
+                                    ? "Loading..."
+                                    : availableUnits.length > 0
+                                    ? "Pilih Unit"
+                                    : "Pilih Unit Organisasi dulu"
+                            }
+                            icon={Building2}
+                            value={data.unit_id}
+                            onChange={handleInputChange}
+                            disabled={!data.unit_organisasi || loadingUnits}
+                            error={errors.unit_id || formValidation.unit_id}
+                            hint="Unit akan muncul setelah memilih unit organisasi"
+                        />
+
+                        <InputField
+                            name="sub_unit_id"
+                            label="Sub Unit"
+                            required={isSubUnitRequired}
+                            options={availableSubUnits.map((subUnit) => ({
+                                value: subUnit.id,
+                                label: subUnit.name,
+                            }))}
+                            placeholder={
+                                loadingSubUnits
+                                    ? "Loading..."
+                                    : unitWithoutSubUnits.includes(
+                                          data.unit_organisasi
+                                      )
+                                    ? "Tidak ada sub unit untuk unit organisasi ini"
+                                    : availableSubUnits.length > 0
+                                    ? "Pilih Sub Unit"
+                                    : "Pilih Unit dulu"
+                            }
+                            icon={Building2}
+                            value={data.sub_unit_id}
+                            onChange={handleInputChange}
+                            disabled={
+                                !data.unit_id ||
+                                loadingSubUnits ||
+                                unitWithoutSubUnits.includes(
+                                    data.unit_organisasi
+                                )
+                            }
+                            error={
+                                errors.sub_unit_id || formValidation.sub_unit_id
+                            }
+                            hint={
+                                unitWithoutSubUnits.includes(
+                                    data.unit_organisasi
+                                )
+                                    ? "Unit organisasi ini tidak memiliki sub unit"
+                                    : "Sub unit akan muncul setelah memilih unit"
+                            }
+                        />
+                    </div>
+
+                    {/* FIXED: Preview Struktur Organisasi */}
+                    {data.unit_organisasi && (
+                        <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
+                            <h4 className="mb-2 text-sm font-medium text-green-800">
+                                Preview Struktur Organisasi:
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
+                                <span className="px-2 py-1 bg-green-100 rounded">
+                                    {data.unit_organisasi}
+                                </span>
+                                {availableUnits.find(
+                                    (u) => u.id == data.unit_id
+                                ) && (
+                                    <>
+                                        <span>→</span>
+                                        <span className="px-2 py-1 bg-green-100 rounded">
+                                            {
+                                                availableUnits.find(
+                                                    (u) => u.id == data.unit_id
+                                                )?.name
+                                            }
+                                        </span>
+                                    </>
+                                )}
+                                {isSubUnitRequired ? (
+                                    availableSubUnits.find(
+                                        (su) => su.id == data.sub_unit_id
+                                    ) && (
+                                        <>
+                                            <span>→</span>
+                                            <span className="px-2 py-1 bg-green-100 rounded">
+                                                {
+                                                    availableSubUnits.find(
+                                                        (su) =>
+                                                            su.id ==
+                                                            data.sub_unit_id
+                                                    )?.name
+                                                }
+                                            </span>
+                                        </>
+                                    )
+                                ) : (
+                                    <>
+                                        <span>→</span>
+                                        <span className="px-2 py-1 text-gray-600 bg-gray-100 rounded">
+                                            Tidak ada sub unit
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* FIXED: Preview Struktur Organisasi */}
-                {data.unit_organisasi && (
-                    <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
-                        <h4 className="mb-2 text-sm font-medium text-green-800">
-                            Preview Struktur Organisasi:
-                        </h4>
-                        <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
-                            <span className="px-2 py-1 bg-green-100 rounded">
-                                {data.unit_organisasi}
-                            </span>
-                            {availableUnits.find(
-                                (u) => u.id == data.unit_id
-                            ) && (
-                                <>
-                                    <span>→</span>
-                                    <span className="px-2 py-1 bg-green-100 rounded">
-                                        {
-                                            availableUnits.find(
-                                                (u) => u.id == data.unit_id
-                                            )?.name
-                                        }
-                                    </span>
-                                </>
-                            )}
-                            {availableSubUnits.find(
-                                (su) => su.id == data.sub_unit_id
-                            ) && (
-                                <>
-                                    <span>→</span>
-                                    <span className="px-2 py-1 bg-green-100 rounded">
-                                        {
-                                            availableSubUnits.find(
-                                                (su) =>
-                                                    su.id == data.sub_unit_id
-                                            )?.name
-                                        }
-                                    </span>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <InputField
+                        name="nama_jabatan"
+                        label="Nama Jabatan"
+                        required={true}
+                        placeholder="Contoh: Manager Operasional"
+                        icon={UserCheck}
+                        value={data.nama_jabatan}
+                        onChange={handleInputChange}
+                        error={
+                            errors.nama_jabatan || formValidation.nama_jabatan
+                        }
+                    />
+                    <InputField
+                        name="status_pegawai"
+                        label="Status Pegawai"
+                        required={true}
+                        options={
+                            statusPegawaiOptions.length > 0
+                                ? statusPegawaiOptions
+                                : [
+                                      "PEGAWAI TETAP",
+                                      "PKWT",
+                                      "TAD PAKET SDM",
+                                      "TAD PAKET PEKERJAAN",
+                                  ]
+                        }
+                        placeholder="Pilih Status Pegawai"
+                        icon={UserCheck}
+                        value={data.status_pegawai}
+                        onChange={handleInputChange}
+                        error={
+                            errors.status_pegawai ||
+                            formValidation.status_pegawai
+                        }
+                    />
+                    <InputField
+                        name="kelompok_jabatan"
+                        label="Kelompok Jabatan"
+                        required={true}
+                        options={
+                            kelompokJabatanOptions.length > 0
+                                ? kelompokJabatanOptions
+                                : [
+                                      "SUPERVISOR",
+                                      "STAFF",
+                                      "MANAGER",
+                                      "EXECUTIVE GENERAL MANAGER",
+                                      "ACCOUNT EXECUTIVE/AE",
+                                  ]
+                        }
+                        icon={Users}
+                        value={data.kelompok_jabatan}
+                        onChange={handleInputChange}
+                        error={
+                            errors.kelompok_jabatan ||
+                            formValidation.kelompok_jabatan
+                        }
+                    />
+                    <InputField
+                        name="tmt_mulai_kerja"
+                        label="TMT Mulai Kerja"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_mulai_kerja}
+                        onChange={handleInputChange}
+                        error={errors.tmt_mulai_kerja}
+                        hint="Tanggal Mulai Tugas pertama kali bekerja"
+                    />
+                    <InputField
+                        name="tmt_mulai_jabatan"
+                        label="TMT Mulai Jabatan"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_mulai_jabatan}
+                        onChange={handleInputChange}
+                        error={errors.tmt_mulai_jabatan}
+                        hint="Tanggal Mulai Tugas pada jabatan saat ini"
+                    />
+                    <InputField
+                        name="tmt_pensiun"
+                        label="TMT Pensiun"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_pensiun}
+                        onChange={handleInputChange}
+                        error={errors.tmt_pensiun}
+                        disabled={true}
+                        hint="Otomatis dihitung dari tanggal lahir (56 tahun dengan logika baru)"
+                    />
+                </div>
             </div>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <InputField
-                    name="nama_jabatan"
-                    label="Nama Jabatan"
-                    required={true}
-                    placeholder="Contoh: Manager Operasional"
-                    icon={UserCheck}
-                    value={data.nama_jabatan}
-                    onChange={handleInputChange}
-                    error={errors.nama_jabatan || formValidation.nama_jabatan}
-                />
-                <InputField
-                    name="status_pegawai"
-                    label="Status Pegawai"
-                    required={true}
-                    options={
-                        statusPegawaiOptions.length > 0
-                            ? statusPegawaiOptions
-                            : [
-                                  "PEGAWAI TETAP",
-                                  "PKWT",
-                                  "TAD PAKET SDM",
-                                  "TAD PAKET PEKERJAAN",
-                              ]
-                    }
-                    placeholder="Pilih Status Pegawai"
-                    icon={UserCheck}
-                    value={data.status_pegawai}
-                    onChange={handleInputChange}
-                    error={
-                        errors.status_pegawai || formValidation.status_pegawai
-                    }
-                />
-                <InputField
-                    name="kelompok_jabatan"
-                    label="Kelompok Jabatan"
-                    required={true}
-                    options={
-                        kelompokJabatanOptions.length > 0
-                            ? kelompokJabatanOptions
-                            : [
-                                  "SUPERVISOR",
-                                  "STAFF",
-                                  "MANAGER",
-                                  "EXECUTIVE GENERAL MANAGER",
-                                  "ACCOUNT EXECUTIVE/AE",
-                              ]
-                    }
-                    icon={Users}
-                    value={data.kelompok_jabatan}
-                    onChange={handleInputChange}
-                    error={
-                        errors.kelompok_jabatan ||
-                        formValidation.kelompok_jabatan
-                    }
-                />
-                <InputField
-                    name="tmt_mulai_kerja"
-                    label="TMT Mulai Kerja"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_mulai_kerja}
-                    onChange={handleInputChange}
-                    error={errors.tmt_mulai_kerja}
-                    hint="Tanggal Mulai Tugas pertama kali bekerja"
-                />
-                <InputField
-                    name="tmt_mulai_jabatan"
-                    label="TMT Mulai Jabatan"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_mulai_jabatan}
-                    onChange={handleInputChange}
-                    error={errors.tmt_mulai_jabatan}
-                    hint="Tanggal Mulai Tugas pada jabatan saat ini"
-                />
-                <InputField
-                    name="tmt_pensiun"
-                    label="TMT Pensiun"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_pensiun}
-                    onChange={handleInputChange}
-                    error={errors.tmt_pensiun}
-                    disabled={true}
-                    hint="Otomatis dihitung dari tanggal lahir (56 tahun dengan logika baru)"
-                />
-            </div>
-        </div>
-    );
+        );
+    };
 
     const renderEducationSection = () => (
         <div className="space-y-6">

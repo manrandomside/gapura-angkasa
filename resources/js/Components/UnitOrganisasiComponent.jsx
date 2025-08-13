@@ -324,11 +324,6 @@ const UnitOrganisasiComponent = ({
                     />
                     {label}
                     {required && <span className="text-red-500">*</span>}
-                    {!required && (
-                        <span className="text-xs text-gray-500">
-                            (Optional)
-                        </span>
-                    )}
                 </label>
 
                 {note && (
@@ -467,63 +462,48 @@ const UnitOrganisasiComponent = ({
 
                     {/* Sub Unit Dropdown - conditional berdasarkan unit organisasi */}
                     {data.unit_id && (
-                        <>
-                            {!isSubUnitRequired ? (
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                        <Building2 className="w-4 h-4 text-gray-400" />
-                                        Sub Unit
-                                        <span className="text-xs text-gray-500">
-                                            (Tidak diperlukan)
-                                        </span>
-                                    </label>
-                                    <div className="flex items-center gap-2 p-4 text-sm text-blue-700 border border-blue-200 rounded-xl bg-blue-50">
-                                        <Info className="flex-shrink-0 w-5 h-5" />
-                                        <div>
-                                            <div className="font-medium">
-                                                Unit organisasi{" "}
-                                                {data.unit_organisasi} tidak
-                                                memiliki struktur sub unit
-                                            </div>
-                                            <div className="mt-1 text-xs text-blue-600">
-                                                Struktur organisasi untuk{" "}
-                                                {data.unit_organisasi} hanya
-                                                sampai level unit
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <DropdownField
-                                    label="Sub Unit"
-                                    name="sub_unit_id"
-                                    value={data.sub_unit_id}
-                                    options={subUnitOptions}
-                                    onChange={handleSubUnitChange}
-                                    error={errors.sub_unit_id}
-                                    apiError={apiErrors.subUnit}
-                                    placeholder={
-                                        subUnitOptions.length === 0 &&
-                                        !loading.subUnit
-                                            ? "Tidak ada sub unit tersedia"
-                                            : "Pilih Sub Unit"
-                                    }
-                                    loading={loading.subUnit}
-                                    disabled={
-                                        subUnitOptions.length === 0 &&
-                                        !loading.subUnit
-                                    }
-                                    required={true}
-                                    note={
-                                        data.unit_id &&
-                                        subUnitOptions.length === 0 &&
-                                        !loading.subUnit
-                                            ? "Sub unit akan muncul setelah data dimuat dari server"
-                                            : null
-                                    }
-                                />
-                            )}
-                        </>
+                        <DropdownField
+                            label="Sub Unit"
+                            name="sub_unit_id"
+                            value={isSubUnitRequired ? data.sub_unit_id : ""}
+                            options={isSubUnitRequired ? subUnitOptions : []}
+                            onChange={
+                                isSubUnitRequired
+                                    ? handleSubUnitChange
+                                    : () => {}
+                            }
+                            error={
+                                isSubUnitRequired ? errors.sub_unit_id : null
+                            }
+                            apiError={
+                                isSubUnitRequired ? apiErrors.subUnit : null
+                            }
+                            placeholder={
+                                !isSubUnitRequired
+                                    ? "Tidak ada sub unit untuk unit organisasi ini"
+                                    : subUnitOptions.length === 0 &&
+                                      !loading.subUnit
+                                    ? "Tidak ada sub unit tersedia"
+                                    : "Pilih Sub Unit"
+                            }
+                            loading={
+                                isSubUnitRequired ? loading.subUnit : false
+                            }
+                            disabled={
+                                !isSubUnitRequired ||
+                                (subUnitOptions.length === 0 &&
+                                    !loading.subUnit)
+                            }
+                            required={isSubUnitRequired}
+                            note={
+                                isSubUnitRequired &&
+                                data.unit_id &&
+                                subUnitOptions.length === 0 &&
+                                !loading.subUnit
+                                    ? "Sub unit akan muncul setelah data dimuat dari server"
+                                    : null
+                            }
+                        />
                     )}
                 </div>
 
