@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Organization;
-use App\Models\Unit; // TAMBAHAN BARU
-use App\Models\SubUnit; // TAMBAHAN BARU
+use App\Models\Unit;
+use App\Models\SubUnit;
 use App\Helpers\TimezoneHelper;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -311,150 +311,18 @@ class EmployeeController extends Controller
         }
     }
 
-    /**
-     * Get unit organisasi options
-     */
-    public function getUnitOrganisasiOptions()
-    {
-        try {
-            $unitOrganisasi = Unit::UNIT_ORGANISASI_OPTIONS ?? [
-                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
-            ];
-
-            Log::info('Unit Organisasi Options retrieved', [
-                'options_count' => count($unitOrganisasi),
-                'options' => $unitOrganisasi
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Unit organisasi options retrieved successfully',
-                'data' => $unitOrganisasi
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Get Unit Organisasi Options Error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error retrieving unit organisasi options',
-                'data' => ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary']
-            ], 500);
-        }
-    }
-
-    /**
-     * Get all unit data in hierarchical structure
-     */
-    public function getAllUnitsHierarchy()
-    {
-        try {
-            $hierarchy = [];
-            
-            foreach (Unit::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
-                $units = Unit::active()
-                    ->byUnitOrganisasi($unitOrganisasi)
-                    ->with(['subUnits' => function($query) {
-                        $query->active()->orderBy('name');
-                    }])
-                    ->orderBy('name')
-                    ->get();
-
-                if ($units->count() > 0) {
-                    $hierarchy[$unitOrganisasi] = $units;
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Unit hierarchy retrieved successfully',
-                'data' => $hierarchy
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Get Units Hierarchy Error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error retrieving unit hierarchy',
-                'data' => []
-            ], 500);
-        }
-    }
-
-    /**
-     * Get unit statistics for monitoring
-     */
-    public function getUnitStatistics()
-    {
-        try {
-            $statistics = [
-                'total_unit_organisasi' => count(Unit::UNIT_ORGANISASI_OPTIONS),
-                'total_units' => Unit::active()->count(),
-                'total_sub_units' => SubUnit::active()->count(),
-                'employees_with_units' => Employee::whereNotNull('unit_id')->count(),
-                'employees_with_sub_units' => Employee::whereNotNull('sub_unit_id')->count(),
-                'breakdown_by_unit_organisasi' => []
-            ];
-
-            // Get breakdown per unit organisasi
-            foreach (Unit::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
-                $unitCount = Unit::active()->byUnitOrganisasi($unitOrganisasi)->count();
-                $subUnitCount = SubUnit::active()
-                    ->whereHas('unit', function($query) use ($unitOrganisasi) {
-                        $query->where('unit_organisasi', $unitOrganisasi);
-                    })
-                    ->count();
-                
-                $employeeCount = Employee::whereHas('unit', function($query) use ($unitOrganisasi) {
-                    $query->where('unit_organisasi', $unitOrganisasi);
-                })->count();
-
-                $statistics['breakdown_by_unit_organisasi'][$unitOrganisasi] = [
-                    'units' => $unitCount,
-                    'sub_units' => $subUnitCount,
-                    'employees' => $employeeCount
-                ];
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Unit statistics retrieved successfully',
-                'data' => $statistics
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Get Unit Statistics Error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error retrieving unit statistics',
-                'data' => []
-            ], 500);
-        }
-    }
-
     // =====================================================
-    // MAIN CRUD METHODS - UPDATED FOR NIK PRIMARY KEY
+    // MAIN CRUD METHODS - FIXED FOR AUTO-INCREMENT ID
     // =====================================================
 
     /**
      * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * UPDATED: Support TAD Split dan Kelompok Jabatan filters dengan Safe Error Handling + Unit/SubUnit filters
+     * FIXED: Updated untuk auto-increment ID compatibility
      */
     public function index(Request $request)
     {
         try {
-            // Build query with relationships - UPDATED: Include unit dan subUnit
+            // Build query with relationships
             $query = Employee::query();
 
             // Load relationships if they exist
@@ -478,16 +346,15 @@ class EmployeeController extends Controller
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
-                    $q->where('nik', 'like', "%{$searchTerm}%") // UPDATED: Search NIK instead of id
+                    $q->where('nik', 'like', "%{$searchTerm}%")
                       ->orWhere('nip', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                       ->orWhere('jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%") // BARU: Search kelompok jabatan
+                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
-                      // TAMBAHAN BARU: Search dalam unit dan sub unit
                       ->orWhereHas('unit', function ($q) use ($searchTerm) {
                           $q->where('name', 'like', "%{$searchTerm}%");
                       })
@@ -498,13 +365,13 @@ class EmployeeController extends Controller
                 $filterConditions['search'] = $searchTerm;
             }
 
-            // Filter by status pegawai - UPDATED: Support TAD Split
+            // Filter by status pegawai
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
                 $filterConditions['status_pegawai'] = $request->status_pegawai;
             }
 
-            // Filter by kelompok jabatan - FITUR BARU
+            // Filter by kelompok jabatan
             if ($request->filled('kelompok_jabatan') && $request->kelompok_jabatan !== 'all') {
                 $query->where('kelompok_jabatan', $request->kelompok_jabatan);
                 $filterConditions['kelompok_jabatan'] = $request->kelompok_jabatan;
@@ -516,13 +383,13 @@ class EmployeeController extends Controller
                 $filterConditions['unit_organisasi'] = $request->unit_organisasi;
             }
 
-            // Filter by unit - TAMBAHAN BARU
+            // Filter by unit
             if ($request->filled('unit_id') && $request->unit_id !== 'all') {
                 $query->where('unit_id', $request->unit_id);
                 $filterConditions['unit_id'] = $request->unit_id;
             }
 
-            // Filter by sub unit - TAMBAHAN BARU
+            // Filter by sub unit
             if ($request->filled('sub_unit_id') && $request->sub_unit_id !== 'all') {
                 $query->where('sub_unit_id', $request->sub_unit_id);
                 $filterConditions['sub_unit_id'] = $request->sub_unit_id;
@@ -546,9 +413,6 @@ class EmployeeController extends Controller
                 $filterConditions['ukuran_sepatu'] = $request->ukuran_sepatu;
             }
 
-            // Clone query for statistics calculation before pagination
-            $statisticsQuery = clone $query;
-
             // Set per page count
             $perPage = $request->get('per_page', 20);
             
@@ -557,30 +421,30 @@ class EmployeeController extends Controller
                 $perPage = 20;
             }
 
-            // ENHANCED: Order by created_at desc to show newest first (for real-time update)
+            // Order by created_at desc to show newest first
             $employees = $query->orderBy('created_at', 'desc')
                              ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
-                             ->withQueryString(); // Preserve query parameters in pagination links
+                             ->withQueryString();
 
-            // ENHANCED: Calculate statistics with WITA timezone support - UPDATED untuk TAD Split
+            // Calculate statistics
             $statistics = $this->getEnhancedStatistics($filterConditions);
 
-            // Get organizations for filter dropdown - SAFE VERSION
+            // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
 
-            // Get filter options for dropdowns - UPDATED: Include kelompok jabatan
+            // Get filter options for dropdowns
             $filterOptions = $this->getFilterOptions();
 
-            // ENHANCED: Get new employees data for notifications (WITA timezone) - SAFE VERSION
+            // Get new employees data for notifications
             $newEmployeesToday = $this->getNewEmployeesToday();
             $newEmployeesYesterday = $this->getNewEmployeesYesterday();
             $newEmployeesThisWeek = $this->getNewEmployeesThisWeek();
 
-            // Get notification data from session (if exists) - SAFE VERSION
+            // Get notification data from session
             $notificationData = $this->getNotificationData();
 
-            // Get current WITA time information - SAFE VERSION
+            // Get current time information
             $timeInfo = $this->getTimeBasedGreeting();
             $businessHours = $this->getBusinessHoursStatus();
 
@@ -592,10 +456,10 @@ class EmployeeController extends Controller
                 'filters' => $request->only([
                     'search', 
                     'status_pegawai', 
-                    'kelompok_jabatan', // BARU: Filter kelompok jabatan
+                    'kelompok_jabatan',
                     'unit_organisasi', 
-                    'unit_id', // TAMBAHAN BARU
-                    'sub_unit_id', // TAMBAHAN BARU
+                    'unit_id',
+                    'sub_unit_id',
                     'jenis_kelamin', 
                     'jenis_sepatu', 
                     'ukuran_sepatu'
@@ -616,7 +480,7 @@ class EmployeeController extends Controller
                     'links' => $employees->links()->elements[0] ?? []
                 ],
                 
-                // ENHANCED: Comprehensive notification data with WITA timezone
+                // Comprehensive notification data
                 'notifications' => [
                     'session' => $notificationData,
                     'newToday' => $newEmployeesToday,
@@ -627,7 +491,7 @@ class EmployeeController extends Controller
                     'witaTime' => $this->formatIndonesian($this->getWitaDate()),
                 ],
 
-                // Legacy compatibility (keep existing)
+                // Legacy compatibility
                 'newEmployee' => $notificationData['newEmployee'] ?? null,
                 'success' => $notificationData['success'] ?? null,
                 'error' => $notificationData['error'] ?? null,
@@ -661,8 +525,8 @@ class EmployeeController extends Controller
                     'status_pegawai', 
                     'kelompok_jabatan',
                     'unit_organisasi',
-                    'unit_id', // TAMBAHAN BARU
-                    'sub_unit_id', // TAMBAHAN BARU
+                    'unit_id',
+                    'sub_unit_id',
                     'jenis_kelamin', 
                     'jenis_sepatu', 
                     'ukuran_sepatu'
@@ -688,7 +552,6 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for creating a new employee
-     * UPDATED: Include kelompok jabatan dan status pegawai options dengan Safe Handling + Unit Organisasi Options
      */
     public function create()
     {
@@ -701,7 +564,7 @@ class EmployeeController extends Controller
             // Enhanced jabatan options
             $jabatanOptions = $this->getJabatanOptions();
             
-            // Unit Organisasi options dari model Unit - TAMBAHAN BARU
+            // Unit Organisasi options dari model Unit
             $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
@@ -710,7 +573,7 @@ class EmployeeController extends Controller
                 'organizations' => $organizations,
                 'unitOptions' => $unitOptions,
                 'jabatanOptions' => $jabatanOptions,
-                'unitOrganisasiOptions' => $unitOrganisasiOptions, // TAMBAHAN BARU
+                'unitOrganisasiOptions' => $unitOrganisasiOptions,
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
                 'success' => session('success'),
@@ -730,8 +593,7 @@ class EmployeeController extends Controller
 
     /**
      * Store a newly created employee with comprehensive validation
-     * FIXED: CONDITIONAL SUB UNIT VALIDATION - Enhanced validation untuk struktur organisasi dan TMT Pensiun calculation
-     * FIXED: Return Inertia compatible response instead of JSON
+     * FIXED: Auto-increment ID compatibility dan improved error handling
      */
     public function store(Request $request)
     {
@@ -759,9 +621,9 @@ class EmployeeController extends Controller
             // Unit organisasi yang tidak memiliki sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // FIXED: Enhanced validation rules with more flexible validation
+            // Enhanced validation rules
             $validator = Validator::make($request->all(), [
-                // Required basic fields - RELAXED validation
+                // Required identity fields
                 'nik' => [
                     'required',
                     'string',
@@ -772,14 +634,18 @@ class EmployeeController extends Controller
                 'nip' => [
                     'required',
                     'string',
-                    'min:5', // FIXED: Reduced from 6 to 5
+                    'min:5',
                     'regex:/^[0-9]+$/',
                     'unique:employees,nip'
                 ],
-                'nama_lengkap' => 'required|string|min:2|max:100',
-                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
+                'nama_lengkap' => 'required|string|min:2|max:200',
+                'jenis_kelamin' => [
+                    'required',
+                    'string',
+                    Rule::in(['Laki-laki', 'Perempuan'])
+                ],
                 
-                // Unit organisasi validation
+                // Organizational structure validation
                 'unit_organisasi' => [
                     'required',
                     'string',
@@ -788,32 +654,32 @@ class EmployeeController extends Controller
                 'unit_id' => [
                     'required',
                     'integer',
-                    'exists:units,id',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->unit_organisasi) {
-                            $unit = Unit::find($value);
-                            if (!$unit || $unit->unit_organisasi !== $request->unit_organisasi) {
-                                $fail('Unit tidak sesuai dengan unit organisasi yang dipilih.');
-                            }
-                        }
-                    }
+                    'exists:units,id'
                 ],
-                
-                // FIXED: CONDITIONAL sub_unit_id validation - Hanya required jika bukan EGM/GM
                 'sub_unit_id' => [
+                    'nullable',
+                    'integer',
                     function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
-                        // Jika unit organisasi BUKAN EGM atau GM, maka sub_unit_id WAJIB
-                        if ($request->unit_organisasi && !in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
-                            if (empty($value)) {
-                                $fail('Sub unit wajib dipilih untuk unit organisasi ' . $request->unit_organisasi . '.');
-                            }
-                            
-                            // Validasi bahwa sub unit belongs to unit yang dipilih
-                            if ($value && $request->unit_id) {
-                                $subUnit = SubUnit::find($value);
-                                if ($subUnit && $subUnit->unit_id != $request->unit_id) {
-                                    $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
-                                }
+                        // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
+                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
+                            return; // Skip validation untuk EGM dan GM
+                        }
+                        
+                        // Untuk unit lainnya, sub unit wajib diisi
+                        if (!$value) {
+                            $fail('Sub unit wajib diisi untuk unit organisasi ' . $request->unit_organisasi . '.');
+                        }
+                        
+                        // Validasi bahwa sub unit exists
+                        if ($value && !SubUnit::where('id', $value)->exists()) {
+                            $fail('Sub unit yang dipilih tidak valid.');
+                        }
+                        
+                        // Validasi bahwa sub unit belongs to unit yang dipilih
+                        if ($value && $request->unit_id) {
+                            $subUnit = SubUnit::find($value);
+                            if ($subUnit && $subUnit->unit_id != $request->unit_id) {
+                                $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
                             }
                         }
                     }
@@ -832,7 +698,7 @@ class EmployeeController extends Controller
                     Rule::in(['PEGAWAI TETAP', 'PKWT', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])
                 ],
                 
-                // FIXED: Optional fields dengan validasi yang lebih longgar
+                // Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
@@ -843,14 +709,14 @@ class EmployeeController extends Controller
                 'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
                 'tmt_mulai_jabatan' => 'nullable|date',
                 'tmt_mulai_kerja' => 'nullable|date',
-                'tmt_pensiun' => 'nullable|date', // FIXED: Removed |after:today constraint
+                'tmt_pensiun' => 'nullable|date',
                 'pendidikan_terakhir' => 'nullable|string|max:50',
-                'pendidikan' => 'nullable|string|max:50', // FIXED: Added pendidikan field
+                'pendidikan' => 'nullable|string|max:50',
                 'instansi_pendidikan' => 'nullable|string|max:200',
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                'jenis_sepatu' => 'nullable|string|max:50', // FIXED: More flexible
-                'ukuran_sepatu' => 'nullable|string|max:10', // FIXED: Allow string instead of just integer
+                'jenis_sepatu' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|string|max:10',
                 'height' => 'nullable|integer|min:100|max:250',
                 'weight' => 'nullable|integer|min:30|max:200',
                 'seragam' => 'nullable|string|max:100',
@@ -874,7 +740,7 @@ class EmployeeController extends Controller
                 'email.unique' => 'Email sudah terdaftar di sistem.'
             ]);
 
-            // FIXED: Return validation errors using Inertia redirect back
+            // Return validation errors using Inertia redirect back
             if ($validator->fails()) {
                 Log::warning('Employee Store Validation Failed', [
                     'errors' => $validator->errors()->toArray(),
@@ -891,18 +757,23 @@ class EmployeeController extends Controller
             // Prepare data for employee creation
             $employeeData = $validator->validated();
             
-            // FIXED: Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
+            // Handle jenis_kelamin conversion (Frontend: Laki-laki/Perempuan -> Database: L/P)
+            if (isset($employeeData['jenis_kelamin'])) {
+                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'Laki-laki' ? 'L' : 'P';
+            }
+            
+            // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
             if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($employeeData['sub_unit_id'])) {
                 $employeeData['sub_unit_id'] = null;
             }
 
-            // FIXED: Set default values yang diperlukan
+            // Set default values yang diperlukan
             $employeeData['status'] = 'active';
             $employeeData['organization_id'] = 1; // Default organization
             $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Default location
             $employeeData['cabang'] = 'Denpasar'; // Default branch
 
-            // FIXED: Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
+            // Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
             if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
                 $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
                 $pensionDate = clone $birthDate;
@@ -919,48 +790,71 @@ class EmployeeController extends Controller
                 $employeeData['tmt_pensiun'] = $pensionDate;
             }
 
-            // Create employee
+            // Start database transaction
             DB::beginTransaction();
             
-            $employee = Employee::create($employeeData);
-            
-            DB::commit();
+            try {
+                // Create employee - FIXED: menggunakan auto-increment ID
+                $employee = Employee::create($employeeData);
+                
+                // Commit transaction
+                DB::commit();
 
-            Log::info('Employee Created Successfully', [
-                'employee_nik' => $employee->nik, // FIXED: Use nik instead of id
-                'nik' => $employee->nik,
-                'nip' => $employee->nip,
-                'nama_lengkap' => $employee->nama_lengkap,
-                'unit_organisasi' => $employee->unit_organisasi,
-                'has_sub_unit' => !is_null($employee->sub_unit_id)
-            ]);
-
-            // FIXED: Return Inertia redirect with success message
-            return redirect()->route('employees.index')
-                ->with('success', 'Karyawan berhasil ditambahkan!')
-                ->with('notification', [
-                    'type' => 'success',
-                    'title' => 'Berhasil!',
-                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
-                    'newEmployee' => [
-                        'nik' => $employee->nik,
-                        'nip' => $employee->nip,
-                        'nama_lengkap' => $employee->nama_lengkap,
-                        'unit_organisasi' => $employee->unit_organisasi,
-                        'created_at' => $employee->created_at->format('d/m/Y H:i:s')
-                    ]
+                // FIXED: Log menggunakan ID dan NIK
+                Log::info('Employee Created Successfully', [
+                    'employee_id' => $employee->id, // FIXED: Use auto-increment ID
+                    'employee_nik' => $employee->nik,
+                    'nik' => $employee->nik,
+                    'nip' => $employee->nip,
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'has_sub_unit' => !is_null($employee->sub_unit_id)
                 ]);
 
+                // Return success response
+                return redirect()->route('employees.index')
+                    ->with('success', 'Karyawan berhasil ditambahkan!')
+                    ->with('notification', [
+                        'type' => 'success',
+                        'title' => 'Berhasil!',
+                        'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
+                        'newEmployee' => [
+                            'id' => $employee->id, // FIXED: Use auto-increment ID
+                            'nik' => $employee->nik,
+                            'nip' => $employee->nip,
+                            'nama_lengkap' => $employee->nama_lengkap,
+                            'unit_organisasi' => $employee->unit_organisasi,
+                            'created_at' => $employee->created_at->format('d/m/Y H:i:s')
+                        ]
+                    ]);
+
+            } catch (\Exception $e) {
+                // Rollback transaction
+                DB::rollBack();
+                
+                Log::error('Employee Database Creation Failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'employee_data' => $employeeData
+                ]);
+
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Terjadi kesalahan database saat menyimpan data. Error: ' . $e->getMessage())
+                    ->with('notification', [
+                        'type' => 'error',
+                        'title' => 'Gagal Menyimpan',
+                        'message' => 'Terjadi kesalahan database. Silakan coba lagi atau hubungi administrator.'
+                    ]);
+            }
+
         } catch (\Exception $e) {
-            DB::rollBack();
-            
             Log::error('Employee Store Failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->except(['password'])
             ]);
 
-            // FIXED: Return Inertia redirect with error message
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.')
@@ -974,13 +868,18 @@ class EmployeeController extends Controller
 
     /**
      * Display the specified employee
-     * UPDATED: Parameter sekarang menggunakan NIK (string) bukan ID auto-increment
+     * FIXED: Parameter sekarang menggunakan flexible identifier (ID atau NIK)
      */
-    public function show(string $nik)
+    public function show(string $identifier)
     {
         try {
-            // UPDATED: Find by NIK instead of auto-increment ID
-            $employee = Employee::where('nik', $nik)->firstOrFail();
+            // FIXED: Find by flexible identifier (ID atau NIK)
+            $employee = Employee::findByIdentifier($identifier)->first();
+            
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
             
             // Load relationships if they exist
             if (method_exists($employee, 'organization')) {
@@ -998,7 +897,7 @@ class EmployeeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
-                'employee_nik' => $nik,
+                'employee_identifier' => $identifier,
                 'error' => $e->getMessage()
             ]);
 
@@ -1009,15 +908,20 @@ class EmployeeController extends Controller
 
     /**
      * Show the form for editing the specified employee
-     * UPDATED: Parameter menggunakan NIK, Include kelompok jabatan dan status pegawai options + Unit Organisasi Options
+     * FIXED: Parameter menggunakan flexible identifier, Include kelompok jabatan dan status pegawai options
      */
-    public function edit(string $nik)
+    public function edit(string $identifier)
     {
         try {
-            // UPDATED: Find by NIK instead of auto-increment ID
-            $employee = Employee::where('nik', $nik)->firstOrFail();
+            // FIXED: Find by flexible identifier (ID atau NIK)
+            $employee = Employee::findByIdentifier($identifier)->first();
             
-            // Load relationships - TAMBAHAN BARU
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
+            
+            // Load relationships
             if (method_exists($employee, 'unit')) {
                 $employee->load('unit');
             }
@@ -1050,118 +954,112 @@ class EmployeeController extends Controller
             // Get jabatan options
             $jabatanOptions = $this->getJabatanOptions();
 
-            // Unit Organisasi options dari model Unit - TAMBAHAN BARU
+            // Unit Organisasi options dari model Unit
             $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
-            
+
             return Inertia::render('Employees/Edit', [
                 'employee' => $employeeData,
                 'organizations' => $organizations,
                 'unitOptions' => $unitOptions,
                 'jabatanOptions' => $jabatanOptions,
-                'unitOrganisasiOptions' => $unitOrganisasiOptions, // TAMBAHAN BARU
+                'unitOrganisasiOptions' => $unitOrganisasiOptions,
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
-                'title' => 'Edit Karyawan',
-                'subtitle' => "Edit data karyawan {$employee->nama_lengkap}",
                 'success' => session('success'),
                 'error' => session('error'),
-                'message' => session('message'),
             ]);
-            
         } catch (\Exception $e) {
             Log::error('Employee Edit Error', [
-                'employee_nik' => $nik,
+                'employee_identifier' => $identifier,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
             return redirect()->route('employees.index')
-                ->with([
-                    'error' => 'Gagal memuat form edit karyawan.',
-                    'notification' => [
-                        'type' => 'error',
-                        'title' => 'Gagal Memuat Data',
-                        'message' => 'Terjadi kesalahan saat memuat form edit karyawan.'
-                    ]
-                ]);
+                ->with('error', 'Error loading edit form: ' . $e->getMessage());
         }
     }
 
     /**
-     * Update the specified employee
-     * UPDATED: Parameter menggunakan NIK, NIK tidak bisa diubah, NIP bisa diubah + Unit/SubUnit handling
-     * FIXED: CONDITIONAL SUB UNIT VALIDATION untuk konsistensi dengan store method
+     * Update the specified employee in storage
+     * FIXED: Parameter menggunakan flexible identifier
      */
-    public function update(Request $request, string $nik)
+    public function update(Request $request, string $identifier)
     {
         try {
-            // UPDATED: Find by NIK instead of auto-increment ID
-            $employee = Employee::where('nik', $nik)->firstOrFail();
-            $originalData = $employee->toArray();
+            // FIXED: Find by flexible identifier
+            $employee = Employee::findByIdentifier($identifier)->first();
+            
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
 
-            // Get available unit organisasi options - TAMBAHAN BARU
-            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
-                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
-            ];
+            // Get available unit organisasi options
+            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? 
+                ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'];
 
-            // Unit organisasi yang tidak memiliki sub unit
+            // Unit yang tidak memerlukan sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // FIXED: CONDITIONAL SUB UNIT VALIDATION - Validation untuk update - NIK tidak bisa diubah, NIP bisa diubah
+            // Validation rules (similar to store but with ignore for unique fields)
             $validator = Validator::make($request->all(), [
-                // NIP bisa diubah tapi harus tetap unique (kecuali untuk employee ini)
+                'nik' => [
+                    'required',
+                    'string',
+                    'size:16',
+                    'regex:/^[0-9]+$/',
+                    Rule::unique('employees', 'nik')->ignore($employee->id, 'id') // FIXED: ignore based on ID
+                ],
                 'nip' => [
                     'required',
                     'string',
-                    'min:5', // FIXED: Changed from 6 to 5
-                    'max:20',
+                    'min:5',
                     'regex:/^[0-9]+$/',
-                    Rule::unique('employees', 'nip')->ignore($employee->nik, 'nik') // UPDATED: ignore based on NIK
+                    Rule::unique('employees', 'nip')->ignore($employee->id, 'id') // FIXED: ignore based on ID
                 ],
-                
-                // Required fields
-                'nama_lengkap' => 'required|string|min:2|max:255',
-                'jenis_kelamin' => 'required|in:Laki-laki,Perempuan,L,P',
-                'unit_organisasi' => ['required', 'string', 'max:100', Rule::in($unitOrganisasiOptions)],
-                'unit_id' => 'required|exists:units,id',
-                
-                // FIXED: Conditional sub unit validation
+                'nama_lengkap' => 'required|string|min:2|max:200',
+                'jenis_kelamin' => [
+                    'required',
+                    'string',
+                    Rule::in(['Laki-laki', 'Perempuan'])
+                ],
+                'unit_organisasi' => [
+                    'required',
+                    'string',
+                    Rule::in($unitOrganisasiOptions)
+                ],
+                'unit_id' => [
+                    'required',
+                    'integer',
+                    'exists:units,id'
+                ],
                 'sub_unit_id' => [
+                    'nullable',
+                    'integer',
                     function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
-                        // Jika unit organisasi adalah EGM atau GM, sub unit tidak wajib
                         if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
-                            // Sub unit boleh kosong untuk EGM dan GM
-                            if ($value && !is_numeric($value)) {
-                                $fail('Sub unit harus berupa angka yang valid.');
-                            }
-                            if ($value && !SubUnit::where('id', $value)->exists()) {
-                                $fail('Sub unit yang dipilih tidak valid.');
-                            }
-                        } else {
-                            // Untuk unit organisasi lain, sub unit wajib diisi
-                            if (!$value) {
-                                $fail('Sub unit wajib dipilih untuk unit organisasi ini.');
-                            }
-                            if ($value && !is_numeric($value)) {
-                                $fail('Sub unit harus berupa angka yang valid.');
-                            }
-                            if ($value && !SubUnit::where('id', $value)->exists()) {
-                                $fail('Sub unit yang dipilih tidak valid.');
-                            }
-                            
-                            // Validasi bahwa sub unit belongs to unit yang dipilih
-                            if ($value && $request->unit_id) {
-                                $subUnit = SubUnit::find($value);
-                                if ($subUnit && $subUnit->unit_id != $request->unit_id) {
-                                    $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
-                                }
+                            return;
+                        }
+                        
+                        if (!$value) {
+                            $fail('Sub unit wajib diisi untuk unit organisasi ' . $request->unit_organisasi . '.');
+                        }
+                        
+                        if ($value && !SubUnit::where('id', $value)->exists()) {
+                            $fail('Sub unit yang dipilih tidak valid.');
+                        }
+                        
+                        if ($value && $request->unit_id) {
+                            $subUnit = SubUnit::find($value);
+                            if ($subUnit && $subUnit->unit_id != $request->unit_id) {
+                                $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
                             }
                         }
                     }
                 ],
-                
                 'nama_jabatan' => 'required|string|max:255',
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
@@ -1181,7 +1079,7 @@ class EmployeeController extends Controller
                     'nullable',
                     'email',
                     'max:255',
-                    Rule::unique('employees', 'email')->ignore($employee->nik, 'nik') // UPDATED: ignore based on NIK
+                    Rule::unique('employees', 'email')->ignore($employee->id, 'id') // FIXED: ignore based on ID
                 ],
                 
                 // Education fields
@@ -1191,219 +1089,153 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Physical data
-                'jenis_sepatu' => 'nullable|string|max:50', // FIXED: More flexible
-                'ukuran_sepatu' => 'nullable|string|max:10', // FIXED: Allow string
+                // Physical attributes
                 'height' => 'nullable|integer|min:100|max:250',
                 'weight' => 'nullable|integer|min:30|max:200',
-                
-                // BPJS
-                'no_bpjs_kesehatan' => 'nullable|string|max:20',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:20',
-                
-                // Additional
+                'jenis_sepatu' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|string|max:10',
                 'seragam' => 'nullable|string|max:100',
-                'organization_id' => 'nullable|exists:organizations,id',
-            ], [
-                'nip.required' => 'NIP wajib diisi',
-                'nip.min' => 'NIP minimal 5 digit',
-                'nip.regex' => 'NIP hanya boleh berisi angka',
-                'nip.unique' => 'NIP sudah terdaftar di sistem',
-                'unit_organisasi.required' => 'Unit organisasi wajib dipilih',
-                'unit_id.required' => 'Unit wajib dipilih',
-                // ... other custom messages
+                
+                // BPJS fields
+                'no_bpjs_kesehatan' => 'nullable|string|max:50',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                
+                // TMT fields
+                'tmt_pensiun' => 'nullable|date',
             ]);
 
             if ($validator->fails()) {
                 return redirect()->back()
-                    ->withErrors($validator)
+                    ->withErrors($validator->errors())
                     ->withInput()
-                    ->with([
-                        'error' => 'Data tidak valid. Mohon periksa kembali.',
-                        'notification' => [
-                            'type' => 'error',
-                            'title' => 'Validasi Gagal',
-                            'message' => 'Mohon periksa kembali data yang diisi'
-                        ]
-                    ]);
+                    ->with('error', 'Data tidak valid. Silakan periksa kembali form.');
             }
 
-            $data = $validator->validated();
+            // Prepare update data
+            $updateData = $validator->validated();
             
-            // IMPORTANT: NIK tidak boleh diubah (tidak ada dalam validated data)
-            // NIP boleh diubah sesuai validasi di atas
-            
-            // Convert gender to database format (L/P)
-            if (isset($data['jenis_kelamin'])) {
-                if (in_array($data['jenis_kelamin'], ['L', 'Laki-laki'])) {
-                    $data['jenis_kelamin'] = 'L';
-                } else {
-                    $data['jenis_kelamin'] = 'P';
-                }
+            // Handle jenis_kelamin conversion
+            if (isset($updateData['jenis_kelamin'])) {
+                $updateData['jenis_kelamin'] = $updateData['jenis_kelamin'] === 'Laki-laki' ? 'L' : 'P';
             }
-
+            
             // Handle sub_unit_id untuk EGM dan GM
-            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($data['sub_unit_id'])) {
-                $data['sub_unit_id'] = null;
+            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($updateData['sub_unit_id'])) {
+                $updateData['sub_unit_id'] = null;
             }
 
-            // REVISI: Enhanced TMT Pensiun calculation dengan logika baru
-            if (isset($data['tanggal_lahir']) && $data['tanggal_lahir'] !== $originalData['tanggal_lahir']) {
-                $birthDate = Carbon::parse($data['tanggal_lahir']);
-                $data['usia'] = $birthDate->age;
-                
-                // REVISI: Logika TMT Pensiun berdasarkan aturan baru
-                $pensionYear = $birthDate->year + 56;
-                
-                if ($birthDate->day < 10) {
-                    // Lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
-                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
-                } else {
-                    // Lahir diatas tanggal 10: pensiun 1 bulan berikutnya
-                    $pensionDate = Carbon::createFromDate($pensionYear, $birthDate->month, 1);
-                    $pensionDate->addMonth(); // Tambah 1 bulan
-                }
-                
-                $data['tmt_pensiun'] = $pensionDate->format('Y-m-d');
-            } elseif (isset($data['tanggal_lahir'])) {
-                $data['usia'] = Carbon::parse($data['tanggal_lahir'])->age;
-            }
+            // Update employee
+            DB::beginTransaction();
+            
+            try {
+                $employee->update($updateData);
+                DB::commit();
 
-            // Handle jabatan field consistency
-            if (!isset($data['jabatan']) && isset($data['nama_jabatan'])) {
-                $data['jabatan'] = $data['nama_jabatan'];
-            }
-
-            // Validasi unit consistency
-            if (!empty($data['unit_id'])) {
-                $unit = Unit::find($data['unit_id']);
-                if (!$unit || $unit->unit_organisasi !== $data['unit_organisasi']) {
-                    return redirect()->back()
-                        ->withInput()
-                        ->withErrors(['unit_id' => 'Unit tidak sesuai dengan unit organisasi yang dipilih'])
-                        ->with([
-                            'error' => 'Unit tidak sesuai dengan unit organisasi yang dipilih',
-                            'notification' => [
-                                'type' => 'error',
-                                'title' => 'Validasi Gagal',
-                                'message' => 'Unit tidak sesuai dengan unit organisasi yang dipilih'
-                            ]
-                        ]);
-                }
-            }
-
-            // Validasi sub unit consistency (hanya jika required)
-            if (!in_array($data['unit_organisasi'], $unitWithoutSubUnits) && !empty($data['sub_unit_id'])) {
-                $subUnit = SubUnit::find($data['sub_unit_id']);
-                if (!$subUnit || $subUnit->unit_id != $data['unit_id']) {
-                    return redirect()->back()
-                        ->withInput()
-                        ->withErrors(['sub_unit_id' => 'Sub unit tidak sesuai dengan unit yang dipilih'])
-                        ->with([
-                            'error' => 'Sub unit tidak sesuai dengan unit yang dipilih',
-                            'notification' => [
-                                'type' => 'error',
-                                'title' => 'Validasi Gagal',
-                                'message' => 'Sub unit tidak sesuai dengan unit yang dipilih'
-                            ]
-                        ]);
-                }
-            }
-
-            // Update employee data
-            $employee->update($data);
-
-            // Log the update
-            Log::info('Employee Updated Successfully', [
-                'employee_nik' => $employee->nik,
-                'employee_nip' => $employee->nip,
-                'nama_lengkap' => $employee->nama_lengkap,
-                'updated_fields' => array_keys(array_diff_assoc($data, $originalData)),
-                'unit_organisasi' => $employee->unit_organisasi,
-                'unit_id' => $employee->unit_id,
-                'sub_unit_id' => $employee->sub_unit_id,
-                'kelompok_jabatan' => $employee->kelompok_jabatan,
-                'status_pegawai' => $employee->status_pegawai,
-                'tmt_pensiun_updated' => isset($data['tmt_pensiun']) ? 'Yes' : 'No',
-            ]);
-
-            return redirect()->route('employees.index')
-                ->with([
-                    'success' => 'Data karyawan berhasil diperbarui!',
-                    'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui.",
-                    'notification' => [
-                        'type' => 'success',
-                        'title' => 'Data Berhasil Diperbarui',
-                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui."
-                    ]
+                Log::info('Employee Updated Successfully', [
+                    'employee_id' => $employee->id, // FIXED: Use ID
+                    'employee_nik' => $employee->nik,
+                    'updated_fields' => array_keys($updateData)
                 ]);
 
+                return redirect()->route('employees.index')
+                    ->with('success', 'Data karyawan berhasil diperbarui!')
+                    ->with('notification', [
+                        'type' => 'success',
+                        'title' => 'Berhasil!',
+                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui."
+                    ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                
+                Log::error('Employee Update Database Failed', [
+                    'employee_id' => $employee->id,
+                    'error' => $e->getMessage(),
+                    'update_data' => $updateData
+                ]);
+
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Terjadi kesalahan database saat memperbarui data. Error: ' . $e->getMessage());
+            }
+
         } catch (\Exception $e) {
-            Log::error('Employee Update Error', [
-                'employee_nik' => $nik,
+            Log::error('Employee Update Failed', [
+                'employee_identifier' => $identifier,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
             return redirect()->back()
                 ->withInput()
-                ->with([
-                    'error' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
-                    'notification' => [
-                        'type' => 'error',
-                        'title' => 'Kesalahan Sistem',
-                        'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.'
-                    ]
-                ]);
+                ->with('error', 'Terjadi kesalahan saat memperbarui data. Silakan coba lagi.');
         }
     }
 
     /**
-     * Remove the specified employee (soft delete)
-     * UPDATED: Parameter menggunakan NIK
+     * Remove the specified employee from storage
+     * FIXED: Parameter menggunakan flexible identifier
      */
-    public function destroy(string $nik)
+    public function destroy(string $identifier)
     {
         try {
-            // UPDATED: Find by NIK instead of auto-increment ID
-            $employee = Employee::where('nik', $nik)->firstOrFail();
+            // FIXED: Find by flexible identifier
+            $employee = Employee::findByIdentifier($identifier)->first();
             
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
+
             $employeeName = $employee->nama_lengkap;
-            $employeeNip = $employee->nip;
             $employeeNik = $employee->nik;
+
+            DB::beginTransaction();
             
-            // Soft delete by setting status to inactive
-            $employee->update(['status' => 'inactive']);
+            try {
+                $employee->delete();
+                DB::commit();
 
-            Log::info('Employee Deleted Successfully', [
-                'employee_nik' => $employeeNik, // UPDATED: Use NIK as primary identifier
-                'employee_nip' => $employeeNip,
-                'nama_lengkap' => $employeeName
-            ]);
-
-            return redirect()->route('employees.index')
-                ->with([
-                    'success' => "Karyawan {$employeeName} berhasil dihapus!",
-                    'message' => "Karyawan {$employeeName} (NIK: {$employeeNik}) berhasil dihapus dari sistem.",
-                    'notification' => [
-                        'type' => 'warning',
-                        'title' => 'Karyawan Dihapus',
-                        'message' => "Karyawan {$employeeName} (NIK: {$employeeNik}) berhasil dihapus dari sistem."
-                    ]
+                Log::info('Employee Deleted Successfully', [
+                    'employee_id' => $employee->id, // FIXED: Use ID
+                    'employee_nik' => $employeeNik,
+                    'employee_name' => $employeeName
                 ]);
+
+                return redirect()->route('employees.index')
+                    ->with('success', "Karyawan {$employeeName} berhasil dihapus!")
+                    ->with('notification', [
+                        'type' => 'success',
+                        'title' => 'Berhasil!',
+                        'message' => "Data karyawan {$employeeName} berhasil dihapus dari sistem."
+                    ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                
+                Log::error('Employee Delete Database Failed', [
+                    'employee_id' => $employee->id,
+                    'error' => $e->getMessage()
+                ]);
+
+                return redirect()->back()
+                    ->with('error', 'Terjadi kesalahan database saat menghapus data. Error: ' . $e->getMessage());
+            }
+
         } catch (\Exception $e) {
-            Log::error('Employee Delete Error', [
-                'employee_nik' => $nik,
-                'error' => $e->getMessage()
+            Log::error('Employee Delete Failed', [
+                'employee_identifier' => $identifier,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->route('employees.index')
-                ->with('error', 'Error deleting employee: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan saat menghapus data. Silakan coba lagi.');
         }
     }
 
     /**
-     * Get employee statistics (API endpoint) - UPDATED: Include TAD Split dan Kelompok Jabatan
+     * Get employee statistics (API endpoint)
      */
     public function getStatistics()
     {
@@ -1414,15 +1246,12 @@ class EmployeeController extends Controller
                 'inactive_employees' => Employee::where('status', 'inactive')->count(),
                 'pegawai_tetap' => Employee::where('status_pegawai', 'PEGAWAI TETAP')->count(),
                 'pkwt' => Employee::where('status_pegawai', 'PKWT')->count(),
-                // TAD Statistics dengan split - FITUR BARU
                 'tad_total' => Employee::whereIn('status_pegawai', ['TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])->count(),
                 'tad_paket_sdm' => Employee::where('status_pegawai', 'TAD PAKET SDM')->count(),
                 'tad_paket_pekerjaan' => Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count(),
-                // Backward compatibility
                 'tad' => Employee::whereIn('status_pegawai', ['TAD', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])->count(),
                 'male_employees' => Employee::where('jenis_kelamin', 'L')->count(),
                 'female_employees' => Employee::where('jenis_kelamin', 'P')->count(),
-                // Kelompok Jabatan statistics - FITUR BARU
                 'kelompok_jabatan' => [
                     'supervisor' => Employee::where('kelompok_jabatan', 'SUPERVISOR')->count(),
                     'staff' => Employee::where('kelompok_jabatan', 'STAFF')->count(),
@@ -1448,7 +1277,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * Get enhanced statistics with safe null handling - UPDATED untuk TAD Split + Unit/SubUnit filters
+     * Get enhanced statistics with safe null handling
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
@@ -1463,7 +1292,7 @@ class EmployeeController extends Controller
                 $pegawaiTetap = Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count();
                 $pkwt = Employee::where('status', 'active')->where('status_pegawai', 'PKWT')->count();
                 
-                // TAD Statistics dengan split - FITUR BARU
+                // TAD Statistics dengan split
                 $tadPaketSDM = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET SDM')->count();
                 $tadPaketPekerjaan = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
                 $tadTotal = $tadPaketSDM + $tadPaketPekerjaan;
@@ -1482,7 +1311,7 @@ class EmployeeController extends Controller
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
-                        $q->where('nik', 'like', "%{$searchTerm}%") // UPDATED: Search NIK instead of id
+                        $q->where('nik', 'like', "%{$searchTerm}%")
                           ->orWhere('nip', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
                           ->orWhere('jabatan', 'like', "%{$searchTerm}%")
@@ -1491,7 +1320,6 @@ class EmployeeController extends Controller
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
-                          // TAMBAHAN BARU: Search dalam unit dan sub unit
                           ->orWhereHas('unit', function ($q) use ($searchTerm) {
                               $q->where('name', 'like', "%{$searchTerm}%");
                           })
@@ -1513,7 +1341,6 @@ class EmployeeController extends Controller
                     $query->where('unit_organisasi', $filterConditions['unit_organisasi']);
                 }
 
-                // TAMBAHAN BARU: Unit dan Sub Unit filters
                 if (isset($filterConditions['unit_id'])) {
                     $query->where('unit_id', $filterConditions['unit_id']);
                 }
@@ -1572,7 +1399,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get filter options with safe null handling - UPDATED: Include kelompok jabatan
+     * Get filter options with safe null handling
      */
     private function getFilterOptions()
     {
@@ -1615,12 +1442,12 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get unique unit options - SAFE VERSION - UPDATED: Use Unit model if available
+     * Get unique unit options - SAFE VERSION
      */
     private function getUnitOptions()
     {
         try {
-            // Try to get from Unit model first - TAMBAHAN BARU
+            // Try to get from Unit model first
             if (class_exists(Unit::class)) {
                 $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [];
                 if (!empty($unitOrganisasiOptions)) {
@@ -1765,53 +1592,6 @@ class EmployeeController extends Controller
                 'message' => null,
                 'notification' => null,
                 'alerts' => [],
-            ];
-        }
-    }
-
-    /**
-     * Build success notification - UPDATED: Enhanced with TMT Pensiun explanation
-     */
-    private function buildSuccessNotification($employee)
-    {
-        try {
-            // Generate TMT Pensiun explanation
-            $pensionExplanation = '';
-            if ($employee->tanggal_lahir && $employee->tmt_pensiun) {
-                $birthDate = Carbon::parse($employee->tanggal_lahir);
-                $pensionDate = Carbon::parse($employee->tmt_pensiun);
-                
-                if ($birthDate->day < 10) {
-                    $pensionExplanation = " (lahir tanggal {$birthDate->day}, pensiun 1 {$pensionDate->format('F Y')})";
-                } else {
-                    $pensionExplanation = " (lahir tanggal {$birthDate->day}, pensiun 1 {$pensionDate->format('F Y')})";
-                }
-            }
-
-            return [
-                'success' => 'Karyawan berhasil ditambahkan!',
-                'newEmployee' => $employee,
-                'message' => "Karyawan {$employee->nama_lengkap} dengan NIK {$employee->nik} telah berhasil ditambahkan ke sistem. TMT Pensiun telah dihitung otomatis{$pensionExplanation}.",
-                'notification' => [
-                    'type' => 'success',
-                    'title' => 'Karyawan Baru Ditambahkan!',
-                    'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan dengan NIK {$employee->nik}. TMT Pensiun: " . ($employee->tmt_pensiun ? Carbon::parse($employee->tmt_pensiun)->format('d/m/Y') : 'N/A'),
-                    'employee_nik' => $employee->nik,
-                    'duration' => 5000,
-                ],
-                'alerts' => [
-                    [
-                        'type' => 'success',
-                        'message' => 'Data karyawan telah tersimpan dan muncul dalam daftar dengan TMT Pensiun yang telah dihitung otomatis.',
-                        'duration' => 4000
-                    ]
-                ]
-            ];
-        } catch (\Exception $e) {
-            Log::error('Build Success Notification Error: ' . $e->getMessage());
-            return [
-                'success' => 'Karyawan berhasil ditambahkan!',
-                'message' => 'Data karyawan telah berhasil disimpan.',
             ];
         }
     }

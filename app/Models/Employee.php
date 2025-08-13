@@ -12,28 +12,28 @@ class Employee extends Model
     use HasFactory;
 
     /**
-     * UPDATED: NIK sebagai primary key (bukan auto-increment)
+     * FIXED: Auto-increment ID sebagai primary key (bukan NIK)
      * GAPURA ANGKASA SDM System - Employee Model
-     * FIXED: no_telepon compatibility untuk SDMEmployeeSeeder
+     * FIXED: Primary key configuration untuk compatibility dengan database structure
      */
     
     protected $table = 'employees';
     
-    // NIK sebagai primary key (string, bukan auto-increment)
-    protected $primaryKey = 'nik';
+    // FIXED: Gunakan auto-increment ID sebagai primary key (default Laravel)
+    protected $primaryKey = 'id';
     
-    // Primary key bukan auto-increment
-    public $incrementing = false;
+    // FIXED: Primary key adalah auto-increment
+    public $incrementing = true;
     
-    // Primary key bertipe string
-    protected $keyType = 'string';
+    // FIXED: Primary key bertipe integer
+    protected $keyType = 'int';
 
     /**
-     * FIXED: Fillable attributes - Include no_telepon untuk seeder compatibility
-     * no_telepon dimasukkan ke fillable agar seeder tidak error, tapi disembunyikan via hidden
+     * FIXED: Fillable attributes - NIK sebagai unique field (bukan primary key)
+     * Mempertahankan semua field yang diperlukan untuk seeder compatibility
      */
     protected $fillable = [
-        'nik', // Primary key - WAJIB ada di fillable untuk create
+        'nik', // FIXED: NIK sebagai unique field (bukan primary key)
         'nip',
         'nama_lengkap',
         'lokasi_kerja',
@@ -43,8 +43,8 @@ class Employee extends Model
         'provider',
         'kode_organisasi',
         'unit_organisasi',
-        'unit_id', // TAMBAHAN BARU
-        'sub_unit_id', // TAMBAHAN BARU
+        'unit_id',
+        'sub_unit_id',
         'nama_organisasi',
         'nama_jabatan',
         'jabatan',
@@ -105,6 +105,9 @@ class Employee extends Model
         'usia' => 'integer',
         'weight' => 'integer',
         'height' => 'integer',
+        'organization_id' => 'integer',
+        'unit_id' => 'integer',
+        'sub_unit_id' => 'integer'
     ];
 
     /**
@@ -121,12 +124,32 @@ class Employee extends Model
     }
 
     /**
-     * Get the route key for the model.
-     * UPDATED: Menggunakan NIK sebagai route key
+     * FIXED: Get the route key for the model menggunakan ID (bukan NIK)
+     * Untuk backward compatibility, tetap bisa menggunakan NIK
      */
     public function getRouteKeyName()
     {
-        return 'nik';
+        return 'id';
+    }
+
+    /**
+     * FIXED: Search scope untuk mencari berdasarkan NIK atau ID
+     * Method ini memungkinkan pencarian fleksibel berdasarkan identifier
+     */
+    public function scopeFindByIdentifier(Builder $query, $identifier)
+    {
+        // Jika identifier adalah NIK (16 digit), cari berdasarkan NIK
+        if (preg_match('/^[0-9]{16}$/', $identifier)) {
+            return $query->where('nik', $identifier);
+        }
+        
+        // Jika identifier adalah ID (numeric), cari berdasarkan ID
+        if (is_numeric($identifier)) {
+            return $query->where('id', $identifier);
+        }
+        
+        // Fallback: cari berdasarkan NIP
+        return $query->where('nip', $identifier);
     }
 
     /**
@@ -187,7 +210,7 @@ class Employee extends Model
     }
 
     /**
-     * Get unit yang belongs to this employee - TAMBAHAN BARU
+     * Get unit yang belongs to this employee
      */
     public function unit()
     {
@@ -195,7 +218,7 @@ class Employee extends Model
     }
 
     /**
-     * Get sub unit yang belongs to this employee - TAMBAHAN BARU
+     * Get sub unit yang belongs to this employee
      */
     public function subUnit()
     {
@@ -251,7 +274,7 @@ class Employee extends Model
     }
 
     /**
-     * Scope untuk filter berdasarkan unit - TAMBAHAN BARU
+     * Scope untuk filter berdasarkan unit
      */
     public function scopeByUnit($query, $unitId)
     {
@@ -263,7 +286,7 @@ class Employee extends Model
     }
 
     /**
-     * Scope untuk filter berdasarkan sub unit - TAMBAHAN BARU
+     * Scope untuk filter berdasarkan sub unit
      */
     public function scopeBySubUnit($query, $subUnitId)
     {
@@ -307,7 +330,7 @@ class Employee extends Model
               ->orWhere('email', 'like', $searchTerm)
               ->orWhere('tempat_lahir', 'like', $searchTerm)
               ->orWhere('alamat', 'like', $searchTerm)
-              // Search dalam unit dan sub unit - TAMBAHAN BARU
+              // Search dalam unit dan sub unit
               ->orWhereHas('unit', function ($q) use ($searchTerm) {
                   $q->where('name', 'like', $searchTerm);
               })
@@ -443,7 +466,7 @@ class Employee extends Model
 
     /**
      * Comprehensive filter scope untuk pagination - handles semua filter sekaligus
-     * UPDATED: Tambah filter kelompok jabatan, unit, dan sub unit - TAMBAHAN BARU
+     * UPDATED: Tambah filter kelompok jabatan, unit, dan sub unit
      */
     public function scopeApplyFilters(Builder $query, array $filters)
     {
@@ -462,12 +485,12 @@ class Employee extends Model
             $query->byUnitOrganisasi($filters['unit_organisasi']);
         }
 
-        // Unit filter - TAMBAHAN BARU
+        // Unit filter
         if (!empty($filters['unit_id'])) {
             $query->byUnit($filters['unit_id']);
         }
 
-        // Sub Unit filter - TAMBAHAN BARU
+        // Sub Unit filter
         if (!empty($filters['sub_unit_id'])) {
             $query->bySubUnit($filters['sub_unit_id']);
         }
@@ -542,7 +565,7 @@ class Employee extends Model
     }
 
     /**
-     * Mutator untuk NIK format validation - TAMBAHAN BARU
+     * Mutator untuk NIK format validation
      */
     public function setNikAttribute($value)
     {
@@ -552,7 +575,7 @@ class Employee extends Model
     }
 
     /**
-     * Get unit organisasi display name dengan unit dan sub unit - TAMBAHAN BARU
+     * Get unit organisasi display name dengan unit dan sub unit
      */
     public function getUnitDisplayAttribute()
     {
@@ -570,7 +593,7 @@ class Employee extends Model
     }
 
     /**
-     * Get full organizational structure - TAMBAHAN BARU
+     * Get full organizational structure
      */
     public function getOrganizationalStructureAttribute()
     {
@@ -861,7 +884,7 @@ class Employee extends Model
 
     /**
      * Get filter options untuk dropdown - optimized untuk pagination
-     * UPDATED: Tambah kelompok jabatan options dan unit options - TAMBAHAN BARU
+     * UPDATED: Tambah kelompok jabatan options dan unit options
      */
     public static function getFilterOptions()
     {
@@ -1028,12 +1051,12 @@ class Employee extends Model
 
     /**
      * Pagination dengan filter dan search - method utama untuk controller
-     * UPDATED: Load unit dan sub unit relationships - TAMBAHAN BARU
+     * UPDATED: Load unit dan sub unit relationships
      */
     public static function paginateWithFilters(array $filters = [], int $perPage = 20)
     {
         return self::active()
-                   ->with(['organization', 'unit', 'subUnit']) // TAMBAHAN BARU
+                   ->with(['organization', 'unit', 'subUnit'])
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->paginate($perPage)
@@ -1042,7 +1065,7 @@ class Employee extends Model
 
     /**
      * Search suggestions untuk autocomplete
-     * UPDATED: Include NIK in search results, use NIK as identifier
+     * UPDATED: Include NIK in search results, use ID as identifier
      */
     public static function getSearchSuggestions($term, $limit = 10)
     {
@@ -1053,19 +1076,20 @@ class Employee extends Model
         $searchTerm = '%' . $term . '%';
         
         return self::active()
-                   ->with(['unit', 'subUnit']) // TAMBAHAN BARU
+                   ->with(['unit', 'subUnit'])
                    ->where(function ($q) use ($searchTerm) {
                        $q->where('nama_lengkap', 'like', $searchTerm)
                          ->orWhere('nip', 'like', $searchTerm)
-                         ->orWhere('nik', 'like', $searchTerm) // UPDATED: Include NIK
+                         ->orWhere('nik', 'like', $searchTerm)
                          ->orWhere('unit_organisasi', 'like', $searchTerm)
                          ->orWhere('nama_jabatan', 'like', $searchTerm);
                    })
                    ->limit($limit)
-                   ->get(['nik', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'unit_id', 'sub_unit_id'])
+                   ->get(['id', 'nik', 'nip', 'nama_lengkap', 'unit_organisasi', 'nama_jabatan', 'unit_id', 'sub_unit_id'])
                    ->map(function ($employee) {
                        return [
-                           'nik' => $employee->nik, // UPDATED: Use NIK as identifier
+                           'id' => $employee->id, // FIXED: Use ID as identifier
+                           'nik' => $employee->nik,
                            'text' => $employee->nama_lengkap . ' (NIK: ' . $employee->nik . ', NIP: ' . $employee->nip . ')',
                            'subtitle' => $employee->unit_display . ' - ' . $employee->nama_jabatan,
                        ];
@@ -1073,7 +1097,7 @@ class Employee extends Model
     }
 
     /**
-     * Helper method untuk mendapatkan employee berdasarkan NIK - TAMBAHAN BARU
+     * FIXED: Helper method untuk mencari employee berdasarkan NIK
      */
     public static function findByNik($nik)
     {
@@ -1089,49 +1113,49 @@ class Employee extends Model
     }
 
     /**
-     * Validasi NIK unik - UPDATED untuk NIK-based system
+     * FIXED: Validasi NIK unik - Updated untuk ID-based system
      */
-    public static function isNikUnique($nik, $excludeNik = null)
+    public static function isNikUnique($nik, $excludeId = null)
     {
         $query = self::where('nik', $nik);
         
-        if ($excludeNik) {
-            $query->where('nik', '!=', $excludeNik);
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId); // FIXED: exclude berdasarkan ID
         }
         
         return $query->doesntExist();
     }
 
     /**
-     * Validasi NIP unik - UPDATED untuk NIK-based system
+     * FIXED: Validasi NIP unik - Updated untuk ID-based system
      */
-    public static function isNipUnique($nip, $excludeNik = null)
+    public static function isNipUnique($nip, $excludeId = null)
     {
         $query = self::where('nip', $nip);
         
-        if ($excludeNik) {
-            $query->where('nik', '!=', $excludeNik); // UPDATED: exclude berdasarkan NIK
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId); // FIXED: exclude berdasarkan ID
         }
         
         return $query->doesntExist();
     }
 
     /**
-     * Bulk update status - UPDATED menggunakan NIK array
+     * FIXED: Bulk update status - Updated menggunakan ID array
      */
-    public static function bulkUpdateStatus(array $niks, $status)
+    public static function bulkUpdateStatus(array $ids, $status)
     {
-        return self::whereIn('nik', $niks)->update(['status' => $status]);
+        return self::whereIn('id', $ids)->update(['status' => $status]); // FIXED: use ID
     }
 
     /**
      * Get export data dengan filter
-     * UPDATED: Load unit dan sub unit untuk export - TAMBAHAN BARU
+     * UPDATED: Load unit dan sub unit untuk export
      */
     public static function getExportData(array $filters = [])
     {
         return self::active()
-                   ->with(['unit', 'subUnit']) // TAMBAHAN BARU
+                   ->with(['unit', 'subUnit'])
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->get();
@@ -1142,7 +1166,7 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * Method untuk validasi NIK format Indonesia - TAMBAHAN BARU
+     * Method untuk validasi NIK format Indonesia
      */
     public function validateNikFormat()
     {
@@ -1217,17 +1241,18 @@ class Employee extends Model
 
     /**
      * Generate ID card data
-     * UPDATED: Include NIK dan unit structure - TAMBAHAN BARU
+     * UPDATED: Include NIK dan unit structure
      */
     public function getIdCardData()
     {
         return [
-            'nik' => $this->nik, // UPDATED: Include NIK
+            'id' => $this->id, // FIXED: Include ID
+            'nik' => $this->nik,
             'nip' => $this->nip,
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
             'unit_organisasi' => $this->unit_organisasi,
-            'unit_display' => $this->unit_display, // TAMBAHAN BARU
+            'unit_display' => $this->unit_display,
             'kelompok_jabatan' => $this->kelompok_jabatan,
             'initials' => $this->initials,
             'foto_url' => null, // Placeholder for future photo implementation
@@ -1235,12 +1260,13 @@ class Employee extends Model
     }
 
     /**
-     * Method untuk mendapatkan informasi ringkas employee - UPDATED
+     * FIXED: Method untuk mendapatkan informasi ringkas employee
      */
     public function getSummaryAttribute()
     {
         return [
-            'nik' => $this->nik, // UPDATED: NIK sebagai primary identifier
+            'id' => $this->id, // FIXED: ID sebagai primary identifier
+            'nik' => $this->nik,
             'nip' => $this->nip,
             'nama' => $this->nama_lengkap,
             'unit' => $this->unit_organisasi,
@@ -1269,6 +1295,15 @@ class Employee extends Model
             
             if (empty($employee->status_kerja)) {
                 $employee->status_kerja = 'Aktif';
+            }
+
+            // Set default lokasi kerja dan cabang
+            if (empty($employee->lokasi_kerja)) {
+                $employee->lokasi_kerja = 'Bandar Udara Ngurah Rai';
+            }
+            
+            if (empty($employee->cabang)) {
+                $employee->cabang = 'Denpasar';
             }
 
             // Hitung usia otomatis jika ada tanggal lahir
