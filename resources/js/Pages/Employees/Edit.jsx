@@ -2,27 +2,29 @@ import React, { useState, useEffect } from "react";
 import { Head, useForm, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import {
+    User,
+    ArrowLeft,
     Save,
     X,
-    User,
-    Phone,
-    Mail,
+    Loader2,
+    Building2,
+    GraduationCap,
+    FileText,
     MapPin,
     Calendar,
-    GraduationCap,
-    Building2,
-    UserCheck,
-    AlertCircle,
-    CheckCircle,
-    ArrowLeft,
-    FileText,
+    Phone,
+    Mail,
     Shield,
-    Loader2,
+    Users,
+    UserCheck,
+    Briefcase,
+    CheckCircle,
+    AlertCircle,
     Info,
     AlertTriangle,
 } from "lucide-react";
 
-// Enhanced InputField component untuk edit dengan styling yang konsisten
+// Enhanced InputField component
 const InputField = ({
     name,
     label,
@@ -89,6 +91,57 @@ const InputField = ({
         return `${baseClasses} border-gray-300 bg-white hover:border-[#439454]/60`;
     };
 
+    const renderInput = () => {
+        if (options) {
+            // Handle both array of strings and array of objects
+            const optionItems = options.map((option, index) => {
+                if (typeof option === "object" && option.value !== undefined) {
+                    return (
+                        <option key={index} value={option.value}>
+                            {option.label}
+                        </option>
+                    );
+                } else {
+                    return (
+                        <option key={index} value={option}>
+                            {option}
+                        </option>
+                    );
+                }
+            });
+
+            return (
+                <select
+                    name={name}
+                    value={value || ""}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    onFocus={handleFocus}
+                    disabled={disabled || readonly}
+                    className={getInputClasses()}
+                >
+                    <option value="">{placeholder || `Pilih ${label}`}</option>
+                    {optionItems}
+                </select>
+            );
+        }
+
+        return (
+            <input
+                type={type}
+                name={name}
+                value={value || ""}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                placeholder={readonly ? "" : placeholder}
+                disabled={disabled}
+                readOnly={readonly}
+                className={getInputClasses()}
+            />
+        );
+    };
+
     return (
         <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
@@ -110,37 +163,7 @@ const InputField = ({
                 )}
             </label>
 
-            {options ? (
-                <select
-                    name={name}
-                    value={value || ""}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    onFocus={handleFocus}
-                    disabled={disabled || readonly}
-                    className={getInputClasses()}
-                >
-                    <option value="">Pilih {label}</option>
-                    {options.map((option, index) => (
-                        <option key={index} value={option}>
-                            {option}
-                        </option>
-                    ))}
-                </select>
-            ) : (
-                <input
-                    type={type}
-                    name={name}
-                    value={value || ""}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    onFocus={handleFocus}
-                    placeholder={readonly ? "" : placeholder}
-                    disabled={disabled}
-                    readOnly={readonly}
-                    className={getInputClasses()}
-                />
-            )}
+            {renderInput()}
 
             {error && (
                 <div className="flex items-center gap-2 text-sm text-red-600">
@@ -159,49 +182,52 @@ const InputField = ({
     );
 };
 
-// Notification component
-const Notification = ({ type, title, message, onClose }) => {
+// Enhanced Form Notification Component
+const FormNotification = ({ type, title, message, onClose }) => {
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
-        if (onClose) {
-            const timer = setTimeout(() => {
-                setVisible(false);
-                setTimeout(onClose, 300);
-            }, 5000);
-            return () => clearTimeout(timer);
-        }
+        const timer = setTimeout(() => {
+            setVisible(false);
+            setTimeout(onClose, 300);
+        }, 5000);
+
+        return () => clearTimeout(timer);
     }, [onClose]);
 
     const getIcon = () => {
         switch (type) {
             case "success":
-                return <CheckCircle className="w-5 h-5 text-green-600" />;
+                return <CheckCircle className="w-5 h-5 text-green-500" />;
             case "error":
-                return <AlertCircle className="w-5 h-5 text-red-600" />;
+                return <AlertCircle className="w-5 h-5 text-red-500" />;
             case "warning":
-                return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
+                return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+            case "info":
+                return <Info className="w-5 h-5 text-blue-500" />;
             default:
-                return <Info className="w-5 h-5 text-blue-600" />;
+                return <Info className="w-5 h-5 text-blue-500" />;
         }
     };
 
-    const getStyles = () => {
+    const getBgColor = () => {
         switch (type) {
             case "success":
-                return "bg-green-50 border-green-200 text-green-800";
+                return "bg-green-50 border-green-200";
             case "error":
-                return "bg-red-50 border-red-200 text-red-800";
+                return "bg-red-50 border-red-200";
             case "warning":
-                return "bg-yellow-50 border-yellow-200 text-yellow-800";
+                return "bg-yellow-50 border-yellow-200";
+            case "info":
+                return "bg-blue-50 border-blue-200";
             default:
-                return "bg-blue-50 border-blue-200 text-blue-800";
+                return "bg-blue-50 border-blue-200";
         }
     };
 
     return (
         <div
-            className={`fixed top-4 right-4 z-50 max-w-md p-4 border-2 rounded-xl shadow-lg transform transition-all duration-300 ${getStyles()} ${
+            className={`fixed top-4 right-4 z-50 p-4 border rounded-lg shadow-lg transition-all duration-300 transform ${getBgColor()} ${
                 visible
                     ? "opacity-100 translate-x-0"
                     : "opacity-0 translate-x-full"
@@ -232,50 +258,199 @@ const Notification = ({ type, title, message, onClose }) => {
 export default function Edit({
     employee,
     organizations = [],
+    unitOrganisasiOptions = [],
     unitOptions = [],
+    subUnitOptions = [],
     jabatanOptions = [],
+    kelompokJabatanOptions = [],
+    statusPegawaiOptions = [],
     success = null,
     error = null,
     message = null,
 }) {
-    const { data, setData, put, processing, errors, reset, clearErrors } =
-        useForm({
-            nip: employee?.nip || "",
-            nama_lengkap: employee?.nama_lengkap || "",
-            jenis_kelamin: employee?.jenis_kelamin || "",
-            tempat_lahir: employee?.tempat_lahir || "",
-            tanggal_lahir: employee?.tanggal_lahir || "",
-            alamat: employee?.alamat || "",
-            handphone: employee?.handphone || "",
-            email: employee?.email || "",
-            unit_organisasi: employee?.unit_organisasi || "",
-            jabatan: employee?.jabatan || "",
-            nama_jabatan: employee?.nama_jabatan || "",
-            status_pegawai: employee?.status_pegawai || "PEGAWAI TETAP",
-            tmt_mulai_jabatan: employee?.tmt_mulai_jabatan || "",
-            tmt_mulai_kerja: employee?.tmt_mulai_kerja || "",
-            tmt_pensiun: employee?.tmt_pensiun || "",
-            pendidikan_terakhir: employee?.pendidikan_terakhir || "",
-            pendidikan: employee?.pendidikan || "",
-            instansi_pendidikan: employee?.instansi_pendidikan || "",
-            jurusan: employee?.jurusan || "",
-            tahun_lulus: employee?.tahun_lulus || "",
-            jenis_sepatu: employee?.jenis_sepatu || "",
-            ukuran_sepatu: employee?.ukuran_sepatu || "",
-            kota_domisili: employee?.kota_domisili || "",
-            height: employee?.height || "",
-            weight: employee?.weight || "",
-            no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
-            no_bpjs_ketenagakerjaan: employee?.no_bpjs_ketenagakerjaan || "",
-            seragam: employee?.seragam || "",
-            nik: employee?.nik || "",
-            no_telepon: employee?.no_telepon || "",
-        });
+    const { data, setData, put, processing, errors, clearErrors } = useForm({
+        // Data Pribadi
+        nik: employee?.nik || "",
+        nip: employee?.nip || "",
+        nama_lengkap: employee?.nama_lengkap || "",
+        jenis_kelamin:
+            employee?.jenis_kelamin === "L"
+                ? "Laki-laki"
+                : employee?.jenis_kelamin === "P"
+                ? "Perempuan"
+                : "",
+        tempat_lahir: employee?.tempat_lahir || "",
+        tanggal_lahir: employee?.tanggal_lahir || "",
+        kota_domisili: employee?.kota_domisili || "",
+        alamat_lengkap: employee?.alamat_lengkap || "",
+        handphone: employee?.handphone || "",
+        email: employee?.email || "",
+        no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
+        no_bpjs_ketenagakerjaan: employee?.no_bpjs_ketenagakerjaan || "",
+
+        // Data Pekerjaan & Struktur Organisasi - FIXED: Preserve existing data
+        unit_organisasi: employee?.unit_organisasi || "",
+        unit_id: employee?.unit_id?.toString() || "", // Convert to string for select compatibility
+        sub_unit_id: employee?.sub_unit_id?.toString() || "", // Convert to string for select compatibility
+        nama_jabatan: employee?.nama_jabatan || "",
+        jabatan: employee?.jabatan || "",
+        kelompok_jabatan: employee?.kelompok_jabatan || "",
+        status_pegawai: employee?.status_pegawai || "",
+        tmt_mulai_kerja: employee?.tmt_mulai_kerja || "",
+        tmt_mulai_jabatan: employee?.tmt_mulai_jabatan || "",
+        tmt_pensiun: employee?.tmt_pensiun || "",
+
+        // Data Pendidikan
+        pendidikan_terakhir: employee?.pendidikan_terakhir || "",
+        instansi_pendidikan: employee?.instansi_pendidikan || "",
+        jurusan: employee?.jurusan || "",
+        tahun_lulus: employee?.tahun_lulus || "",
+
+        // Data Tambahan
+        seragam: employee?.seragam || "",
+        jenis_sepatu: employee?.jenis_sepatu || "",
+        ukuran_sepatu: employee?.ukuran_sepatu || "",
+        height: employee?.height || "",
+        weight: employee?.weight || "",
+    });
 
     const [activeSection, setActiveSection] = useState("personal");
     const [formValidation, setFormValidation] = useState({});
     const [notification, setNotification] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [calculatedAge, setCalculatedAge] = useState(null);
+
+    // Available options for cascading dropdowns
+    const [availableUnits, setAvailableUnits] = useState([]);
+    const [availableSubUnits, setAvailableSubUnits] = useState([]);
+    const [loadingUnits, setLoadingUnits] = useState(false);
+    const [loadingSubUnits, setLoadingSubUnits] = useState(false);
+
+    // FIXED: Static unit organisasi options
+    const unitOrganisasiOptionsStatic = [
+        "EXECUTIVE GENERAL MANAGER",
+        "GENERAL MANAGER",
+        "Airside",
+        "Lanside",
+        "Back Office",
+        "SSQC",
+        "Ancillary",
+    ];
+
+    // Units without sub units
+    const unitWithoutSubUnits = [
+        "EXECUTIVE GENERAL MANAGER",
+        "GENERAL MANAGER",
+    ];
+
+    // FIXED: Static mapping untuk units berdasarkan unit organisasi
+    const unitMapping = {
+        "EXECUTIVE GENERAL MANAGER": [
+            {
+                id: "EGM",
+                name: "EGM",
+                unit_organisasi: "EXECUTIVE GENERAL MANAGER",
+            },
+        ],
+        "GENERAL MANAGER": [
+            { id: "GM", name: "GM", unit_organisasi: "GENERAL MANAGER" },
+        ],
+        Airside: [
+            { id: "MO", name: "MO", unit_organisasi: "Airside" },
+            { id: "ME", name: "ME", unit_organisasi: "Airside" },
+        ],
+        Lanside: [
+            { id: "MF", name: "MF", unit_organisasi: "Lanside" },
+            { id: "MS", name: "MS", unit_organisasi: "Lanside" },
+        ],
+        "Back Office": [
+            { id: "MU", name: "MU", unit_organisasi: "Back Office" },
+            { id: "MK", name: "MK", unit_organisasi: "Back Office" },
+        ],
+        SSQC: [{ id: "MQ", name: "MQ", unit_organisasi: "SSQC" }],
+        Ancillary: [{ id: "MB", name: "MB", unit_organisasi: "Ancillary" }],
+    };
+
+    // FIXED: Static mapping untuk sub units berdasarkan unit
+    const subUnitMapping = {
+        MO: [
+            { id: "Flops", name: "Flops", unit_id: "MO" },
+            { id: "Depco", name: "Depco", unit_id: "MO" },
+            { id: "Ramp", name: "Ramp", unit_id: "MO" },
+            { id: "Load Control", name: "Load Control", unit_id: "MO" },
+            { id: "Load Master", name: "Load Master", unit_id: "MO" },
+            { id: "ULD Control", name: "ULD Control", unit_id: "MO" },
+            { id: "Cargo Import", name: "Cargo Import", unit_id: "MO" },
+            { id: "Cargo Export", name: "Cargo Export", unit_id: "MO" },
+        ],
+        ME: [
+            { id: "GSE Operator P/B", name: "GSE Operator P/B", unit_id: "ME" },
+            { id: "GSE Operator A/C", name: "GSE Operator A/C", unit_id: "ME" },
+            { id: "GSE Maintenance", name: "GSE Maintenance", unit_id: "ME" },
+            { id: "BTT Operator", name: "BTT Operator", unit_id: "ME" },
+            { id: "Line Maintenance", name: "Line Maintenance", unit_id: "ME" },
+        ],
+        MF: [
+            { id: "KLM", name: "KLM", unit_id: "MF" },
+            { id: "Qatar", name: "Qatar", unit_id: "MF" },
+            { id: "Korean Air", name: "Korean Air", unit_id: "MF" },
+            { id: "Vietjet Air", name: "Vietjet Air", unit_id: "MF" },
+            { id: "Scoot", name: "Scoot", unit_id: "MF" },
+            { id: "Thai Airways", name: "Thai Airways", unit_id: "MF" },
+            { id: "China Airlines", name: "China Airlines", unit_id: "MF" },
+            { id: "China Southern", name: "China Southern", unit_id: "MF" },
+            { id: "Indigo", name: "Indigo", unit_id: "MF" },
+            { id: "Xiamen Air", name: "Xiamen Air", unit_id: "MF" },
+            { id: "Aero Dili", name: "Aero Dili", unit_id: "MF" },
+            { id: "Jeju Air", name: "Jeju Air", unit_id: "MF" },
+            {
+                id: "Hongkong Airlines",
+                name: "Hongkong Airlines",
+                unit_id: "MF",
+            },
+            { id: "Air Busan", name: "Air Busan", unit_id: "MF" },
+            { id: "Vietnam Airlines", name: "Vietnam Airlines", unit_id: "MF" },
+            { id: "Sichuan Airlines", name: "Sichuan Airlines", unit_id: "MF" },
+            { id: "Aeroflot", name: "Aeroflot", unit_id: "MF" },
+            { id: "Charter Flight", name: "Charter Flight", unit_id: "MF" },
+        ],
+        MS: [
+            { id: "MPGA", name: "MPGA", unit_id: "MS" },
+            { id: "QG", name: "QG", unit_id: "MS" },
+            { id: "IP", name: "IP", unit_id: "MS" },
+        ],
+        MU: [
+            {
+                id: "Human Resources & General Affair",
+                name: "Human Resources & General Affair",
+                unit_id: "MU",
+            },
+            {
+                id: "Fasilitas & Sarana",
+                name: "Fasilitas & Sarana",
+                unit_id: "MU",
+            },
+        ],
+        MK: [
+            { id: "Accounting", name: "Accounting", unit_id: "MK" },
+            { id: "Budgeting", name: "Budgeting", unit_id: "MK" },
+            { id: "Treassury", name: "Treassury", unit_id: "MK" },
+            { id: "Tax", name: "Tax", unit_id: "MK" },
+        ],
+        MQ: [
+            { id: "Avsec", name: "Avsec", unit_id: "MQ" },
+            {
+                id: "Safety Quality Control",
+                name: "Safety Quality Control",
+                unit_id: "MQ",
+            },
+        ],
+        MB: [
+            { id: "GPL", name: "GPL", unit_id: "MB" },
+            { id: "GLC", name: "GLC", unit_id: "MB" },
+            { id: "Joumpa", name: "Joumpa", unit_id: "MB" },
+        ],
+    };
 
     // Show notification dari session
     useEffect(() => {
@@ -300,136 +475,466 @@ export default function Edit({
         }
     }, [success, error, message]);
 
-    // Form sections
-    const sections = [
-        { id: "personal", name: "Data Pribadi", icon: User },
-        { id: "contact", name: "Kontak", icon: Phone },
-        { id: "work", name: "Pekerjaan", icon: Building2 },
-        { id: "education", name: "Pendidikan", icon: GraduationCap },
-        { id: "additional", name: "Tambahan", icon: FileText },
-    ];
-
-    // Handle input changes
-    const handleInputChange = (name, value) => {
-        setData(name, value);
-        clearErrors(name);
-
-        // Clear validation error for this field
-        if (formValidation[name]) {
-            setFormValidation((prev) => ({
-                ...prev,
-                [name]: null,
-            }));
+    // FIXED: Initialize available units and sub units based on current employee data
+    useEffect(() => {
+        // Initialize units when component mounts or unit_organisasi changes
+        if (data.unit_organisasi && unitMapping[data.unit_organisasi]) {
+            const units = unitMapping[data.unit_organisasi];
+            setAvailableUnits(units);
+            console.log(
+                "Initialized units for",
+                data.unit_organisasi,
+                ":",
+                units
+            );
         }
+    }, [data.unit_organisasi]);
+
+    // FIXED: Initialize sub units when unit_id changes or is loaded from employee data
+    useEffect(() => {
+        if (data.unit_id && subUnitMapping[data.unit_id]) {
+            const subUnits = subUnitMapping[data.unit_id];
+            setAvailableSubUnits(subUnits);
+            console.log(
+                "Initialized sub units for",
+                data.unit_id,
+                ":",
+                subUnits
+            );
+        }
+    }, [data.unit_id]);
+
+    // FIXED: Load initial data on component mount
+    useEffect(() => {
+        if (employee && employee.unit_organisasi) {
+            console.log("Loading initial data for employee:", employee);
+
+            // Load units for current unit_organisasi
+            if (unitMapping[employee.unit_organisasi]) {
+                setAvailableUnits(unitMapping[employee.unit_organisasi]);
+            }
+
+            // Load sub units for current unit_id
+            if (employee.unit_id && subUnitMapping[employee.unit_id]) {
+                setAvailableSubUnits(subUnitMapping[employee.unit_id]);
+            }
+        }
+    }, [employee]);
+
+    // Auto-calculate TMT Pensiun when birth date changes
+    useEffect(() => {
+        if (data.tanggal_lahir) {
+            const birthDate = new Date(data.tanggal_lahir);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+
+            if (
+                monthDiff < 0 ||
+                (monthDiff === 0 && today.getDate() < birthDate.getDate())
+            ) {
+                age--;
+            }
+
+            // Calculate TMT Pensiun (56 years from birth date)
+            const pensionDate = new Date(birthDate);
+            pensionDate.setFullYear(pensionDate.getFullYear() + 56);
+
+            // Apply logic: if birth date < 10th, pension on 1st of same month, else 1st of next month
+            if (birthDate.getDate() < 10) {
+                pensionDate.setDate(1);
+            } else {
+                pensionDate.setDate(1);
+                pensionDate.setMonth(pensionDate.getMonth() + 1);
+            }
+
+            const formatDate = (date) => {
+                return date.toISOString().split("T")[0];
+            };
+
+            setData("tmt_pensiun", formatDate(pensionDate));
+            setCalculatedAge(age);
+        } else {
+            setData("tmt_pensiun", "");
+            setCalculatedAge(null);
+        }
+    }, [data.tanggal_lahir]);
+
+    // Auto-sync jabatan fields
+    useEffect(() => {
+        if (data.nama_jabatan && !data.jabatan) {
+            setData("jabatan", data.nama_jabatan);
+        }
+    }, [data.nama_jabatan]);
+
+    // Define sections
+    const sections = {
+        personal: { name: "Data Pribadi", icon: User },
+        work: { name: "Data Pekerjaan", icon: Building2 },
+        education: { name: "Pendidikan", icon: GraduationCap },
+        additional: { name: "Data Tambahan", icon: FileText },
     };
 
-    // Handle input blur for validation
-    const handleInputBlur = (name, value) => {
-        // Basic validation logic
-        let validationError = null;
+    // REMOVED: fetchUnits and fetchSubUnits functions since we use static mapping
 
-        switch (name) {
-            case "nama_lengkap":
-                if (!value || value.trim().length < 2) {
-                    validationError = "Nama lengkap minimal 2 karakter";
+    const validateField = (fieldName, value) => {
+        let error = "";
+
+        switch (fieldName) {
+            case "nik":
+                if (value && !/^[0-9]+$/.test(value)) {
+                    error = "NIK hanya boleh berisi angka";
+                } else if (value && value.length !== 16) {
+                    error = "NIK harus tepat 16 digit";
+                } else if (!value || value.trim() === "") {
+                    error = "NIK wajib diisi";
+                }
+                break;
+            case "nip":
+                if (value && !/^[0-9]+$/.test(value)) {
+                    error = "NIP hanya boleh berisi angka";
+                } else if (value && value.length < 5) {
+                    error = "NIP minimal 5 digit";
+                } else if (!value || value.trim() === "") {
+                    error = "NIP wajib diisi";
                 }
                 break;
             case "email":
                 if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                    validationError = "Format email tidak valid";
+                    error = "Format email tidak valid";
                 }
                 break;
             case "handphone":
+                if (value && !/^[0-9+\-\s()]+$/.test(value)) {
+                    error =
+                        "Nomor handphone hanya boleh berisi angka, +, -, spasi, dan kurung";
+                } else if (value && value.length < 10) {
+                    error = "Nomor handphone minimal 10 digit";
+                }
+                break;
+            case "ukuran_sepatu":
+                if (value && (isNaN(value) || value < 30 || value > 50)) {
+                    error = "Ukuran sepatu harus antara 30-50";
+                }
+                break;
+            case "height":
+                if (value && (isNaN(value) || value < 100 || value > 250)) {
+                    error = "Tinggi badan harus antara 100-250 cm";
+                }
+                break;
+            case "weight":
+                if (value && (isNaN(value) || value < 30 || value > 200)) {
+                    error = "Berat badan harus antara 30-200 kg";
+                }
+                break;
+            case "tahun_lulus":
                 if (
                     value &&
-                    !/^(\+62|62|0)[0-9]{9,13}$/.test(
-                        value.replace(/[-\s]/g, "")
-                    )
+                    (isNaN(value) ||
+                        value < 1950 ||
+                        value > new Date().getFullYear())
                 ) {
-                    validationError = "Format nomor handphone tidak valid";
+                    error = `Tahun lulus harus antara 1950-${new Date().getFullYear()}`;
+                }
+                break;
+            case "tanggal_lahir":
+                if (value) {
+                    const birthDate = new Date(value);
+                    const today = new Date();
+                    const age = today.getFullYear() - birthDate.getFullYear();
+                    if (age < 17 || age > 70) {
+                        error = "Usia harus antara 17-70 tahun";
+                    }
                 }
                 break;
         }
 
         setFormValidation((prev) => ({
             ...prev,
-            [name]: validationError,
+            [fieldName]: error,
         }));
+
+        return error;
+    };
+
+    // Handle input changes
+    const handleInputChange = (name, value) => {
+        setData(name, value);
+
+        // Handle cascading dropdown untuk struktur organisasi
+        if (name === "unit_organisasi") {
+            console.log("Unit Organisasi changed to:", value);
+
+            // Reset dependent fields
+            setData("unit_id", "");
+            setData("sub_unit_id", "");
+            setAvailableUnits([]);
+            setAvailableSubUnits([]);
+
+            // Clear sub_unit_id error jika unit organisasi tidak memerlukan sub unit
+            if (unitWithoutSubUnits.includes(value)) {
+                clearErrors("sub_unit_id");
+                setFormValidation((prev) => ({
+                    ...prev,
+                    sub_unit_id: "",
+                }));
+            }
+
+            // Load units untuk unit organisasi yang dipilih
+            if (value && unitMapping[value]) {
+                const units = unitMapping[value];
+                setAvailableUnits(units);
+                console.log("Available units loaded:", units);
+            }
+        } else if (name === "unit_id") {
+            console.log("Unit ID changed to:", value);
+
+            // Reset sub unit
+            setData("sub_unit_id", "");
+            setAvailableSubUnits([]);
+
+            // Load sub units untuk unit yang dipilih (hanya jika required)
+            if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
+                if (subUnitMapping[value]) {
+                    const subUnits = subUnitMapping[value];
+                    setAvailableSubUnits(subUnits);
+                    console.log("Available sub units loaded:", subUnits);
+                }
+            }
+        }
+
+        // Clear errors saat user mulai mengetik
+        if (errors[name]) {
+            clearErrors(name);
+        }
+
+        // Clear local validation error
+        if (formValidation[name]) {
+            setFormValidation((prev) => ({
+                ...prev,
+                [name]: "",
+            }));
+        }
+
+        // Real-time validation for important fields
+        if (["nik", "nip", "email", "handphone"].includes(name)) {
+            setTimeout(() => validateField(name, value), 500);
+        }
+    };
+
+    // Handle input blur for validation
+    const handleInputBlur = (name, value) => {
+        validateField(name, value);
     };
 
     // Handle form submission
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        if (processing || isSubmitting) return;
+
         setIsSubmitting(true);
-        clearErrors();
 
         // Validate required fields
-        const requiredFields = [
-            "nama_lengkap",
-            "jenis_kelamin",
-            "unit_organisasi",
-            "nama_jabatan",
-            "status_pegawai",
-        ];
-        const missingFields = requiredFields.filter((field) => !data[field]);
+        const requiredFields = {
+            nik: "NIK wajib diisi",
+            nip: "NIP wajib diisi",
+            nama_lengkap: "Nama lengkap wajib diisi",
+            jenis_kelamin: "Jenis kelamin wajib dipilih",
+            unit_organisasi: "Unit organisasi wajib dipilih",
+            unit_id: "Unit wajib dipilih",
+            nama_jabatan: "Nama jabatan wajib diisi",
+            kelompok_jabatan: "Kelompok jabatan wajib dipilih",
+            status_pegawai: "Status pegawai wajib dipilih",
+        };
+
+        // Add sub_unit_id to required fields if unit_organisasi requires it
+        if (
+            data.unit_organisasi &&
+            !unitWithoutSubUnits.includes(data.unit_organisasi)
+        ) {
+            requiredFields.sub_unit_id = "Sub unit wajib dipilih";
+        }
+
+        const missingFields = Object.keys(requiredFields).filter(
+            (field) => !data[field] || data[field].toString().trim() === ""
+        );
 
         if (missingFields.length > 0) {
+            const message =
+                missingFields.length === 1
+                    ? requiredFields[missingFields[0]]
+                    : "Mohon lengkapi semua field yang wajib diisi";
+
             setNotification({
                 type: "error",
-                title: "Form Tidak Lengkap",
-                message: "Harap lengkapi semua field yang wajib diisi",
+                title: "Data Tidak Lengkap",
+                message: message,
             });
             setIsSubmitting(false);
             return;
         }
 
-        put(route("employees.update", employee.id), {
-            onSuccess: () => {
+        // Check for validation errors
+        const hasValidationErrors = Object.values(formValidation).some(
+            (error) => error !== ""
+        );
+        if (hasValidationErrors) {
+            setNotification({
+                type: "error",
+                title: "Data Tidak Valid",
+                message: "Mohon perbaiki kesalahan pada form",
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Prepare clean data for submission
+        const cleanData = { ...data };
+
+        // Handle jenis_kelamin conversion (Frontend: Laki-laki/Perempuan -> Database: L/P)
+        if (cleanData.jenis_kelamin) {
+            cleanData.jenis_kelamin =
+                cleanData.jenis_kelamin === "Laki-laki" ? "L" : "P";
+        }
+
+        // Remove empty strings dan convert ke null jika perlu
+        Object.keys(cleanData).forEach((key) => {
+            if (
+                cleanData[key] === "" ||
+                cleanData[key] === null ||
+                cleanData[key] === undefined
+            ) {
+                cleanData[key] = null;
+            }
+        });
+
+        // Ensure required fields are not null
+        const requiredFieldsForBackend = [
+            "nik",
+            "nip",
+            "nama_lengkap",
+            "jenis_kelamin",
+            "unit_organisasi",
+            "unit_id",
+            "nama_jabatan",
+            "kelompok_jabatan",
+            "status_pegawai",
+        ];
+
+        requiredFieldsForBackend.forEach((field) => {
+            if (!cleanData[field] || cleanData[field] === null) {
+                cleanData[field] = data[field] || "";
+            }
+        });
+
+        console.log("Clean Data for Submission:", cleanData);
+
+        put(route("employees.update", employee.id), cleanData, {
+            onSuccess: (response) => {
+                console.log("Form updated successfully:", response);
                 setNotification({
                     type: "success",
                     title: "Berhasil!",
-                    message: "Data karyawan berhasil diperbarui",
+                    message: "Data karyawan berhasil diperbarui!",
                 });
+
                 setIsSubmitting(false);
+
+                // Redirect after 2 seconds
+                setTimeout(() => {
+                    router.visit(route("employees.index"));
+                }, 2000);
             },
             onError: (errors) => {
+                console.error("Form submission errors:", errors);
+                setIsSubmitting(false);
+
+                let errorMessage = "Terjadi kesalahan saat memperbarui data";
+
+                if (errors.nik) {
+                    errorMessage =
+                        "NIK sudah digunakan atau tidak valid (harus 16 digit angka)";
+                } else if (errors.nip) {
+                    errorMessage =
+                        "NIP sudah digunakan atau tidak valid (minimal 5 digit angka)";
+                } else if (errors.email) {
+                    errorMessage = "Email sudah digunakan atau tidak valid";
+                } else if (Object.keys(errors).length > 0) {
+                    const firstError = Object.values(errors)[0];
+                    errorMessage =
+                        typeof firstError === "string"
+                            ? firstError
+                            : Array.isArray(firstError)
+                            ? firstError[0]
+                            : "Data yang diisi tidak valid. Silakan periksa kembali.";
+                }
+
                 setNotification({
                     type: "error",
-                    title: "Gagal Memperbarui!",
-                    message: "Terjadi kesalahan saat memperbarui data karyawan",
+                    title: "Gagal Memperbarui",
+                    message: errorMessage,
                 });
+
+                // Focus ke field pertama yang error
+                const firstErrorField = Object.keys(errors)[0];
+                if (firstErrorField) {
+                    setTimeout(() => {
+                        const element = document.querySelector(
+                            `[name="${firstErrorField}"]`
+                        );
+                        if (element) {
+                            element.focus();
+                            element.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                            });
+                        }
+                    }, 100);
+                }
+            },
+            onFinish: () => {
+                console.log("Form submission finished");
                 setIsSubmitting(false);
             },
+            preserveScroll: true,
+            preserveState: true,
         });
     };
 
-    // Handle cancel
     const handleCancel = () => {
-        if (
-            confirm("Batalkan perubahan? Data yang belum disimpan akan hilang.")
-        ) {
+        const hasChanges = Object.keys(data).some((key) => {
+            const originalValue = employee?.[key] || "";
+            const currentValue = data[key] || "";
+
+            // Special handling for jenis_kelamin conversion
+            if (key === "jenis_kelamin") {
+                const originalFormatted =
+                    originalValue === "L"
+                        ? "Laki-laki"
+                        : originalValue === "P"
+                        ? "Perempuan"
+                        : originalValue;
+                return originalFormatted !== currentValue;
+            }
+
+            return originalValue.toString() !== currentValue.toString();
+        });
+
+        if (hasChanges) {
+            if (
+                confirm(
+                    "Yakin ingin membatalkan? Perubahan yang belum disimpan akan hilang."
+                )
+            ) {
+                router.visit(route("employees.index"));
+            }
+        } else {
             router.visit(route("employees.index"));
         }
     };
 
     // Render sections
-    const renderSection = () => {
-        switch (activeSection) {
-            case "personal":
-                return renderPersonalSection();
-            case "contact":
-                return renderContactSection();
-            case "work":
-                return renderWorkSection();
-            case "education":
-                return renderEducationSection();
-            case "additional":
-                return renderAdditionalSection();
-            default:
-                return renderPersonalSection();
-        }
-    };
-
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -439,42 +944,39 @@ export default function Edit({
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <InputField
-                    name="nip"
-                    label="NIP"
-                    required={true}
-                    icon={Shield}
-                    value={data.nip}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.nip || formValidation.nip}
-                    readonly={true}
-                    hint="NIP tidak dapat diubah"
-                />
-                <InputField
                     name="nik"
                     label="NIK"
-                    placeholder="3201234567890123"
-                    icon={FileText}
+                    required={true}
+                    placeholder="Contoh: 1234567890123456"
+                    icon={User}
                     value={data.nik}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nik || formValidation.nik}
+                    hint="Nomor Induk Kependudukan (16 digit) - WAJIB DIISI DENGAN BENAR"
                 />
-                <div className="md:col-span-2">
-                    <InputField
-                        name="nama_lengkap"
-                        label="Nama Lengkap"
-                        required={true}
-                        placeholder="Masukkan nama lengkap"
-                        icon={User}
-                        value={data.nama_lengkap}
-                        onChange={handleInputChange}
-                        onBlur={handleInputBlur}
-                        error={
-                            errors.nama_lengkap || formValidation.nama_lengkap
-                        }
-                    />
-                </div>
+                <InputField
+                    name="nip"
+                    label="NIP"
+                    required={true}
+                    placeholder="Contoh: 2024001"
+                    icon={User}
+                    value={data.nip}
+                    onChange={handleInputChange}
+                    onBlur={handleInputBlur}
+                    error={errors.nip || formValidation.nip}
+                    hint="Nomor Induk Pegawai (minimal 5 digit) - WAJIB DIISI"
+                />
+                <InputField
+                    name="nama_lengkap"
+                    label="Nama Lengkap"
+                    required={true}
+                    placeholder="Nama lengkap karyawan"
+                    icon={User}
+                    value={data.nama_lengkap}
+                    onChange={handleInputChange}
+                    error={errors.nama_lengkap || formValidation.nama_lengkap}
+                />
                 <InputField
                     name="jenis_kelamin"
                     label="Jenis Kelamin"
@@ -483,7 +985,6 @@ export default function Edit({
                     icon={User}
                     value={data.jenis_kelamin}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
                     error={errors.jenis_kelamin || formValidation.jenis_kelamin}
                 />
                 <InputField
@@ -493,8 +994,7 @@ export default function Edit({
                     icon={MapPin}
                     value={data.tempat_lahir}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.tempat_lahir || formValidation.tempat_lahir}
+                    error={errors.tempat_lahir}
                 />
                 <InputField
                     name="tanggal_lahir"
@@ -505,44 +1005,33 @@ export default function Edit({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.tanggal_lahir || formValidation.tanggal_lahir}
+                    hint={`TMT Pensiun akan otomatis dihitung (56 tahun dengan logika baru)${
+                        calculatedAge
+                            ? ` - Usia saat ini: ${calculatedAge} tahun`
+                            : ""
+                    }`}
                 />
                 <InputField
                     name="kota_domisili"
                     label="Kota Domisili"
-                    placeholder="Kota tempat tinggal"
+                    placeholder="Kota tempat tinggal saat ini"
                     icon={MapPin}
                     value={data.kota_domisili}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.kota_domisili || formValidation.kota_domisili}
+                    error={errors.kota_domisili}
                 />
-                <div className="md:col-span-2">
-                    <InputField
-                        name="alamat"
-                        label="Alamat Lengkap"
-                        placeholder="Alamat lengkap tempat tinggal"
-                        icon={MapPin}
-                        value={data.alamat}
-                        onChange={handleInputChange}
-                        onBlur={handleInputBlur}
-                        error={errors.alamat || formValidation.alamat}
-                    />
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderContactSection = () => (
-        <div className="space-y-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Phone className="w-5 h-5 text-[#439454]" />
-                Informasi Kontak
-            </h2>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <InputField
+                    name="alamat_lengkap"
+                    label="Alamat Lengkap"
+                    placeholder="Alamat lengkap tempat tinggal"
+                    icon={MapPin}
+                    value={data.alamat_lengkap}
+                    onChange={handleInputChange}
+                    error={errors.alamat_lengkap}
+                />
                 <InputField
                     name="handphone"
-                    label="Nomor Handphone"
+                    label="No. Handphone"
                     placeholder="0812-3456-7890"
                     icon={Phone}
                     value={data.handphone}
@@ -551,167 +1040,304 @@ export default function Edit({
                     error={errors.handphone || formValidation.handphone}
                 />
                 <InputField
-                    name="no_telepon"
-                    label="No. Telepon"
-                    placeholder="0361-123456"
-                    icon={Phone}
-                    value={data.no_telepon}
+                    name="email"
+                    label="Email"
+                    type="email"
+                    placeholder="nama@email.com"
+                    icon={Mail}
+                    value={data.email}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
-                    error={errors.no_telepon || formValidation.no_telepon}
-                    hint="Nomor telepon rumah (opsional)"
+                    error={errors.email || formValidation.email}
                 />
-                <div className="md:col-span-2">
+                <InputField
+                    name="no_bpjs_kesehatan"
+                    label="No. BPJS Kesehatan"
+                    placeholder="0001234567890"
+                    icon={Shield}
+                    value={data.no_bpjs_kesehatan}
+                    onChange={handleInputChange}
+                    error={errors.no_bpjs_kesehatan}
+                />
+                <InputField
+                    name="no_bpjs_ketenagakerjaan"
+                    label="No. BPJS Ketenagakerjaan"
+                    placeholder="0001234567890"
+                    icon={Shield}
+                    value={data.no_bpjs_ketenagakerjaan}
+                    onChange={handleInputChange}
+                    error={errors.no_bpjs_ketenagakerjaan}
+                />
+            </div>
+        </div>
+    );
+
+    const renderWorkSection = () => {
+        // Determine if sub unit is required
+        const isSubUnitRequired =
+            data.unit_organisasi &&
+            !unitWithoutSubUnits.includes(data.unit_organisasi);
+
+        return (
+            <div className="space-y-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                    <Building2 className="w-5 h-5 text-[#439454]" />
+                    Data Pekerjaan & Struktur Organisasi
+                </h2>
+
+                {/* Struktur Organisasi Section dengan cascading dropdown */}
+                <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                    <h3 className="flex items-center gap-2 mb-4 font-semibold text-blue-800">
+                        <Building2 className="w-4 h-4" />
+                        Struktur Organisasi (SEMUA WAJIB)
+                    </h3>
+
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                        <InputField
+                            name="unit_organisasi"
+                            label="Unit Organisasi"
+                            required={true}
+                            options={unitOrganisasiOptionsStatic.map(
+                                (unit) => ({
+                                    value: unit,
+                                    label: unit,
+                                })
+                            )}
+                            placeholder="Pilih Unit Organisasi"
+                            icon={Building2}
+                            value={data.unit_organisasi}
+                            onChange={handleInputChange}
+                            error={
+                                errors.unit_organisasi ||
+                                formValidation.unit_organisasi
+                            }
+                            hint="Pilih unit organisasi terlebih dahulu"
+                        />
+
+                        <InputField
+                            name="unit_id"
+                            label="Unit"
+                            required={true}
+                            options={availableUnits.map((unit) => ({
+                                value: unit.id,
+                                label: unit.name,
+                            }))}
+                            placeholder={
+                                loadingUnits ? "Loading..." : "Pilih Unit dulu"
+                            }
+                            icon={Building2}
+                            value={data.unit_id}
+                            onChange={handleInputChange}
+                            error={errors.unit_id || formValidation.unit_id}
+                            disabled={!data.unit_organisasi || loadingUnits}
+                            hint={
+                                data.unit_organisasi
+                                    ? "Unit akan muncul setelah memilih unit organisasi"
+                                    : "Pilih unit organisasi terlebih dahulu"
+                            }
+                        />
+
+                        <InputField
+                            name="sub_unit_id"
+                            label="Sub Unit"
+                            required={isSubUnitRequired}
+                            options={availableSubUnits.map((subUnit) => ({
+                                value: subUnit.id,
+                                label: subUnit.name,
+                            }))}
+                            placeholder={
+                                loadingSubUnits
+                                    ? "Loading..."
+                                    : !data.unit_id
+                                    ? "Pilih Unit dulu"
+                                    : unitWithoutSubUnits.includes(
+                                          data.unit_organisasi
+                                      )
+                                    ? "Unit ini tidak memiliki sub unit"
+                                    : "Pilih Sub Unit"
+                            }
+                            icon={Building2}
+                            value={data.sub_unit_id}
+                            onChange={handleInputChange}
+                            error={
+                                errors.sub_unit_id || formValidation.sub_unit_id
+                            }
+                            disabled={
+                                !data.unit_id ||
+                                unitWithoutSubUnits.includes(
+                                    data.unit_organisasi
+                                ) ||
+                                loadingSubUnits
+                            }
+                            hint={
+                                unitWithoutSubUnits.includes(
+                                    data.unit_organisasi
+                                )
+                                    ? "Unit organisasi ini tidak memiliki sub unit"
+                                    : "Sub unit akan muncul setelah memilih unit"
+                            }
+                        />
+                    </div>
+
+                    {/* Preview Struktur Organisasi */}
+                    {data.unit_organisasi && (
+                        <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
+                            <h4 className="mb-2 text-sm font-medium text-green-800">
+                                Preview Struktur Organisasi:
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-green-700">
+                                <span className="px-2 py-1 bg-green-100 rounded">
+                                    {data.unit_organisasi}
+                                </span>
+                                {availableUnits.find(
+                                    (u) => u.id === data.unit_id
+                                ) && (
+                                    <>
+                                        <span>→</span>
+                                        <span className="px-2 py-1 bg-green-100 rounded">
+                                            {
+                                                availableUnits.find(
+                                                    (u) => u.id === data.unit_id
+                                                )?.name
+                                            }
+                                        </span>
+                                    </>
+                                )}
+                                {isSubUnitRequired ? (
+                                    availableSubUnits.find(
+                                        (u) => u.id === data.sub_unit_id
+                                    ) ? (
+                                        <>
+                                            <span>→</span>
+                                            <span className="px-2 py-1 bg-green-100 rounded">
+                                                {
+                                                    availableSubUnits.find(
+                                                        (u) =>
+                                                            u.id ===
+                                                            data.sub_unit_id
+                                                    )?.name
+                                                }
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-orange-600">
+                                            <AlertCircle className="w-3 h-3" />
+                                            Sub unit belum dipilih
+                                        </span>
+                                    )
+                                ) : (
+                                    <span className="flex items-center gap-1 text-blue-600">
+                                        <Info className="w-3 h-3" />
+                                        Struktur lengkap untuk{" "}
+                                        {data.unit_organisasi}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Data Jabatan */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
-                        name="email"
-                        label="Email"
-                        type="email"
-                        placeholder="nama@email.com"
-                        icon={Mail}
-                        value={data.email}
+                        name="nama_jabatan"
+                        label="Nama Jabatan"
+                        required={true}
+                        placeholder="Contoh: Manager Operasional"
+                        icon={Users}
+                        value={data.nama_jabatan}
                         onChange={handleInputChange}
-                        onBlur={handleInputBlur}
-                        error={errors.email || formValidation.email}
+                        error={
+                            errors.nama_jabatan || formValidation.nama_jabatan
+                        }
+                    />
+                    <InputField
+                        name="status_pegawai"
+                        label="Status Pegawai"
+                        required={true}
+                        options={
+                            statusPegawaiOptions.length > 0
+                                ? statusPegawaiOptions
+                                : [
+                                      "PEGAWAI TETAP",
+                                      "PKWT",
+                                      "TAD PAKET SDM",
+                                      "TAD PAKET PEKERJAAN",
+                                  ]
+                        }
+                        placeholder="Pilih Status Pegawai"
+                        icon={UserCheck}
+                        value={data.status_pegawai}
+                        onChange={handleInputChange}
+                        error={
+                            errors.status_pegawai ||
+                            formValidation.status_pegawai
+                        }
+                    />
+                    <InputField
+                        name="kelompok_jabatan"
+                        label="Kelompok Jabatan"
+                        required={true}
+                        options={
+                            kelompokJabatanOptions.length > 0
+                                ? kelompokJabatanOptions
+                                : [
+                                      "SUPERVISOR",
+                                      "STAFF",
+                                      "MANAGER",
+                                      "EXECUTIVE GENERAL MANAGER",
+                                      "ACCOUNT EXECUTIVE/AE",
+                                  ]
+                        }
+                        icon={Users}
+                        value={data.kelompok_jabatan}
+                        onChange={handleInputChange}
+                        error={
+                            errors.kelompok_jabatan ||
+                            formValidation.kelompok_jabatan
+                        }
+                    />
+                    <InputField
+                        name="tmt_mulai_kerja"
+                        label="TMT Mulai Kerja"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_mulai_kerja}
+                        onChange={handleInputChange}
+                        error={errors.tmt_mulai_kerja}
+                        hint="Tanggal Mulai Tugas pertama kali bekerja"
+                    />
+                    <InputField
+                        name="tmt_mulai_jabatan"
+                        label="TMT Mulai Jabatan"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_mulai_jabatan}
+                        onChange={handleInputChange}
+                        error={errors.tmt_mulai_jabatan}
+                        hint="Tanggal Mulai Tugas pada jabatan saat ini"
+                    />
+                    <InputField
+                        name="tmt_pensiun"
+                        label="TMT Pensiun"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_pensiun}
+                        onChange={handleInputChange}
+                        error={errors.tmt_pensiun}
+                        hint="Otomatis dihitung dari tanggal lahir (56 tahun dengan logika baru)"
+                        disabled={true}
                     />
                 </div>
             </div>
-        </div>
-    );
-
-    const renderWorkSection = () => (
-        <div className="space-y-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Building2 className="w-5 h-5 text-[#439454]" />
-                Data Pekerjaan
-            </h2>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <InputField
-                    name="unit_organisasi"
-                    label="Unit Organisasi"
-                    required={true}
-                    options={
-                        unitOptions.length > 0
-                            ? unitOptions
-                            : [
-                                  "DIREKTORAT UTAMA",
-                                  "DIREKTORAT OPERASI",
-                                  "DIREKTORAT KEUANGAN",
-                                  "DIVISI SDM",
-                                  "DIVISI OPERASIONAL",
-                                  "DIVISI KEUANGAN",
-                                  "DIVISI TEKNOLOGI INFORMASI",
-                                  "UNIT KEAMANAN PENERBANGAN",
-                                  "UNIT PELAYANAN TEKNIK",
-                                  "UNIT PELAYANAN OPERASI",
-                              ]
-                    }
-                    icon={Building2}
-                    value={data.unit_organisasi}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.unit_organisasi || formValidation.unit_organisasi
-                    }
-                />
-                <InputField
-                    name="jabatan"
-                    label="Jabatan"
-                    placeholder="Jabatan (opsional)"
-                    icon={UserCheck}
-                    value={data.jabatan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.jabatan || formValidation.jabatan}
-                />
-                <InputField
-                    name="nama_jabatan"
-                    label="Nama Jabatan"
-                    required={true}
-                    options={
-                        jabatanOptions.length > 0
-                            ? jabatanOptions
-                            : [
-                                  "Manager",
-                                  "Assistant Manager",
-                                  "Supervisor",
-                                  "Staff",
-                                  "Senior Staff",
-                                  "Junior Staff",
-                                  "Operator",
-                                  "Technician",
-                                  "Security",
-                                  "Driver",
-                              ]
-                    }
-                    icon={UserCheck}
-                    value={data.nama_jabatan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.nama_jabatan || formValidation.nama_jabatan}
-                />
-                <InputField
-                    name="status_pegawai"
-                    label="Status Pegawai"
-                    required={true}
-                    options={[
-                        "PEGAWAI TETAP",
-                        "TAD",
-                        "PEGAWAI KONTRAK",
-                        "PEGAWAI MAGANG",
-                    ]}
-                    icon={UserCheck}
-                    value={data.status_pegawai}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.status_pegawai || formValidation.status_pegawai
-                    }
-                />
-                <InputField
-                    name="tmt_mulai_jabatan"
-                    label="TMT Mulai Jabatan"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_mulai_jabatan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.tmt_mulai_jabatan ||
-                        formValidation.tmt_mulai_jabatan
-                    }
-                />
-                <InputField
-                    name="tmt_mulai_kerja"
-                    label="TMT Mulai Kerja"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_mulai_kerja}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.tmt_mulai_kerja || formValidation.tmt_mulai_kerja
-                    }
-                />
-                <InputField
-                    name="tmt_pensiun"
-                    label="TMT Pensiun"
-                    type="date"
-                    icon={Calendar}
-                    value={data.tmt_pensiun}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.tmt_pensiun || formValidation.tmt_pensiun}
-                />
-            </div>
-        </div>
-    );
+        );
+    };
 
     const renderEducationSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
                 <GraduationCap className="w-5 h-5 text-[#439454]" />
-                Riwayat Pendidikan
+                Pendidikan
             </h2>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -725,29 +1351,14 @@ export default function Edit({
                         "D1",
                         "D2",
                         "D3",
-                        "D4",
-                        "S1",
+                        "D4/S1",
                         "S2",
                         "S3",
                     ]}
                     icon={GraduationCap}
                     value={data.pendidikan_terakhir}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.pendidikan_terakhir ||
-                        formValidation.pendidikan_terakhir
-                    }
-                />
-                <InputField
-                    name="pendidikan"
-                    label="Pendidikan"
-                    placeholder="Detail pendidikan"
-                    icon={GraduationCap}
-                    value={data.pendidikan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.pendidikan || formValidation.pendidikan}
+                    error={errors.pendidikan_terakhir}
                 />
                 <InputField
                     name="instansi_pendidikan"
@@ -756,21 +1367,16 @@ export default function Edit({
                     icon={Building2}
                     value={data.instansi_pendidikan}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.instansi_pendidikan ||
-                        formValidation.instansi_pendidikan
-                    }
+                    error={errors.instansi_pendidikan}
                 />
                 <InputField
                     name="jurusan"
-                    label="Jurusan/Program Studi"
-                    placeholder="Nama jurusan"
+                    label="Jurusan"
+                    placeholder="Nama jurusan/program studi"
                     icon={GraduationCap}
                     value={data.jurusan}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.jurusan || formValidation.jurusan}
+                    error={errors.jurusan}
                 />
                 <InputField
                     name="tahun_lulus"
@@ -782,6 +1388,7 @@ export default function Edit({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.tahun_lulus || formValidation.tahun_lulus}
+                    hint="Tahun kelulusan dari pendidikan terakhir"
                 />
             </div>
         </div>
@@ -794,36 +1401,39 @@ export default function Edit({
                 Data Tambahan
             </h2>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <InputField
+                    name="seragam"
+                    label="Seragam"
+                    placeholder="Akan diisi nanti"
+                    icon={Shield}
+                    value={data.seragam}
+                    onChange={handleInputChange}
+                    disabled={true}
+                    error={errors.seragam}
+                    hint="Field ini akan diisi oleh admin"
+                />
                 <InputField
                     name="jenis_sepatu"
                     label="Jenis Sepatu"
                     options={["Pantofel", "Safety Shoes"]}
-                    icon={Shield}
+                    icon={Briefcase}
                     value={data.jenis_sepatu}
                     onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.jenis_sepatu || formValidation.jenis_sepatu}
+                    error={errors.jenis_sepatu}
+                    hint="Jenis sepatu kerja yang digunakan"
                 />
                 <InputField
                     name="ukuran_sepatu"
                     label="Ukuran Sepatu"
-                    options={[
-                        "36",
-                        "37",
-                        "38",
-                        "39",
-                        "40",
-                        "41",
-                        "42",
-                        "43",
-                        "44",
-                    ]}
-                    icon={Shield}
+                    type="number"
+                    placeholder="42"
+                    icon={Briefcase}
                     value={data.ukuran_sepatu}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.ukuran_sepatu || formValidation.ukuran_sepatu}
+                    hint="Ukuran sepatu (30-50)"
                 />
                 <InputField
                     name="height"
@@ -835,57 +1445,38 @@ export default function Edit({
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.height || formValidation.height}
+                    hint="Tinggi badan dalam centimeter"
                 />
                 <InputField
                     name="weight"
                     label="Berat Badan (kg)"
                     type="number"
-                    placeholder="65"
+                    placeholder="70"
                     icon={User}
                     value={data.weight}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.weight || formValidation.weight}
-                />
-                <InputField
-                    name="no_bpjs_kesehatan"
-                    label="No. BPJS Kesehatan"
-                    placeholder="0001234567890"
-                    icon={Shield}
-                    value={data.no_bpjs_kesehatan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.no_bpjs_kesehatan ||
-                        formValidation.no_bpjs_kesehatan
-                    }
-                />
-                <InputField
-                    name="no_bpjs_ketenagakerjaan"
-                    label="No. BPJS Ketenagakerjaan"
-                    placeholder="0001234567890"
-                    icon={Shield}
-                    value={data.no_bpjs_ketenagakerjaan}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={
-                        errors.no_bpjs_ketenagakerjaan ||
-                        formValidation.no_bpjs_ketenagakerjaan
-                    }
-                />
-                <InputField
-                    name="seragam"
-                    label="Ukuran Seragam"
-                    options={["XS", "S", "M", "L", "XL", "XXL", "XXXL"]}
-                    icon={User}
-                    value={data.seragam}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    error={errors.seragam || formValidation.seragam}
+                    hint="Berat badan dalam kilogram"
                 />
             </div>
         </div>
     );
+
+    const renderSection = () => {
+        switch (activeSection) {
+            case "personal":
+                return renderPersonalSection();
+            case "work":
+                return renderWorkSection();
+            case "education":
+                return renderEducationSection();
+            case "additional":
+                return renderAdditionalSection();
+            default:
+                return renderPersonalSection();
+        }
+    };
 
     return (
         <DashboardLayout>
@@ -893,9 +1484,9 @@ export default function Edit({
                 title={`Edit Karyawan - ${employee?.nama_lengkap || "Unknown"}`}
             />
 
-            {/* Notification */}
+            {/* Enhanced Notification */}
             {notification && (
-                <Notification
+                <FormNotification
                     type={notification.type}
                     title={notification.title}
                     message={notification.message}
@@ -906,35 +1497,37 @@ export default function Edit({
             <div className="p-6 space-y-6">
                 {/* Header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <button
-                                onClick={() =>
-                                    router.visit(route("employees.index"))
-                                }
-                                className="p-2 text-gray-600 transition-all duration-300 rounded-xl hover:text-[#439454] hover:bg-white"
-                            >
-                                <ArrowLeft className="w-5 h-5" />
-                            </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleCancel}
+                            disabled={processing || isSubmitting}
+                            className="flex items-center gap-2 px-4 py-2 text-gray-600 transition-all duration-300 border-2 border-gray-300 rounded-xl hover:border-[#439454] hover:text-[#439454] focus:ring-4 focus:ring-[#439454]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Kembali
+                        </button>
+                        <div>
                             <h1 className="text-2xl font-bold text-gray-900">
                                 Edit Karyawan
                             </h1>
+                            <p className="text-sm text-gray-600">
+                                Perbarui data karyawan{" "}
+                                {employee?.nama_lengkap || "Unknown"}. Semua
+                                field dapat diedit termasuk NIK dan NIP.
+                            </p>
                         </div>
-                        <p className="text-gray-600">
-                            Perbarui data karyawan{" "}
-                            {employee?.nama_lengkap || "Unknown"}
-                        </p>
                     </div>
                 </div>
 
                 {/* Section Navigation */}
                 <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded-xl">
-                    {sections.map((section) => (
+                    {Object.entries(sections).map(([key, section]) => (
                         <button
-                            key={section.id}
-                            onClick={() => setActiveSection(section.id)}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-300 rounded-xl ${
-                                activeSection === section.id
+                            key={key}
+                            onClick={() => setActiveSection(key)}
+                            disabled={processing || isSubmitting}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                activeSection === key
                                     ? "bg-[#439454] text-white shadow-lg"
                                     : "text-gray-600 hover:bg-white hover:text-[#439454]"
                             }`}
