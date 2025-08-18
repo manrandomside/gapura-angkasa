@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Head, Link, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import EmployeeDetailModal from "@/Components/EmployeeDetailModal";
+import axios from "axios";
 import {
     Search,
     Plus,
@@ -51,6 +52,11 @@ export default function Index({
     const [unitFilter, setUnitFilter] = useState(
         filters.unit_organisasi || "all"
     );
+    // ENHANCED: Tambah filter untuk unit dan sub unit
+    const [unitIdFilter, setUnitIdFilter] = useState(filters.unit_id || "all");
+    const [subUnitIdFilter, setSubUnitIdFilter] = useState(
+        filters.sub_unit_id || "all"
+    );
     const [genderFilter, setGenderFilter] = useState(
         filters.jenis_kelamin || "all"
     );
@@ -60,7 +66,7 @@ export default function Index({
     const [shoeSizeFilter, setShoeSizeFilter] = useState(
         filters.ukuran_sepatu || "all"
     );
-    // FITUR BARU: Filter kelompok jabatan
+    // Filter kelompok jabatan
     const [kelompokJabatanFilter, setKelompokJabatanFilter] = useState(
         filters.kelompok_jabatan || "all"
     );
@@ -71,6 +77,15 @@ export default function Index({
     const [loading, setLoading] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
 
+    // ENHANCED: State untuk cascading dropdown unit
+    const [availableUnits, setAvailableUnits] = useState([]);
+    const [availableSubUnits, setAvailableSubUnits] = useState([]);
+    const [loadingUnits, setLoadingUnits] = useState(false);
+    const [loadingSubUnits, setLoadingSubUnits] = useState(false);
+
+    // Unit organisasi yang tidak memiliki sub unit
+    const unitWithoutSubUnits = ["EGM", "GM"];
+
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
 
@@ -78,6 +93,83 @@ export default function Index({
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
     const [clickedEmployees, setClickedEmployees] = useState(new Set());
     const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
+
+    // ENHANCED: Fetch units berdasarkan unit organisasi
+    const fetchUnits = async (unitOrganisasi) => {
+        if (!unitOrganisasi || unitOrganisasi === "all") {
+            setAvailableUnits([]);
+            setAvailableSubUnits([]);
+            setUnitIdFilter("all");
+            setSubUnitIdFilter("all");
+            return;
+        }
+
+        setLoadingUnits(true);
+        try {
+            const response = await axios.get("/api/units", {
+                params: { unit_organisasi: unitOrganisasi },
+            });
+
+            if (response.data.success && response.data.data) {
+                setAvailableUnits(response.data.data);
+
+                // Reset unit dan sub unit filter saat unit organisasi berubah
+                setUnitIdFilter("all");
+                setSubUnitIdFilter("all");
+                setAvailableSubUnits([]);
+            } else {
+                setAvailableUnits([]);
+                console.warn("No units found for:", unitOrganisasi);
+            }
+        } catch (error) {
+            console.error("Error fetching units:", error);
+            setAvailableUnits([]);
+        } finally {
+            setLoadingUnits(false);
+        }
+    };
+
+    // ENHANCED: Fetch sub units berdasarkan unit
+    const fetchSubUnits = async (unitId) => {
+        if (!unitId || unitId === "all") {
+            setAvailableSubUnits([]);
+            setSubUnitIdFilter("all");
+            return;
+        }
+
+        setLoadingSubUnits(true);
+        try {
+            const response = await axios.get("/api/sub-units", {
+                params: { unit_id: unitId },
+            });
+
+            if (response.data.success && response.data.data) {
+                setAvailableSubUnits(response.data.data);
+                // Reset sub unit filter saat unit berubah
+                setSubUnitIdFilter("all");
+            } else {
+                setAvailableSubUnits([]);
+            }
+        } catch (error) {
+            console.error("Error fetching sub units:", error);
+            setAvailableSubUnits([]);
+        } finally {
+            setLoadingSubUnits(false);
+        }
+    };
+
+    // ENHANCED: Load initial units dan sub units berdasarkan filter yang sudah ada
+    useEffect(() => {
+        if (unitFilter && unitFilter !== "all") {
+            fetchUnits(unitFilter);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (unitIdFilter && unitIdFilter !== "all") {
+            fetchSubUnits(unitIdFilter);
+        }
+    }, []);
 
     // MODIFIED: Effect untuk handle karyawan baru dengan auto-hide 24 jam
     useEffect(() => {
@@ -278,7 +370,7 @@ export default function Index({
         );
     };
 
-    // Apply filters with backend pagination
+    // ENHANCED: Apply filters with backend pagination including new unit filters
     const applyFilters = (page = 1, newPerPage = perPage) => {
         setLoading(true);
         setIsNavigating(true);
@@ -296,10 +388,11 @@ export default function Index({
         // Add filters
         if (statusFilter !== "all") params.status_pegawai = statusFilter;
         if (unitFilter !== "all") params.unit_organisasi = unitFilter;
+        if (unitIdFilter !== "all") params.unit_id = unitIdFilter;
+        if (subUnitIdFilter !== "all") params.sub_unit_id = subUnitIdFilter;
         if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
         if (shoeTypeFilter !== "all") params.jenis_sepatu = shoeTypeFilter;
         if (shoeSizeFilter !== "all") params.ukuran_sepatu = shoeSizeFilter;
-        // FITUR BARU: Tambah filter kelompok jabatan
         if (kelompokJabatanFilter !== "all")
             params.kelompok_jabatan = kelompokJabatanFilter;
 
@@ -329,7 +422,7 @@ export default function Index({
         setSearchTimeout(timeout);
     };
 
-    // Handle filter changes
+    // ENHANCED: Handle filter changes with cascading logic
     const handleFilterChange = (filterType, value) => {
         switch (filterType) {
             case "status":
@@ -337,6 +430,21 @@ export default function Index({
                 break;
             case "unit":
                 setUnitFilter(value);
+                // Reset unit dan sub unit ketika unit organisasi berubah
+                setUnitIdFilter("all");
+                setSubUnitIdFilter("all");
+                // Fetch units baru
+                fetchUnits(value);
+                break;
+            case "unitId":
+                setUnitIdFilter(value);
+                // Reset sub unit ketika unit berubah
+                setSubUnitIdFilter("all");
+                // Fetch sub units baru
+                fetchSubUnits(value);
+                break;
+            case "subUnitId":
+                setSubUnitIdFilter(value);
                 break;
             case "gender":
                 setGenderFilter(value);
@@ -366,15 +474,21 @@ export default function Index({
         handleFilterChange(filterType, "all");
     };
 
-    // Clear all filters
+    // ENHANCED: Clear all filters including new unit filters
     const clearAllFilters = () => {
         setSearchQuery("");
         setStatusFilter("all");
         setUnitFilter("all");
+        setUnitIdFilter("all");
+        setSubUnitIdFilter("all");
         setGenderFilter("all");
         setShoeTypeFilter("all");
         setShoeSizeFilter("all");
         setKelompokJabatanFilter("all");
+
+        // Reset cascading data
+        setAvailableUnits([]);
+        setAvailableSubUnits([]);
 
         router.visit(route("employees.index"), {
             preserveState: true,
@@ -382,12 +496,14 @@ export default function Index({
         });
     };
 
-    // Check if any filters are active
+    // ENHANCED: Check if any filters are active including new unit filters
     const hasActiveFilters = () => {
         return (
             searchQuery.trim() ||
             statusFilter !== "all" ||
             unitFilter !== "all" ||
+            unitIdFilter !== "all" ||
+            subUnitIdFilter !== "all" ||
             genderFilter !== "all" ||
             shoeTypeFilter !== "all" ||
             shoeSizeFilter !== "all" ||
@@ -849,7 +965,7 @@ export default function Index({
                         </button>
                     </div>
 
-                    {/* UPDATED: Enhanced Advanced Filters dengan Kelompok Jabatan */}
+                    {/* ENHANCED: Advanced Filters dengan Cascading Unit Dropdown */}
                     <div
                         className={`overflow-hidden transition-all duration-500 ease-in-out ${
                             showFilters
@@ -865,8 +981,8 @@ export default function Index({
                             }`}
                         >
                             <div className="p-6 border-2 border-gray-200 shadow-inner bg-gradient-to-br from-gray-50 to-white rounded-2xl">
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-6">
-                                    {/* UPDATED: Status Pegawai Filter dengan TAD Split */}
+                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                                    {/* Status Pegawai Filter dengan TAD Split */}
                                     <div className="relative group">
                                         <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
                                             Status Pegawai
@@ -906,7 +1022,7 @@ export default function Index({
                                         </div>
                                     </div>
 
-                                    {/* FITUR BARU: Kelompok Jabatan Filter */}
+                                    {/* Kelompok Jabatan Filter */}
                                     <div className="relative group">
                                         <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
                                             Kelompok Jabatan
@@ -949,6 +1065,7 @@ export default function Index({
                                         </div>
                                     </div>
 
+                                    {/* ENHANCED: Unit Organisasi Filter */}
                                     <div className="relative group">
                                         <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
                                             Unit Organisasi
@@ -969,22 +1086,141 @@ export default function Index({
                                                 }}
                                             >
                                                 <option value="all">
-                                                    Semua Unit
+                                                    Semua Unit Organisasi
                                                 </option>
-                                                {(
-                                                    filterOptions.units || []
-                                                ).map((unit) => (
-                                                    <option
-                                                        key={unit}
-                                                        value={unit}
-                                                    >
-                                                        {unit}
-                                                    </option>
-                                                ))}
+                                                <option value="EGM">EGM</option>
+                                                <option value="GM">GM</option>
+                                                <option value="Airside">
+                                                    Airside
+                                                </option>
+                                                <option value="Landside">
+                                                    Landside
+                                                </option>
+                                                <option value="Back Office">
+                                                    Back Office
+                                                </option>
+                                                <option value="SSQC">
+                                                    SSQC
+                                                </option>
+                                                <option value="Ancillary">
+                                                    Ancillary
+                                                </option>
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
                                     </div>
+
+                                    {/* ENHANCED: Unit Filter - muncul saat unit organisasi dipilih */}
+                                    {unitFilter && unitFilter !== "all" && (
+                                        <div className="relative group">
+                                            <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
+                                                Unit
+                                            </label>
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-gradient-to-r from-[#439454]/5 to-[#367a41]/5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
+                                                <select
+                                                    value={unitIdFilter}
+                                                    onChange={(e) =>
+                                                        handleFilterChange(
+                                                            "unitId",
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        loadingUnits ||
+                                                        availableUnits.length ===
+                                                            0
+                                                    }
+                                                    className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                    style={{
+                                                        backgroundImage: "none",
+                                                    }}
+                                                >
+                                                    <option value="all">
+                                                        {loadingUnits
+                                                            ? "Loading..."
+                                                            : availableUnits.length >
+                                                              0
+                                                            ? "Semua Unit"
+                                                            : "Tidak ada unit"}
+                                                    </option>
+                                                    {availableUnits.map(
+                                                        (unit) => (
+                                                            <option
+                                                                key={unit.id}
+                                                                value={unit.id}
+                                                            >
+                                                                {unit.name}
+                                                            </option>
+                                                        )
+                                                    )}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ENHANCED: Sub Unit Filter - muncul saat unit dipilih dan tidak EGM/GM */}
+                                    {unitIdFilter &&
+                                        unitIdFilter !== "all" &&
+                                        unitFilter &&
+                                        !unitWithoutSubUnits.includes(
+                                            unitFilter
+                                        ) && (
+                                            <div className="relative group">
+                                                <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
+                                                    Sub Unit
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-[#439454]/5 to-[#367a41]/5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
+                                                    <select
+                                                        value={subUnitIdFilter}
+                                                        onChange={(e) =>
+                                                            handleFilterChange(
+                                                                "subUnitId",
+                                                                e.target.value
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            loadingSubUnits ||
+                                                            availableSubUnits.length ===
+                                                                0
+                                                        }
+                                                        className="relative w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 hover:shadow-md transition-all duration-300 bg-white font-medium appearance-none cursor-pointer transform hover:scale-[1.02] focus:scale-[1.02] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                        style={{
+                                                            backgroundImage:
+                                                                "none",
+                                                        }}
+                                                    >
+                                                        <option value="all">
+                                                            {loadingSubUnits
+                                                                ? "Loading..."
+                                                                : availableSubUnits.length >
+                                                                  0
+                                                                ? "Semua Sub Unit"
+                                                                : "Tidak ada sub unit"}
+                                                        </option>
+                                                        {availableSubUnits.map(
+                                                            (subUnit) => (
+                                                                <option
+                                                                    key={
+                                                                        subUnit.id
+                                                                    }
+                                                                    value={
+                                                                        subUnit.id
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        subUnit.name
+                                                                    }
+                                                                </option>
+                                                            )
+                                                        )}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
+                                                </div>
+                                            </div>
+                                        )}
 
                                     <div className="relative group">
                                         <label className="block mb-3 text-sm font-semibold text-gray-700 group-hover:text-[#439454] transition-colors duration-300">
@@ -1008,10 +1244,10 @@ export default function Index({
                                                 <option value="all">
                                                     Semua
                                                 </option>
-                                                <option value="Laki-laki">
+                                                <option value="L">
                                                     Laki-laki
                                                 </option>
-                                                <option value="Perempuan">
+                                                <option value="P">
                                                     Perempuan
                                                 </option>
                                             </select>
@@ -1041,17 +1277,12 @@ export default function Index({
                                                 <option value="all">
                                                     Semua Jenis
                                                 </option>
-                                                {(
-                                                    filterOptions.shoe_types ||
-                                                    []
-                                                ).map((type) => (
-                                                    <option
-                                                        key={type}
-                                                        value={type}
-                                                    >
-                                                        {type}
-                                                    </option>
-                                                ))}
+                                                <option value="Pantofel">
+                                                    Pantofel
+                                                </option>
+                                                <option value="Safety Shoes">
+                                                    Safety Shoes
+                                                </option>
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -1079,10 +1310,17 @@ export default function Index({
                                                 <option value="all">
                                                     Semua Ukuran
                                                 </option>
-                                                {(
-                                                    filterOptions.shoe_sizes ||
-                                                    []
-                                                ).map((size) => (
+                                                {[
+                                                    "36",
+                                                    "37",
+                                                    "38",
+                                                    "39",
+                                                    "40",
+                                                    "41",
+                                                    "42",
+                                                    "43",
+                                                    "44",
+                                                ].map((size) => (
                                                     <option
                                                         key={size}
                                                         value={size}
@@ -1112,7 +1350,7 @@ export default function Index({
                         </div>
                     </div>
 
-                    {/* UPDATED: Enhanced Active Filters Display dengan Kelompok Jabatan */}
+                    {/* ENHANCED: Active Filters Display dengan Unit dan Sub Unit */}
                     {hasActiveFilters() && (
                         <div className="mt-6 animate-fadeIn">
                             <div className="flex flex-wrap items-center gap-3">
@@ -1146,11 +1384,43 @@ export default function Index({
                                     </span>
                                 )}
                                 {unitFilter !== "all" && (
-                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-purple-800 transition-all duration-300 transform bg-purple-100 border border-purple-200 rounded-full group hover:bg-purple-200 hover:scale-105">
-                                        Unit: {unitFilter}
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-blue-800 transition-all duration-300 transform bg-blue-100 border border-blue-200 rounded-full group hover:bg-blue-200 hover:scale-105">
+                                        Unit Org: {unitFilter}
                                         <button
                                             onClick={() => removeFilter("unit")}
+                                            className="text-blue-600 transition-colors duration-300 hover:text-red-600"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                )}
+                                {unitIdFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-purple-800 transition-all duration-300 transform bg-purple-100 border border-purple-200 rounded-full group hover:bg-purple-200 hover:scale-105">
+                                        Unit:{" "}
+                                        {availableUnits.find(
+                                            (u) => u.id == unitIdFilter
+                                        )?.name || unitIdFilter}
+                                        <button
+                                            onClick={() =>
+                                                removeFilter("unitId")
+                                            }
                                             className="text-purple-600 transition-colors duration-300 hover:text-red-600"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                )}
+                                {subUnitIdFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-indigo-800 transition-all duration-300 transform bg-indigo-100 border border-indigo-200 rounded-full group hover:bg-indigo-200 hover:scale-105">
+                                        Sub Unit:{" "}
+                                        {availableSubUnits.find(
+                                            (s) => s.id == subUnitIdFilter
+                                        )?.name || subUnitIdFilter}
+                                        <button
+                                            onClick={() =>
+                                                removeFilter("subUnitId")
+                                            }
+                                            className="text-indigo-600 transition-colors duration-300 hover:text-red-600"
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
@@ -1158,7 +1428,10 @@ export default function Index({
                                 )}
                                 {genderFilter !== "all" && (
                                     <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-orange-800 transition-all duration-300 transform bg-orange-100 border border-orange-200 rounded-full group hover:bg-orange-200 hover:scale-105">
-                                        Gender: {genderFilter}
+                                        Gender:{" "}
+                                        {genderFilter === "L"
+                                            ? "Laki-laki"
+                                            : "Perempuan"}
                                         <button
                                             onClick={() =>
                                                 removeFilter("gender")
@@ -1170,26 +1443,26 @@ export default function Index({
                                     </span>
                                 )}
                                 {shoeTypeFilter !== "all" && (
-                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-blue-800 transition-all duration-300 transform bg-blue-100 border border-blue-200 rounded-full group hover:bg-blue-200 hover:scale-105">
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-yellow-800 transition-all duration-300 transform bg-yellow-100 border border-yellow-200 rounded-full group hover:bg-yellow-200 hover:scale-105">
                                         Sepatu: {shoeTypeFilter}
                                         <button
                                             onClick={() =>
                                                 removeFilter("shoeType")
                                             }
-                                            className="text-blue-600 transition-colors duration-300 hover:text-red-600"
+                                            className="text-yellow-600 transition-colors duration-300 hover:text-red-600"
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
                                     </span>
                                 )}
                                 {shoeSizeFilter !== "all" && (
-                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-indigo-800 transition-all duration-300 transform bg-indigo-100 border border-indigo-200 rounded-full group hover:bg-indigo-200 hover:scale-105">
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-gray-800 transition-all duration-300 transform bg-gray-100 border border-gray-200 rounded-full group hover:bg-gray-200 hover:scale-105">
                                         Ukuran: {shoeSizeFilter}
                                         <button
                                             onClick={() =>
                                                 removeFilter("shoeSize")
                                             }
-                                            className="text-indigo-600 transition-colors duration-300 hover:text-red-600"
+                                            className="text-gray-600 transition-colors duration-300 hover:text-red-600"
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
