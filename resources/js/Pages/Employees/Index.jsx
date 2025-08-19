@@ -172,65 +172,191 @@ export default function Index({
         },
     };
 
-    // ENHANCED: Update units berdasarkan unit organisasi yang dipilih
-    const updateUnits = (unitOrganisasi) => {
+    // FIXED: Enhanced updateUnits dengan kombinasi static data dan API validation
+    const updateUnitsWithAPI = async (unitOrganisasi) => {
         if (!unitOrganisasi || unitOrganisasi === "all") {
             setAvailableUnits([]);
             setAvailableSubUnits([]);
-            setUnitIdFilter("all");
-            setSubUnitIdFilter("all");
             return;
         }
 
-        const structure = organizationStructure[unitOrganisasi];
-        if (structure) {
-            setAvailableUnits(structure.units);
+        try {
+            console.log(`Updating units for: ${unitOrganisasi}`); // Debug log
+
+            // FIXED: Gunakan static data sebagai primary source
+            const structure = organizationStructure[unitOrganisasi];
+            if (structure) {
+                setAvailableUnits(structure.units);
+                setAvailableSubUnits([]);
+            }
+
+            // Optional: Validate dengan API jika tersedia
+            try {
+                const response = await axios.get("/api/units", {
+                    params: { unit_organisasi: unitOrganisasi },
+                });
+
+                if (response.data && response.data.length > 0) {
+                    // Cross-validate dengan static data
+                    const apiUnits = response.data.map(
+                        (unit) => unit.value || unit.name
+                    );
+                    const staticUnits = structure ? structure.units : [];
+
+                    // Gunakan intersection antara static dan API data
+                    const validatedUnits = staticUnits.filter(
+                        (unit) =>
+                            apiUnits.length === 0 || apiUnits.includes(unit)
+                    );
+
+                    if (validatedUnits.length > 0) {
+                        setAvailableUnits(validatedUnits);
+                        console.log(
+                            `API validated units: ${validatedUnits.join(", ")}`
+                        ); // Debug log
+                    }
+                }
+            } catch (apiError) {
+                console.log(
+                    "API validation failed, using static data:",
+                    apiError.message
+                );
+                // Tetap gunakan static data jika API gagal
+            }
+        } catch (error) {
+            console.error("Error updating units:", error);
+            setAvailableUnits([]);
             setAvailableSubUnits([]);
-            setUnitIdFilter("all");
-            setSubUnitIdFilter("all");
         }
     };
 
-    // ENHANCED: Update sub units berdasarkan unit yang dipilih
-    const updateSubUnits = (unit) => {
+    // FIXED: Enhanced updateSubUnits dengan kombinasi static data dan API validation
+    const updateSubUnitsWithAPI = async (unit) => {
         if (!unit || unit === "all" || !unitFilter || unitFilter === "all") {
             setAvailableSubUnits([]);
-            setSubUnitIdFilter("all");
             return;
         }
 
-        const structure = organizationStructure[unitFilter];
-        if (structure && structure.subUnits[unit]) {
-            setAvailableSubUnits(structure.subUnits[unit]);
-            setSubUnitIdFilter("all");
+        try {
+            console.log(
+                `Updating sub units for unit: ${unit} in ${unitFilter}`
+            ); // Debug log
+
+            // FIXED: Gunakan static data sebagai primary source
+            const structure = organizationStructure[unitFilter];
+            if (structure && structure.subUnits[unit]) {
+                setAvailableSubUnits(structure.subUnits[unit]);
+            }
+
+            // Optional: Validate dengan API jika tersedia
+            try {
+                const response = await axios.get("/api/sub-units", {
+                    params: { unit: unit },
+                });
+
+                if (response.data && response.data.length > 0) {
+                    // Cross-validate dengan static data
+                    const apiSubUnits = response.data.map(
+                        (subUnit) => subUnit.value || subUnit.name
+                    );
+                    const staticSubUnits =
+                        structure && structure.subUnits[unit]
+                            ? structure.subUnits[unit]
+                            : [];
+
+                    // Gunakan intersection antara static dan API data
+                    const validatedSubUnits = staticSubUnits.filter(
+                        (subUnit) =>
+                            apiSubUnits.length === 0 ||
+                            apiSubUnits.includes(subUnit)
+                    );
+
+                    if (validatedSubUnits.length > 0) {
+                        setAvailableSubUnits(validatedSubUnits);
+                        console.log(
+                            `API validated sub units: ${validatedSubUnits.join(
+                                ", "
+                            )}`
+                        ); // Debug log
+                    }
+                }
+            } catch (apiError) {
+                console.log(
+                    "SubUnit API validation failed, using static data:",
+                    apiError.message
+                );
+                // Tetap gunakan static data jika API gagal
+            }
+        } catch (error) {
+            console.error("Error updating sub units:", error);
+            setAvailableSubUnits([]);
         }
     };
 
-    // Load initial data untuk cascading dropdown jika ada filter yang sudah ada
+    // ENHANCED: Update units berdasarkan unit organisasi yang dipilih (legacy function untuk compatibility)
+    const updateUnits = (unitOrganisasi) => {
+        updateUnitsWithAPI(unitOrganisasi);
+    };
+
+    // ENHANCED: Update sub units berdasarkan unit yang dipilih (legacy function untuk compatibility)
+    const updateSubUnits = (unit) => {
+        updateSubUnitsWithAPI(unit);
+    };
+
+    // FIXED: Enhanced useEffect untuk initial load cascading dropdown
     useEffect(() => {
+        console.log("Unit filter changed:", unitFilter); // Debug log
+
         if (unitFilter && unitFilter !== "all") {
-            updateUnits(unitFilter);
+            updateUnitsWithAPI(unitFilter);
 
             // Jika ada unitIdFilter juga, load sub units
             if (unitIdFilter && unitIdFilter !== "all") {
-                const structure = organizationStructure[unitFilter];
-                if (structure && structure.subUnits[unitIdFilter]) {
-                    setAvailableSubUnits(structure.subUnits[unitIdFilter]);
-                }
+                setTimeout(() => {
+                    updateSubUnitsWithAPI(unitIdFilter);
+                }, 100);
             }
+        } else {
+            setAvailableUnits([]);
+            setAvailableSubUnits([]);
         }
     }, [unitFilter]);
 
     useEffect(() => {
+        console.log("Unit ID filter changed:", unitIdFilter); // Debug log
+
         if (
             unitIdFilter &&
             unitIdFilter !== "all" &&
             unitFilter &&
             unitFilter !== "all"
         ) {
-            updateSubUnits(unitIdFilter);
+            updateSubUnitsWithAPI(unitIdFilter);
+        } else {
+            setAvailableSubUnits([]);
         }
     }, [unitIdFilter]);
+
+    // FIXED: Debug useEffect untuk monitoring search state
+    useEffect(() => {
+        console.log("Current filter state:", {
+            search: searchQuery,
+            status: statusFilter,
+            unitOrganisasi: unitFilter,
+            unit: unitIdFilter,
+            subUnit: subUnitIdFilter,
+            availableUnits,
+            availableSubUnits,
+        });
+    }, [
+        searchQuery,
+        statusFilter,
+        unitFilter,
+        unitIdFilter,
+        subUnitIdFilter,
+        availableUnits,
+        availableSubUnits,
+    ]);
 
     // MODIFIED: Effect untuk handle karyawan baru dengan auto-hide 24 jam
     useEffect(() => {
@@ -431,7 +557,7 @@ export default function Index({
         );
     };
 
-    // ENHANCED: Apply filters with backend pagination including new unit filters
+    // FIXED: Enhanced applyFilters dengan parameter yang benar
     const applyFilters = (page = 1, newPerPage = perPage) => {
         setLoading(true);
         setIsNavigating(true);
@@ -446,16 +572,21 @@ export default function Index({
             params.search = searchQuery.trim();
         }
 
-        // Add filters
+        // FIXED: Add filters dengan nama parameter yang konsisten dengan backend
         if (statusFilter !== "all") params.status_pegawai = statusFilter;
         if (unitFilter !== "all") params.unit_organisasi = unitFilter;
+
+        // FIXED: Gunakan nama unit/sub unit bukan ID untuk konsistensi dengan static data
         if (unitIdFilter !== "all") params.unit_id = unitIdFilter;
         if (subUnitIdFilter !== "all") params.sub_unit_id = subUnitIdFilter;
+
         if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
         if (shoeTypeFilter !== "all") params.jenis_sepatu = shoeTypeFilter;
         if (shoeSizeFilter !== "all") params.ukuran_sepatu = shoeSizeFilter;
         if (kelompokJabatanFilter !== "all")
             params.kelompok_jabatan = kelompokJabatanFilter;
+
+        console.log("Applying filters:", params); // Debug log
 
         router.visit(route("employees.index"), {
             data: params,
@@ -465,44 +596,54 @@ export default function Index({
                 setLoading(false);
                 setTimeout(() => setIsNavigating(false), 300);
             },
+            onError: (errors) => {
+                console.error("Filter error:", errors);
+                setLoading(false);
+                setIsNavigating(false);
+            },
         });
     };
 
-    // Handle search with debounce
+    // FIXED: Enhanced search dengan debounce yang lebih robust
     const handleSearchChange = (value) => {
         setSearchQuery(value);
+
+        console.log(`Search query changed: "${value}"`); // Debug log
 
         if (searchTimeout) {
             clearTimeout(searchTimeout);
         }
 
         const timeout = setTimeout(() => {
+            console.log(`Executing search for: "${value}"`); // Debug log
             applyFilters(1); // Reset to page 1 on search
         }, 500);
 
         setSearchTimeout(timeout);
     };
 
-    // ENHANCED: Handle filter changes with static cascading logic
+    // FIXED: Enhanced handleFilterChange dengan validasi yang lebih baik
     const handleFilterChange = (filterType, value) => {
+        console.log(`Filter changed: ${filterType} = ${value}`); // Debug log
+
         switch (filterType) {
             case "status":
                 setStatusFilter(value);
                 break;
             case "unit":
                 setUnitFilter(value);
-                // Reset unit dan sub unit ketika unit organisasi berubah
+                // FIXED: Reset unit dan sub unit ketika unit organisasi berubah
                 setUnitIdFilter("all");
                 setSubUnitIdFilter("all");
-                // Update units dengan static data
-                updateUnits(value);
+                // FIXED: Update units dengan static data + API validation
+                updateUnitsWithAPI(value);
                 break;
             case "unitId":
                 setUnitIdFilter(value);
-                // Reset sub unit ketika unit berubah
+                // FIXED: Reset sub unit ketika unit berubah
                 setSubUnitIdFilter("all");
-                // Update sub units dengan static data
-                updateSubUnits(value);
+                // FIXED: Update sub units dengan static data + API validation
+                updateSubUnitsWithAPI(value);
                 break;
             case "subUnitId":
                 setSubUnitIdFilter(value);
@@ -519,9 +660,14 @@ export default function Index({
             case "kelompokJabatan":
                 setKelompokJabatanFilter(value);
                 break;
+            default:
+                console.warn(`Unknown filter type: ${filterType}`);
         }
 
-        applyFilters(1); // Reset to page 1 on filter change
+        // Apply filters after a short delay to allow state updates
+        setTimeout(() => {
+            applyFilters(1); // Reset to page 1 on filter change
+        }, 100);
     };
 
     // Handle per page change
@@ -535,8 +681,10 @@ export default function Index({
         handleFilterChange(filterType, "all");
     };
 
-    // ENHANCED: Clear all filters including new unit filters
+    // FIXED: Clear all filters dengan reset yang lebih lengkap
     const clearAllFilters = () => {
+        console.log("Clearing all filters"); // Debug log
+
         setSearchQuery("");
         setStatusFilter("all");
         setUnitFilter("all");
@@ -551,15 +699,23 @@ export default function Index({
         setAvailableUnits([]);
         setAvailableSubUnits([]);
 
+        // Clear search timeout
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+
         router.visit(route("employees.index"), {
             preserveState: true,
             preserveScroll: true,
+            onFinish: () => {
+                console.log("All filters cleared successfully"); // Debug log
+            },
         });
     };
 
-    // ENHANCED: Check if any filters are active including new unit filters
+    // FIXED: Enhanced hasActiveFilters check
     const hasActiveFilters = () => {
-        return (
+        const hasFilters =
             searchQuery.trim() ||
             statusFilter !== "all" ||
             unitFilter !== "all" ||
@@ -568,8 +724,10 @@ export default function Index({
             genderFilter !== "all" ||
             shoeTypeFilter !== "all" ||
             shoeSizeFilter !== "all" ||
-            kelompokJabatanFilter !== "all"
-        );
+            kelompokJabatanFilter !== "all";
+
+        console.log("Has active filters:", hasFilters); // Debug log
+        return hasFilters;
     };
 
     // Navigate to specific page

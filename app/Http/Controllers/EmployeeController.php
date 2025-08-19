@@ -43,7 +43,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * Get units berdasarkan unit organisasi - ENHANCED dengan better error handling
+     * FIXED: Get units berdasarkan unit organisasi untuk cascading dropdown
      */
     public function getUnits(Request $request)
     {
@@ -57,15 +57,7 @@ class EmployeeController extends Controller
             ]);
             
             if (!$unitOrganisasi) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unit organisasi parameter required',
-                    'data' => [],
-                    'debug_info' => [
-                        'available_unit_organisasi' => Unit::UNIT_ORGANISASI_OPTIONS ?? [],
-                        'example_usage' => '/api/units/by-organisasi?unit_organisasi=EGM'
-                    ]
-                ], 400);
+                return response()->json([]);
             }
 
             // Validate unit organisasi
@@ -74,37 +66,34 @@ class EmployeeController extends Controller
             ];
             
             if (!in_array($unitOrganisasi, $validUnitOrganisasi)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid unit organisasi',
-                    'data' => [],
-                    'debug_info' => [
-                        'provided' => $unitOrganisasi,
-                        'valid_options' => $validUnitOrganisasi
-                    ]
-                ], 400);
+                return response()->json([]);
             }
 
-            // Check total units in database
-            $totalUnits = Unit::count();
-            Log::info('Database check', [
-                'total_units_in_db' => $totalUnits,
-                'unit_organisasi_requested' => $unitOrganisasi
-            ]);
-
-            if ($totalUnits === 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No units found in database. Please run UnitSeeder first.',
-                    'data' => [],
-                    'debug_info' => [
-                        'seeder_command' => 'php artisan db:seed --class=UnitSeeder',
-                        'total_units_in_db' => 0
-                    ]
-                ], 404);
+            // Check if Unit model exists
+            if (!class_exists('App\Models\Unit')) {
+                // Fallback ke static data jika model tidak ada
+                $staticStructure = [
+                    'EGM' => ['EGM'],
+                    'GM' => ['GM'],
+                    'Airside' => ['MO', 'ME'],
+                    'Landside' => ['MF', 'MS'],
+                    'Back Office' => ['MU', 'MK'],
+                    'SSQC' => ['MQ'],
+                    'Ancillary' => ['MB'],
+                ];
+                
+                $units = $staticStructure[$unitOrganisasi] ?? [];
+                return response()->json(array_map(function($unit) {
+                    return [
+                        'value' => $unit,
+                        'label' => $unit,
+                        'id' => $unit,
+                        'code' => $unit,
+                    ];
+                }, $units));
             }
 
-            // Get units for the specified unit organisasi
+            // Get units from database
             $units = Unit::where('unit_organisasi', $unitOrganisasi)
                 ->where('is_active', true)
                 ->select('id', 'name', 'code', 'description', 'unit_organisasi')
@@ -117,41 +106,20 @@ class EmployeeController extends Controller
                 'units' => $units->pluck('name')->toArray()
             ]);
 
-            // Unit organisasi yang tidak memiliki sub unit
-            $unitWithoutSubUnits = ['EGM', 'GM'];
-            $requiresSubUnit = !in_array($unitOrganisasi, $unitWithoutSubUnits);
-
             if ($units->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "No units found for unit organisasi: {$unitOrganisasi}",
-                    'data' => [],
-                    'debug_info' => [
-                        'unit_organisasi' => $unitOrganisasi,
-                        'total_units_in_db' => $totalUnits,
-                        'available_unit_organisasi_in_db' => Unit::distinct('unit_organisasi')->pluck('unit_organisasi')->toArray(),
-                        'suggestion' => 'Check if UnitSeeder was run correctly or if unit_organisasi name matches exactly'
-                    ]
-                ], 404);
+                return response()->json([]);
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Units retrieved successfully',
-                'data' => $units,
-                'meta' => [
-                    'unit_organisasi' => $unitOrganisasi,
-                    'total_count' => $units->count(),
-                    'requires_sub_unit' => $requiresSubUnit,
-                    'filters_applied' => [
-                        'unit_organisasi' => $unitOrganisasi,
-                        'is_active' => true
-                    ],
-                    'note' => $requiresSubUnit 
-                        ? 'Unit organisasi ini memerlukan sub unit' 
-                        : 'Unit organisasi ini tidak memerlukan sub unit'
-                ]
-            ]);
+            $response = $units->map(function($unit) {
+                return [
+                    'value' => $unit->name,
+                    'label' => $unit->name . ' (' . $unit->code . ')',
+                    'id' => $unit->id,
+                    'code' => $unit->code,
+                ];
+            });
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             Log::error('Get Units API Error', [
@@ -160,164 +128,113 @@ class EmployeeController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error retrieving units',
-                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error',
-                'data' => []
-            ], 500);
+            return response()->json([]);
         }
     }
 
     /**
-     * Get sub units berdasarkan unit - ENHANCED untuk handle unit tanpa sub unit
+     * FIXED: Get sub units berdasarkan unit untuk cascading dropdown
      */
     public function getSubUnits(Request $request)
     {
         try {
-            $unitId = $request->get('unit_id');
+            $unit = $request->get('unit');
             
             Log::info('Get Sub Units API called', [
-                'unit_id' => $unitId,
+                'unit' => $unit,
                 'request_method' => $request->method(),
                 'all_params' => $request->all()
             ]);
             
-            if (!$unitId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unit ID required',
-                    'data' => [],
-                    'debug_info' => [
-                        'example_usage' => '/api/sub-units/by-unit?unit_id=1'
-                    ]
-                ], 400);
-            }
-
-            // Validate unit exists
-            $unit = Unit::find($unitId);
             if (!$unit) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unit not found',
-                    'data' => [],
-                    'debug_info' => [
-                        'unit_id_provided' => $unitId,
-                        'available_units' => Unit::select('id', 'name', 'unit_organisasi')->get()
-                    ]
-                ], 404);
+                return response()->json([]);
             }
 
             // Unit organisasi yang tidak memiliki sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
             
-            // Check if this unit organisasi should have sub units
-            if (in_array($unit->unit_organisasi, $unitWithoutSubUnits)) {
-                Log::info('Unit does not require sub units', [
-                    'unit_id' => $unitId,
-                    'unit_name' => $unit->name,
-                    'unit_organisasi' => $unit->unit_organisasi
-                ]);
+            // Check if Unit model exists
+            if (!class_exists('App\Models\Unit') || !class_exists('App\Models\SubUnit')) {
+                // Fallback ke static data
+                $staticStructure = [
+                    'MO' => ['Flops', 'Depco', 'Ramp', 'Load Control', 'Load Master', 'ULD Control', 'Cargo Import', 'Cargo Export'],
+                    'ME' => ['GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance', 'BTT Operator', 'Line Maintenance'],
+                    'MF' => ['KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways', 'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili', 'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines', 'Sichuan Airlines', 'Aeroflot', 'Charter Flight'],
+                    'MS' => ['MPGA', 'QG', 'IP'],
+                    'MU' => ['Human Resource & General Affair', 'Fasilitas & Sarana'],
+                    'MK' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
+                    'MQ' => ['Avsec', 'Safety Quality Control'],
+                    'MB' => ['GPL', 'GLC', 'Joumpa'],
+                ];
                 
-                return response()->json([
-                    'success' => true,
-                    'message' => "Unit {$unit->name} ({$unit->unit_organisasi}) tidak memiliki sub unit",
-                    'data' => [],
-                    'meta' => [
-                        'unit_info' => [
-                            'id' => $unit->id,
-                            'name' => $unit->name,
-                            'unit_organisasi' => $unit->unit_organisasi,
-                            'requires_sub_unit' => false
-                        ],
-                        'total_count' => 0,
-                        'note' => 'Unit organisasi ini tidak memerlukan sub unit'
-                    ]
-                ]);
+                $subUnits = $staticStructure[$unit] ?? [];
+                return response()->json(array_map(function($subUnit) {
+                    return [
+                        'value' => $subUnit,
+                        'label' => $subUnit,
+                        'id' => $subUnit,
+                        'code' => $subUnit,
+                    ];
+                }, $subUnits));
             }
 
-            // Get sub units for units that should have them
-            $subUnits = SubUnit::where('unit_id', $unitId)
+            // Cari unit berdasarkan nama
+            $unitRecord = Unit::where('name', $unit)->first();
+            if (!$unitRecord) {
+                return response()->json([]);
+            }
+
+            // Check if this unit organisasi should have sub units
+            if (in_array($unitRecord->unit_organisasi, $unitWithoutSubUnits)) {
+                return response()->json([]);
+            }
+
+            // Get sub units from database
+            $subUnits = SubUnit::where('unit_id', $unitRecord->id)
                 ->where('is_active', true)
                 ->select('id', 'name', 'code', 'description', 'unit_id')
                 ->orderBy('name')
                 ->get();
 
             Log::info('Sub units retrieved', [
-                'unit_id' => $unitId,
-                'unit_name' => $unit->name,
-                'unit_organisasi' => $unit->unit_organisasi,
+                'unit' => $unit,
+                'unit_id' => $unitRecord->id,
                 'sub_units_count' => $subUnits->count(),
                 'sub_units' => $subUnits->pluck('name')->toArray()
             ]);
 
-            // Check if unit should have sub units but none found
             if ($subUnits->isEmpty()) {
-                Log::warning('No sub units found for unit that should have them', [
-                    'unit_id' => $unitId,
-                    'unit_name' => $unit->name,
-                    'unit_organisasi' => $unit->unit_organisasi
-                ]);
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => "Tidak ada sub unit ditemukan untuk unit {$unit->name}",
-                    'data' => [],
-                    'meta' => [
-                        'unit_info' => [
-                            'id' => $unit->id,
-                            'name' => $unit->name,
-                            'unit_organisasi' => $unit->unit_organisasi,
-                            'requires_sub_unit' => true
-                        ],
-                        'total_count' => 0,
-                        'warning' => 'Unit ini seharusnya memiliki sub unit. Pastikan UnitSeeder sudah dijalankan dengan benar.'
-                    ]
-                ]);
+                return response()->json([]);
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sub units retrieved successfully',
-                'data' => $subUnits,
-                'meta' => [
-                    'unit_info' => [
-                        'id' => $unit->id,
-                        'name' => $unit->name,
-                        'unit_organisasi' => $unit->unit_organisasi,
-                        'requires_sub_unit' => true
-                    ],
-                    'total_count' => $subUnits->count(),
-                    'filters_applied' => [
-                        'unit_id' => $unitId,
-                        'is_active' => true
-                    ]
-                ]
-            ]);
+            $response = $subUnits->map(function($subUnit) {
+                return [
+                    'value' => $subUnit->name,
+                    'label' => $subUnit->name . ' (' . $subUnit->code . ')',
+                    'id' => $subUnit->id,
+                    'code' => $subUnit->code,
+                ];
+            });
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             Log::error('Get Sub Units API Error', [
-                'unit_id' => $request->get('unit_id'),
+                'unit' => $request->get('unit'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error retrieving sub units',
-                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error',
-                'data' => []
-            ], 500);
+            return response()->json([]);
         }
     }
 
     // =====================================================
-    // MAIN CRUD METHODS - FIXED FOR AUTO-INCREMENT ID
+    // MAIN CRUD METHODS - FIXED FOR ENHANCED SEARCH
     // =====================================================
 
     /**
-     * Display a listing of employees with enhanced search, filter, and pagination capabilities
-     * FIXED: Updated untuk auto-increment ID compatibility
+     * FIXED: Enhanced index method dengan search functionality yang diperbaiki
      */
     public function index(Request $request)
     {
@@ -336,13 +253,13 @@ class EmployeeController extends Controller
                 $query->with('subUnit');
             }
 
-            // Apply active scope - default to active employees
+            // Apply active scope
             $query->where('status', 'active');
 
-            // Build filter conditions
+            // Build filter conditions for statistics
             $filterConditions = [];
             
-            // Apply search filters
+            // FIXED: Enhanced search dengan unit/sub unit search yang lebih akurat
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
@@ -355,73 +272,105 @@ class EmployeeController extends Controller
                       ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                       ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                       ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
-                      ->orWhereHas('unit', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      })
-                      ->orWhereHas('subUnit', function ($q) use ($searchTerm) {
-                          $q->where('name', 'like', "%{$searchTerm}%");
-                      });
+                      ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
+                      ->orWhere('alamat', 'like', "%{$searchTerm}%")
+                      ->orWhere('handphone', 'like', "%{$searchTerm}%")
+                      ->orWhere('email', 'like', "%{$searchTerm}%")
+                      ->orWhere('instansi_pendidikan', 'like', "%{$searchTerm}%");
+                      
+                    // FIXED: Search dalam unit dan sub unit relationships dengan error handling
+                    try {
+                        $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
+                            $unitQuery->where('name', 'like', "%{$searchTerm}%")
+                                     ->orWhere('code', 'like', "%{$searchTerm}%");
+                        });
+                        
+                        $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
+                            $subUnitQuery->where('name', 'like', "%{$searchTerm}%")
+                                        ->orWhere('code', 'like', "%{$searchTerm}%");
+                        });
+                    } catch (\Exception $e) {
+                        // Skip relationship search if models don't exist
+                        Log::warning('Unit/SubUnit relationship search skipped: ' . $e->getMessage());
+                    }
                 });
                 $filterConditions['search'] = $searchTerm;
             }
 
-            // Filter by status pegawai
+            // FIXED: Individual filters dengan validation yang lebih baik
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
                 $filterConditions['status_pegawai'] = $request->status_pegawai;
             }
 
-            // Filter by kelompok jabatan
             if ($request->filled('kelompok_jabatan') && $request->kelompok_jabatan !== 'all') {
                 $query->where('kelompok_jabatan', $request->kelompok_jabatan);
                 $filterConditions['kelompok_jabatan'] = $request->kelompok_jabatan;
             }
 
-            // Filter by unit organisasi
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
                 $query->where('unit_organisasi', $request->unit_organisasi);
                 $filterConditions['unit_organisasi'] = $request->unit_organisasi;
             }
 
-            // Filter by unit
+            // FIXED: Unit filter berdasarkan unit name atau ID
             if ($request->filled('unit_id') && $request->unit_id !== 'all') {
-                $query->where('unit_id', $request->unit_id);
+                // Cek apakah unit_id adalah ID numeric atau nama unit
+                if (is_numeric($request->unit_id)) {
+                    $query->where('unit_id', $request->unit_id);
+                } else {
+                    // Jika bukan numeric, cari berdasarkan nama unit dalam relationship
+                    try {
+                        $query->whereHas('unit', function ($unitQuery) use ($request) {
+                            $unitQuery->where('name', $request->unit_id)
+                                     ->orWhere('code', $request->unit_id);
+                        });
+                    } catch (\Exception $e) {
+                        // Fallback: skip unit filter jika relationship tidak ada
+                        Log::warning('Unit filter skipped: ' . $e->getMessage());
+                    }
+                }
                 $filterConditions['unit_id'] = $request->unit_id;
             }
 
-            // Filter by sub unit
+            // FIXED: Sub unit filter berdasarkan sub unit name atau ID
             if ($request->filled('sub_unit_id') && $request->sub_unit_id !== 'all') {
-                $query->where('sub_unit_id', $request->sub_unit_id);
+                if (is_numeric($request->sub_unit_id)) {
+                    $query->where('sub_unit_id', $request->sub_unit_id);
+                } else {
+                    // Jika bukan numeric, cari berdasarkan nama sub unit dalam relationship
+                    try {
+                        $query->whereHas('subUnit', function ($subUnitQuery) use ($request) {
+                            $subUnitQuery->where('name', $request->sub_unit_id)
+                                        ->orWhere('code', $request->sub_unit_id);
+                        });
+                    } catch (\Exception $e) {
+                        // Fallback: skip sub unit filter jika relationship tidak ada
+                        Log::warning('SubUnit filter skipped: ' . $e->getMessage());
+                    }
+                }
                 $filterConditions['sub_unit_id'] = $request->sub_unit_id;
             }
 
-            // Filter by gender
             if ($request->filled('jenis_kelamin') && $request->jenis_kelamin !== 'all') {
                 $query->where('jenis_kelamin', $request->jenis_kelamin);
                 $filterConditions['jenis_kelamin'] = $request->jenis_kelamin;
             }
 
-            // Filter by jenis sepatu
             if ($request->filled('jenis_sepatu') && $request->jenis_sepatu !== 'all') {
                 $query->where('jenis_sepatu', $request->jenis_sepatu);
                 $filterConditions['jenis_sepatu'] = $request->jenis_sepatu;
             }
 
-            // Filter by ukuran sepatu
             if ($request->filled('ukuran_sepatu') && $request->ukuran_sepatu !== 'all') {
                 $query->where('ukuran_sepatu', $request->ukuran_sepatu);
                 $filterConditions['ukuran_sepatu'] = $request->ukuran_sepatu;
             }
 
-            // Set per page count
+            // FIXED: Pagination dengan per_page validation
             $perPage = $request->get('per_page', 20);
+            $perPage = in_array($perPage, [10, 20, 50, 100]) ? $perPage : 20;
             
-            // Validate per_page parameter
-            if (!in_array($perPage, [10, 20, 50, 100])) {
-                $perPage = 20;
-            }
-
-            // Order by created_at desc to show newest first
             $employees = $query->orderBy('created_at', 'desc')
                              ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
@@ -433,7 +382,7 @@ class EmployeeController extends Controller
             // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
 
-            // Get filter options for dropdowns
+            // FIXED: Get filter options dari database yang sebenarnya
             $filterOptions = $this->getFilterOptions();
 
             // Get new employees data for notifications
@@ -794,15 +743,14 @@ class EmployeeController extends Controller
             DB::beginTransaction();
             
             try {
-                // Create employee - FIXED: menggunakan auto-increment ID
+                // Create employee
                 $employee = Employee::create($employeeData);
                 
                 // Commit transaction
                 DB::commit();
 
-                // FIXED: Log menggunakan ID dan NIK
                 Log::info('Employee Created Successfully', [
-                    'employee_id' => $employee->id, // FIXED: Use auto-increment ID
+                    'employee_id' => $employee->id,
                     'employee_nik' => $employee->nik,
                     'nik' => $employee->nik,
                     'nip' => $employee->nip,
@@ -819,7 +767,7 @@ class EmployeeController extends Controller
                         'title' => 'Berhasil!',
                         'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
                         'newEmployee' => [
-                            'id' => $employee->id, // FIXED: Use auto-increment ID
+                            'id' => $employee->id,
                             'nik' => $employee->nik,
                             'nip' => $employee->nip,
                             'nama_lengkap' => $employee->nama_lengkap,
@@ -1011,14 +959,14 @@ class EmployeeController extends Controller
                     'string',
                     'size:16',
                     'regex:/^[0-9]+$/',
-                    Rule::unique('employees', 'nik')->ignore($employee->id, 'id') // FIXED: ignore based on ID
+                    Rule::unique('employees', 'nik')->ignore($employee->id, 'id')
                 ],
                 'nip' => [
                     'required',
                     'string',
                     'min:5',
                     'regex:/^[0-9]+$/',
-                    Rule::unique('employees', 'nip')->ignore($employee->id, 'id') // FIXED: ignore based on ID
+                    Rule::unique('employees', 'nip')->ignore($employee->id, 'id')
                 ],
                 'nama_lengkap' => 'required|string|min:2|max:200',
                 'jenis_kelamin' => [
@@ -1079,7 +1027,7 @@ class EmployeeController extends Controller
                     'nullable',
                     'email',
                     'max:255',
-                    Rule::unique('employees', 'email')->ignore($employee->id, 'id') // FIXED: ignore based on ID
+                    Rule::unique('employees', 'email')->ignore($employee->id, 'id')
                 ],
                 
                 // Education fields
@@ -1132,7 +1080,7 @@ class EmployeeController extends Controller
                 DB::commit();
 
                 Log::info('Employee Updated Successfully', [
-                    'employee_id' => $employee->id, // FIXED: Use ID
+                    'employee_id' => $employee->id,
                     'employee_nik' => $employee->nik,
                     'updated_fields' => array_keys($updateData)
                 ]);
@@ -1197,7 +1145,7 @@ class EmployeeController extends Controller
                 DB::commit();
 
                 Log::info('Employee Deleted Successfully', [
-                    'employee_id' => $employee->id, // FIXED: Use ID
+                    'employee_id' => $employee->id,
                     'employee_nik' => $employeeNik,
                     'employee_name' => $employeeName
                 ]);
@@ -1231,6 +1179,117 @@ class EmployeeController extends Controller
 
             return redirect()->back()
                 ->with('error', 'Terjadi kesalahan saat menghapus data. Silakan coba lagi.');
+        }
+    }
+
+    /**
+     * FIXED: Enhanced filter options dengan data dari database
+     */
+    public function getFilterOptions()
+    {
+        try {
+            return [
+                'status_pegawai' => Employee::select('status_pegawai')
+                    ->whereNotNull('status_pegawai')
+                    ->distinct()
+                    ->orderBy('status_pegawai')
+                    ->pluck('status_pegawai')
+                    ->toArray(),
+
+                'unit_organisasi' => Employee::select('unit_organisasi')
+                    ->whereNotNull('unit_organisasi')
+                    ->distinct()
+                    ->orderBy('unit_organisasi')
+                    ->pluck('unit_organisasi')
+                    ->toArray(),
+
+                'kelompok_jabatan' => Employee::select('kelompok_jabatan')
+                    ->whereNotNull('kelompok_jabatan')
+                    ->distinct()
+                    ->orderBy('kelompok_jabatan')
+                    ->pluck('kelompok_jabatan')
+                    ->toArray(),
+
+                'jenis_kelamin' => ['L', 'P'],
+                'jenis_sepatu' => ['Pantofel', 'Safety Shoes'],
+                'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
+
+                // FIXED: Unit dan sub unit options dari database
+                'units' => $this->getUnitsForFilter(),
+                'sub_units' => $this->getSubUnitsForFilter(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status_pegawai' => [],
+                'unit_organisasi' => ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'],
+                'kelompok_jabatan' => [],
+                'jenis_kelamin' => ['L', 'P'],
+                'jenis_sepatu' => ['Pantofel', 'Safety Shoes'],
+                'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
+                'units' => [],
+                'sub_units' => [],
+            ];
+        }
+    }
+
+    /**
+     * FIXED: Get units dari database untuk filter
+     */
+    public function getUnitsForFilter()
+    {
+        try {
+            if (!class_exists('App\Models\Unit')) {
+                return [];
+            }
+
+            return Unit::select('id', 'name', 'code', 'unit_organisasi')
+                      ->where('is_active', true)
+                      ->orderBy('unit_organisasi')
+                      ->orderBy('name')
+                      ->get()
+                      ->map(function($unit) {
+                          return [
+                              'id' => $unit->id,
+                              'name' => $unit->name,
+                              'code' => $unit->code,
+                              'unit_organisasi' => $unit->unit_organisasi,
+                              'label' => $unit->name . ' (' . $unit->code . ')',
+                          ];
+                      })
+                      ->toArray();
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * FIXED: Get sub units dari database untuk filter
+     */
+    public function getSubUnitsForFilter()
+    {
+        try {
+            if (!class_exists('App\Models\SubUnit')) {
+                return [];
+            }
+
+            return SubUnit::with('unit')
+                          ->where('is_active', true)
+                          ->orderBy('name')
+                          ->get()
+                          ->map(function($subUnit) {
+                              return [
+                                  'id' => $subUnit->id,
+                                  'name' => $subUnit->name,
+                                  'code' => $subUnit->code,
+                                  'unit_id' => $subUnit->unit_id,
+                                  'unit_name' => $subUnit->unit ? $subUnit->unit->name : '',
+                                  'unit_organisasi' => $subUnit->unit ? $subUnit->unit->unit_organisasi : '',
+                                  'label' => $subUnit->name . ' (' . $subUnit->code . ')',
+                              ];
+                          })
+                          ->toArray();
+        } catch (\Exception $e) {
+            return [];
         }
     }
 
@@ -1308,6 +1367,7 @@ class EmployeeController extends Controller
                 // Apply filters to calculate statistics
                 $query = Employee::where('status', 'active');
                 
+                // FIXED: Apply filters menggunakan enhanced search logic
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
@@ -1320,45 +1380,35 @@ class EmployeeController extends Controller
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
-                          ->orWhereHas('unit', function ($q) use ($searchTerm) {
-                              $q->where('name', 'like', "%{$searchTerm}%");
-                          })
-                          ->orWhereHas('subUnit', function ($q) use ($searchTerm) {
-                              $q->where('name', 'like', "%{$searchTerm}%");
-                          });
+                          ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
+                          ->orWhere('handphone', 'like', "%{$searchTerm}%")
+                          ->orWhere('email', 'like', "%{$searchTerm}%")
+                          ->orWhere('instansi_pendidikan', 'like', "%{$searchTerm}%");
+                          
+                        // Try relationship search with error handling
+                        try {
+                            $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
+                                $unitQuery->where('name', 'like', "%{$searchTerm}%")
+                                         ->orWhere('code', 'like', "%{$searchTerm}%");
+                            });
+                            
+                            $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
+                                $subUnitQuery->where('name', 'like', "%{$searchTerm}%")
+                                            ->orWhere('code', 'like', "%{$searchTerm}%");
+                            });
+                        } catch (\Exception $e) {
+                            // Skip relationship search if models don't exist
+                            Log::warning('Statistics relationship search skipped: ' . $e->getMessage());
+                        }
                     });
                 }
 
-                if (isset($filterConditions['status_pegawai'])) {
-                    $query->where('status_pegawai', $filterConditions['status_pegawai']);
-                }
-
-                if (isset($filterConditions['kelompok_jabatan'])) {
-                    $query->where('kelompok_jabatan', $filterConditions['kelompok_jabatan']);
-                }
-
-                if (isset($filterConditions['unit_organisasi'])) {
-                    $query->where('unit_organisasi', $filterConditions['unit_organisasi']);
-                }
-
-                if (isset($filterConditions['unit_id'])) {
-                    $query->where('unit_id', $filterConditions['unit_id']);
-                }
-
-                if (isset($filterConditions['sub_unit_id'])) {
-                    $query->where('sub_unit_id', $filterConditions['sub_unit_id']);
-                }
-
-                if (isset($filterConditions['jenis_kelamin'])) {
-                    $query->where('jenis_kelamin', $filterConditions['jenis_kelamin']);
-                }
-
-                if (isset($filterConditions['jenis_sepatu'])) {
-                    $query->where('jenis_sepatu', $filterConditions['jenis_sepatu']);
-                }
-
-                if (isset($filterConditions['ukuran_sepatu'])) {
-                    $query->where('ukuran_sepatu', $filterConditions['ukuran_sepatu']);
+                // Apply other filters
+                foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'] as $filterKey) {
+                    if (isset($filterConditions[$filterKey])) {
+                        $query->where($filterKey, $filterConditions[$filterKey]);
+                    }
                 }
 
                 $total = $query->count();
@@ -1395,27 +1445,6 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             Log::error('Enhanced Statistics Error: ' . $e->getMessage());
             return $this->getDefaultStatistics();
-        }
-    }
-
-    /**
-     * Get filter options with safe null handling
-     */
-    private function getFilterOptions()
-    {
-        try {
-            return [
-                'units' => $this->getUnitOptions(),
-                'positions' => $this->getJabatanOptions(),
-                'shoe_types' => ['Pantofel', 'Safety Shoes'],
-                'shoe_sizes' => $this->getShoeSizeOptions(),
-                'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS,
-                'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
-                'genders' => ['L', 'P'],
-            ];
-        } catch (\Exception $e) {
-            Log::error('Filter Options Error: ' . $e->getMessage());
-            return $this->getDefaultFilterOptions();
         }
     }
 
