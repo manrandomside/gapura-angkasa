@@ -24,7 +24,7 @@ import {
     AlertTriangle,
 } from "lucide-react";
 
-// Enhanced InputField component
+// Enhanced InputField component with fixed styling
 const InputField = ({
     name,
     label,
@@ -70,7 +70,7 @@ const InputField = ({
 
     const getInputClasses = () => {
         let baseClasses =
-            "w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20";
+            "w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:outline-none";
 
         if (readonly) {
             return `${baseClasses} bg-gray-100 border-gray-300 cursor-not-allowed text-gray-600`;
@@ -81,14 +81,14 @@ const InputField = ({
         }
 
         if (error) {
-            return `${baseClasses} border-red-300 bg-red-50`;
+            return `${baseClasses} border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100`;
         }
 
         if (focused) {
-            return `${baseClasses} border-[#439454] bg-white shadow-lg`;
+            return `${baseClasses} border-[#439454] bg-white shadow-md focus:border-[#439454] focus:ring-2 focus:ring-[#439454]/20`;
         }
 
-        return `${baseClasses} border-gray-300 bg-white hover:border-[#439454]/60`;
+        return `${baseClasses} border-gray-300 bg-white hover:border-[#439454]/60 focus:border-[#439454] focus:ring-2 focus:ring-[#439454]/20`;
     };
 
     const renderInput = () => {
@@ -255,6 +255,20 @@ const FormNotification = ({ type, title, message, onClose }) => {
     );
 };
 
+// FIXED: Helper function to properly convert jenis_kelamin
+const convertJenisKelaminToDisplay = (jenisKelamin) => {
+    if (!jenisKelamin) return "";
+
+    // Handle both database formats
+    if (jenisKelamin === "L" || jenisKelamin === "Laki-laki") {
+        return "Laki-laki";
+    } else if (jenisKelamin === "P" || jenisKelamin === "Perempuan") {
+        return "Perempuan";
+    }
+
+    return jenisKelamin; // fallback
+};
+
 export default function Edit({
     employee,
     organizations = [],
@@ -268,51 +282,61 @@ export default function Edit({
     error = null,
     message = null,
 }) {
-    const { data, setData, put, processing, errors, clearErrors } = useForm({
-        // Data Pribadi
-        nik: employee?.nik || "",
-        nip: employee?.nip || "",
-        nama_lengkap: employee?.nama_lengkap || "",
-        jenis_kelamin:
-            employee?.jenis_kelamin === "L"
-                ? "Laki-laki"
-                : employee?.jenis_kelamin === "P"
-                ? "Perempuan"
-                : "",
-        tempat_lahir: employee?.tempat_lahir || "",
-        tanggal_lahir: employee?.tanggal_lahir || "",
-        kota_domisili: employee?.kota_domisili || "",
-        alamat_lengkap: employee?.alamat_lengkap || "",
-        handphone: employee?.handphone || "",
-        email: employee?.email || "",
-        no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
-        no_bpjs_ketenagakerjaan: employee?.no_bpjs_ketenagakerjaan || "",
+    // FIXED: Improved jenis_kelamin conversion with better logging
+    const initializeFormData = () => {
+        console.log("Raw employee data:", employee);
+        console.log("Employee jenis_kelamin:", employee?.jenis_kelamin);
 
-        // Data Pekerjaan & Struktur Organisasi - FIXED: Preserve existing data
-        unit_organisasi: employee?.unit_organisasi || "",
-        unit_id: employee?.unit_id?.toString() || "", // Convert to string for select compatibility
-        sub_unit_id: employee?.sub_unit_id?.toString() || "", // Convert to string for select compatibility
-        nama_jabatan: employee?.nama_jabatan || "",
-        jabatan: employee?.jabatan || "",
-        kelompok_jabatan: employee?.kelompok_jabatan || "",
-        status_pegawai: employee?.status_pegawai || "",
-        tmt_mulai_kerja: employee?.tmt_mulai_kerja || "",
-        tmt_mulai_jabatan: employee?.tmt_mulai_jabatan || "",
-        tmt_pensiun: employee?.tmt_pensiun || "",
+        const convertedJenisKelamin = convertJenisKelaminToDisplay(
+            employee?.jenis_kelamin
+        );
+        console.log("Converted jenis_kelamin:", convertedJenisKelamin);
 
-        // Data Pendidikan
-        pendidikan_terakhir: employee?.pendidikan_terakhir || "",
-        instansi_pendidikan: employee?.instansi_pendidikan || "",
-        jurusan: employee?.jurusan || "",
-        tahun_lulus: employee?.tahun_lulus || "",
+        return {
+            // Data Pribadi
+            nik: employee?.nik || "",
+            nip: employee?.nip || "",
+            nama_lengkap: employee?.nama_lengkap || "",
+            jenis_kelamin: convertedJenisKelamin,
+            tempat_lahir: employee?.tempat_lahir || "",
+            tanggal_lahir: employee?.tanggal_lahir || "",
+            kota_domisili: employee?.kota_domisili || "",
+            alamat_lengkap: employee?.alamat_lengkap || "",
+            handphone: employee?.handphone || "",
+            email: employee?.email || "",
+            no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
+            no_bpjs_ketenagakerjaan: employee?.no_bpjs_ketenagakerjaan || "",
 
-        // Data Tambahan
-        seragam: employee?.seragam || "",
-        jenis_sepatu: employee?.jenis_sepatu || "",
-        ukuran_sepatu: employee?.ukuran_sepatu || "",
-        height: employee?.height || "",
-        weight: employee?.weight || "",
-    });
+            // Data Pekerjaan & Struktur Organisasi - FIXED: Preserve existing data
+            unit_organisasi: employee?.unit_organisasi || "",
+            unit_id: employee?.unit_id?.toString() || "", // Convert to string for select compatibility
+            sub_unit_id: employee?.sub_unit_id?.toString() || "", // Convert to string for select compatibility
+            nama_jabatan: employee?.nama_jabatan || "",
+            jabatan: employee?.jabatan || "",
+            kelompok_jabatan: employee?.kelompok_jabatan || "",
+            status_pegawai: employee?.status_pegawai || "",
+            tmt_mulai_kerja: employee?.tmt_mulai_kerja || "",
+            tmt_mulai_jabatan: employee?.tmt_mulai_jabatan || "",
+            tmt_pensiun: employee?.tmt_pensiun || "",
+
+            // Data Pendidikan
+            pendidikan_terakhir: employee?.pendidikan_terakhir || "",
+            instansi_pendidikan: employee?.instansi_pendidikan || "",
+            jurusan: employee?.jurusan || "",
+            tahun_lulus: employee?.tahun_lulus || "",
+
+            // Data Tambahan
+            seragam: employee?.seragam || "",
+            jenis_sepatu: employee?.jenis_sepatu || "",
+            ukuran_sepatu: employee?.ukuran_sepatu || "",
+            height: employee?.height || "",
+            weight: employee?.weight || "",
+        };
+    };
+
+    const { data, setData, put, processing, errors, clearErrors } = useForm(
+        initializeFormData()
+    );
 
     const [activeSection, setActiveSection] = useState("personal");
     const [formValidation, setFormValidation] = useState({});
@@ -326,131 +350,19 @@ export default function Edit({
     const [loadingUnits, setLoadingUnits] = useState(false);
     const [loadingSubUnits, setLoadingSubUnits] = useState(false);
 
-    // FIXED: Static unit organisasi options
+    // FIXED: Use database-based unit organisasi options
     const unitOrganisasiOptionsStatic = [
-        "EXECUTIVE GENERAL MANAGER",
-        "GENERAL MANAGER",
+        "EGM",
+        "GM",
         "Airside",
-        "Lanside",
+        "Landside",
         "Back Office",
         "SSQC",
         "Ancillary",
     ];
 
     // Units without sub units
-    const unitWithoutSubUnits = [
-        "EXECUTIVE GENERAL MANAGER",
-        "GENERAL MANAGER",
-    ];
-
-    // FIXED: Static mapping untuk units berdasarkan unit organisasi
-    const unitMapping = {
-        "EXECUTIVE GENERAL MANAGER": [
-            {
-                id: "EGM",
-                name: "EGM",
-                unit_organisasi: "EXECUTIVE GENERAL MANAGER",
-            },
-        ],
-        "GENERAL MANAGER": [
-            { id: "GM", name: "GM", unit_organisasi: "GENERAL MANAGER" },
-        ],
-        Airside: [
-            { id: "MO", name: "MO", unit_organisasi: "Airside" },
-            { id: "ME", name: "ME", unit_organisasi: "Airside" },
-        ],
-        Lanside: [
-            { id: "MF", name: "MF", unit_organisasi: "Lanside" },
-            { id: "MS", name: "MS", unit_organisasi: "Lanside" },
-        ],
-        "Back Office": [
-            { id: "MU", name: "MU", unit_organisasi: "Back Office" },
-            { id: "MK", name: "MK", unit_organisasi: "Back Office" },
-        ],
-        SSQC: [{ id: "MQ", name: "MQ", unit_organisasi: "SSQC" }],
-        Ancillary: [{ id: "MB", name: "MB", unit_organisasi: "Ancillary" }],
-    };
-
-    // FIXED: Static mapping untuk sub units berdasarkan unit
-    const subUnitMapping = {
-        MO: [
-            { id: "Flops", name: "Flops", unit_id: "MO" },
-            { id: "Depco", name: "Depco", unit_id: "MO" },
-            { id: "Ramp", name: "Ramp", unit_id: "MO" },
-            { id: "Load Control", name: "Load Control", unit_id: "MO" },
-            { id: "Load Master", name: "Load Master", unit_id: "MO" },
-            { id: "ULD Control", name: "ULD Control", unit_id: "MO" },
-            { id: "Cargo Import", name: "Cargo Import", unit_id: "MO" },
-            { id: "Cargo Export", name: "Cargo Export", unit_id: "MO" },
-        ],
-        ME: [
-            { id: "GSE Operator P/B", name: "GSE Operator P/B", unit_id: "ME" },
-            { id: "GSE Operator A/C", name: "GSE Operator A/C", unit_id: "ME" },
-            { id: "GSE Maintenance", name: "GSE Maintenance", unit_id: "ME" },
-            { id: "BTT Operator", name: "BTT Operator", unit_id: "ME" },
-            { id: "Line Maintenance", name: "Line Maintenance", unit_id: "ME" },
-        ],
-        MF: [
-            { id: "KLM", name: "KLM", unit_id: "MF" },
-            { id: "Qatar", name: "Qatar", unit_id: "MF" },
-            { id: "Korean Air", name: "Korean Air", unit_id: "MF" },
-            { id: "Vietjet Air", name: "Vietjet Air", unit_id: "MF" },
-            { id: "Scoot", name: "Scoot", unit_id: "MF" },
-            { id: "Thai Airways", name: "Thai Airways", unit_id: "MF" },
-            { id: "China Airlines", name: "China Airlines", unit_id: "MF" },
-            { id: "China Southern", name: "China Southern", unit_id: "MF" },
-            { id: "Indigo", name: "Indigo", unit_id: "MF" },
-            { id: "Xiamen Air", name: "Xiamen Air", unit_id: "MF" },
-            { id: "Aero Dili", name: "Aero Dili", unit_id: "MF" },
-            { id: "Jeju Air", name: "Jeju Air", unit_id: "MF" },
-            {
-                id: "Hongkong Airlines",
-                name: "Hongkong Airlines",
-                unit_id: "MF",
-            },
-            { id: "Air Busan", name: "Air Busan", unit_id: "MF" },
-            { id: "Vietnam Airlines", name: "Vietnam Airlines", unit_id: "MF" },
-            { id: "Sichuan Airlines", name: "Sichuan Airlines", unit_id: "MF" },
-            { id: "Aeroflot", name: "Aeroflot", unit_id: "MF" },
-            { id: "Charter Flight", name: "Charter Flight", unit_id: "MF" },
-        ],
-        MS: [
-            { id: "MPGA", name: "MPGA", unit_id: "MS" },
-            { id: "QG", name: "QG", unit_id: "MS" },
-            { id: "IP", name: "IP", unit_id: "MS" },
-        ],
-        MU: [
-            {
-                id: "Human Resources & General Affair",
-                name: "Human Resources & General Affair",
-                unit_id: "MU",
-            },
-            {
-                id: "Fasilitas & Sarana",
-                name: "Fasilitas & Sarana",
-                unit_id: "MU",
-            },
-        ],
-        MK: [
-            { id: "Accounting", name: "Accounting", unit_id: "MK" },
-            { id: "Budgeting", name: "Budgeting", unit_id: "MK" },
-            { id: "Treassury", name: "Treassury", unit_id: "MK" },
-            { id: "Tax", name: "Tax", unit_id: "MK" },
-        ],
-        MQ: [
-            { id: "Avsec", name: "Avsec", unit_id: "MQ" },
-            {
-                id: "Safety Quality Control",
-                name: "Safety Quality Control",
-                unit_id: "MQ",
-            },
-        ],
-        MB: [
-            { id: "GPL", name: "GPL", unit_id: "MB" },
-            { id: "GLC", name: "GLC", unit_id: "MB" },
-            { id: "Joumpa", name: "Joumpa", unit_id: "MB" },
-        ],
-    };
+    const unitWithoutSubUnits = ["EGM", "GM"];
 
     // Show notification dari session
     useEffect(() => {
@@ -475,51 +387,105 @@ export default function Edit({
         }
     }, [success, error, message]);
 
-    // FIXED: Initialize available units and sub units based on current employee data
-    useEffect(() => {
-        // Initialize units when component mounts or unit_organisasi changes
-        if (data.unit_organisasi && unitMapping[data.unit_organisasi]) {
-            const units = unitMapping[data.unit_organisasi];
-            setAvailableUnits(units);
-            console.log(
-                "Initialized units for",
-                data.unit_organisasi,
-                ":",
-                units
-            );
+    // FIXED: Fetch units from API based on unit_organisasi
+    const fetchUnits = async (unitOrganisasi) => {
+        if (!unitOrganisasi) {
+            setAvailableUnits([]);
+            return;
         }
-    }, [data.unit_organisasi]);
 
-    // FIXED: Initialize sub units when unit_id changes or is loaded from employee data
-    useEffect(() => {
-        if (data.unit_id && subUnitMapping[data.unit_id]) {
-            const subUnits = subUnitMapping[data.unit_id];
-            setAvailableSubUnits(subUnits);
-            console.log(
-                "Initialized sub units for",
-                data.unit_id,
-                ":",
-                subUnits
+        setLoadingUnits(true);
+        try {
+            const response = await fetch(
+                `/api/units?unit_organisasi=${encodeURIComponent(
+                    unitOrganisasi
+                )}`
             );
+            const result = await response.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                setAvailableUnits(result.data);
+                console.log("Units loaded from API:", result.data);
+            } else {
+                console.error("Failed to load units:", result);
+                setAvailableUnits([]);
+            }
+        } catch (error) {
+            console.error("Error fetching units:", error);
+            setAvailableUnits([]);
+        } finally {
+            setLoadingUnits(false);
         }
-    }, [data.unit_id]);
+    };
 
-    // FIXED: Load initial data on component mount
+    // FIXED: Fetch sub units from API based on unit_id
+    const fetchSubUnits = async (unitId) => {
+        if (!unitId) {
+            setAvailableSubUnits([]);
+            return;
+        }
+
+        setLoadingSubUnits(true);
+        try {
+            const response = await fetch(
+                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`
+            );
+            const result = await response.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                setAvailableSubUnits(result.data);
+                console.log("Sub units loaded from API:", result.data);
+            } else {
+                console.error("Failed to load sub units:", result);
+                setAvailableSubUnits([]);
+            }
+        } catch (error) {
+            console.error("Error fetching sub units:", error);
+            setAvailableSubUnits([]);
+        } finally {
+            setLoadingSubUnits(false);
+        }
+    };
+
+    // FIXED: Load initial data when component mounts
     useEffect(() => {
-        if (employee && employee.unit_organisasi) {
-            console.log("Loading initial data for employee:", employee);
+        console.log("Employee data on mount:", employee);
+        console.log("Form data on mount:", data);
 
+        if (employee) {
             // Load units for current unit_organisasi
-            if (unitMapping[employee.unit_organisasi]) {
-                setAvailableUnits(unitMapping[employee.unit_organisasi]);
+            if (employee.unit_organisasi) {
+                console.log("Loading units for:", employee.unit_organisasi);
+                fetchUnits(employee.unit_organisasi);
             }
 
             // Load sub units for current unit_id
-            if (employee.unit_id && subUnitMapping[employee.unit_id]) {
-                setAvailableSubUnits(subUnitMapping[employee.unit_id]);
+            if (employee.unit_id) {
+                console.log("Loading sub units for unit_id:", employee.unit_id);
+                fetchSubUnits(employee.unit_id);
             }
         }
-    }, [employee]);
+    }, []);
+
+    // FIXED: Watch for unit_organisasi changes
+    useEffect(() => {
+        if (data.unit_organisasi) {
+            console.log("Unit organisasi changed to:", data.unit_organisasi);
+            fetchUnits(data.unit_organisasi);
+        } else {
+            setAvailableUnits([]);
+        }
+    }, [data.unit_organisasi]);
+
+    // FIXED: Watch for unit_id changes
+    useEffect(() => {
+        if (data.unit_id) {
+            console.log("Unit ID changed to:", data.unit_id);
+            fetchSubUnits(data.unit_id);
+        } else {
+            setAvailableSubUnits([]);
+        }
+    }, [data.unit_id]);
 
     // Auto-calculate TMT Pensiun when birth date changes
     useEffect(() => {
@@ -574,8 +540,6 @@ export default function Edit({
         education: { name: "Pendidikan", icon: GraduationCap },
         additional: { name: "Data Tambahan", icon: FileText },
     };
-
-    // REMOVED: fetchUnits and fetchSubUnits functions since we use static mapping
 
     const validateField = (fieldName, value) => {
         let error = "";
@@ -647,6 +611,24 @@ export default function Edit({
                     }
                 }
                 break;
+            case "unit_organisasi":
+                if (!value) {
+                    error = "Unit organisasi wajib dipilih";
+                }
+                break;
+            case "unit_id":
+                if (!value) {
+                    error = "Unit wajib dipilih";
+                }
+                break;
+            case "sub_unit_id":
+                if (
+                    !unitWithoutSubUnits.includes(data.unit_organisasi) &&
+                    !value
+                ) {
+                    error = "Sub unit wajib dipilih untuk unit organisasi ini";
+                }
+                break;
         }
 
         setFormValidation((prev) => ({
@@ -681,10 +663,8 @@ export default function Edit({
             }
 
             // Load units untuk unit organisasi yang dipilih
-            if (value && unitMapping[value]) {
-                const units = unitMapping[value];
-                setAvailableUnits(units);
-                console.log("Available units loaded:", units);
+            if (value) {
+                fetchUnits(value);
             }
         } else if (name === "unit_id") {
             console.log("Unit ID changed to:", value);
@@ -695,11 +675,7 @@ export default function Edit({
 
             // Load sub units untuk unit yang dipilih (hanya jika required)
             if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
-                if (subUnitMapping[value]) {
-                    const subUnits = subUnitMapping[value];
-                    setAvailableSubUnits(subUnits);
-                    console.log("Available sub units loaded:", subUnits);
-                }
+                fetchSubUnits(value);
             }
         }
 
@@ -792,10 +768,15 @@ export default function Edit({
         // Prepare clean data for submission
         const cleanData = { ...data };
 
-        // Handle jenis_kelamin conversion (Frontend: Laki-laki/Perempuan -> Database: L/P)
+        // FIXED: Handle jenis_kelamin conversion with better logging
         if (cleanData.jenis_kelamin) {
+            console.log(
+                "Converting jenis_kelamin from:",
+                cleanData.jenis_kelamin
+            );
             cleanData.jenis_kelamin =
                 cleanData.jenis_kelamin === "Laki-laki" ? "L" : "P";
+            console.log("Converted jenis_kelamin to:", cleanData.jenis_kelamin);
         }
 
         // Remove empty strings dan convert ke null jika perlu
@@ -910,11 +891,7 @@ export default function Edit({
             // Special handling for jenis_kelamin conversion
             if (key === "jenis_kelamin") {
                 const originalFormatted =
-                    originalValue === "L"
-                        ? "Laki-laki"
-                        : originalValue === "P"
-                        ? "Perempuan"
-                        : originalValue;
+                    convertJenisKelaminToDisplay(originalValue);
                 return originalFormatted !== currentValue;
             }
 
@@ -1123,7 +1100,11 @@ export default function Edit({
                                 label: unit.name,
                             }))}
                             placeholder={
-                                loadingUnits ? "Loading..." : "Pilih Unit dulu"
+                                loadingUnits
+                                    ? "Loading units..."
+                                    : availableUnits.length === 0
+                                    ? "Pilih unit organisasi dulu"
+                                    : "Pilih Unit"
                             }
                             icon={Building2}
                             value={data.unit_id}
@@ -1131,9 +1112,9 @@ export default function Edit({
                             error={errors.unit_id || formValidation.unit_id}
                             disabled={!data.unit_organisasi || loadingUnits}
                             hint={
-                                data.unit_organisasi
+                                availableUnits.length === 0
                                     ? "Unit akan muncul setelah memilih unit organisasi"
-                                    : "Pilih unit organisasi terlebih dahulu"
+                                    : null
                             }
                         />
 
@@ -1147,7 +1128,7 @@ export default function Edit({
                             }))}
                             placeholder={
                                 loadingSubUnits
-                                    ? "Loading..."
+                                    ? "Loading sub units..."
                                     : !data.unit_id
                                     ? "Pilih Unit dulu"
                                     : unitWithoutSubUnits.includes(
@@ -1190,14 +1171,14 @@ export default function Edit({
                                     {data.unit_organisasi}
                                 </span>
                                 {availableUnits.find(
-                                    (u) => u.id === data.unit_id
+                                    (u) => u.id == data.unit_id
                                 ) && (
                                     <>
                                         <span>→</span>
                                         <span className="px-2 py-1 bg-green-100 rounded">
                                             {
                                                 availableUnits.find(
-                                                    (u) => u.id === data.unit_id
+                                                    (u) => u.id == data.unit_id
                                                 )?.name
                                             }
                                         </span>
@@ -1205,7 +1186,7 @@ export default function Edit({
                                 )}
                                 {isSubUnitRequired ? (
                                     availableSubUnits.find(
-                                        (u) => u.id === data.sub_unit_id
+                                        (u) => u.id == data.sub_unit_id
                                     ) ? (
                                         <>
                                             <span>→</span>
@@ -1213,7 +1194,7 @@ export default function Edit({
                                                 {
                                                     availableSubUnits.find(
                                                         (u) =>
-                                                            u.id ===
+                                                            u.id ==
                                                             data.sub_unit_id
                                                     )?.name
                                                 }
@@ -1405,18 +1386,17 @@ export default function Edit({
                 <InputField
                     name="seragam"
                     label="Seragam"
-                    placeholder="Akan diisi nanti"
+                    options={["S", "M", "L", "XL", "XXL", "XXXL"]}
                     icon={Shield}
                     value={data.seragam}
                     onChange={handleInputChange}
-                    disabled={true}
                     error={errors.seragam}
-                    hint="Field ini akan diisi oleh admin"
+                    hint="Ukuran seragam karyawan"
                 />
                 <InputField
                     name="jenis_sepatu"
                     label="Jenis Sepatu"
-                    options={["Pantofel", "Safety Shoes"]}
+                    options={["Safety", "Formal"]}
                     icon={Briefcase}
                     value={data.jenis_sepatu}
                     onChange={handleInputChange}
@@ -1426,14 +1406,25 @@ export default function Edit({
                 <InputField
                     name="ukuran_sepatu"
                     label="Ukuran Sepatu"
-                    type="number"
-                    placeholder="42"
+                    options={[
+                        "36",
+                        "37",
+                        "38",
+                        "39",
+                        "40",
+                        "41",
+                        "42",
+                        "43",
+                        "44",
+                        "45",
+                        "46",
+                    ]}
                     icon={Briefcase}
                     value={data.ukuran_sepatu}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.ukuran_sepatu || formValidation.ukuran_sepatu}
-                    hint="Ukuran sepatu (30-50)"
+                    hint="Ukuran sepatu karyawan"
                 />
                 <InputField
                     name="height"
