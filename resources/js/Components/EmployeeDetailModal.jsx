@@ -25,109 +25,45 @@ import {
 const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
     if (!isOpen || !employee) return null;
 
-    // Struktur organisasi mapping
-    const organizationStructure = {
-        EGM: {
-            units: ["EGM"],
-            subUnits: {
-                EGM: [], // EGM tidak memiliki sub unit
-            },
-        },
-        GM: {
-            units: ["GM"],
-            subUnits: {
-                GM: [], // GM tidak memiliki sub unit
-            },
-        },
-        Airside: {
-            units: ["MO", "ME"],
-            subUnits: {
-                MO: [
-                    "Flops",
-                    "Depco",
-                    "Ramp",
-                    "Load Control",
-                    "Load Master",
-                    "ULD Control",
-                    "Cargo Import",
-                    "Cargo Export",
-                ],
-                ME: [
-                    "GSE Operator P/B",
-                    "GSE Operator A/C",
-                    "GSE Maintenance",
-                    "BTT Operator",
-                    "Line Maintenance",
-                ],
-            },
-        },
-        Landside: {
-            units: ["MF", "MS"],
-            subUnits: {
-                MF: [
-                    "KLM",
-                    "Qatar",
-                    "Korean Air",
-                    "Vietjet Air",
-                    "Scoot",
-                    "Thai Airways",
-                    "China Airlines",
-                    "China Southern",
-                    "Indigo",
-                    "Xiamen Air",
-                    "Aero Dili",
-                    "Jeju Air",
-                    "Hongkong Airlines",
-                    "Air Busan",
-                    "Vietnam Airlines",
-                    "Sichuan Airlines",
-                    "Aeroflot",
-                    "Charter Flight",
-                ],
-                MS: ["MPGA", "QG", "IP"],
-            },
-        },
-        "Back Office": {
-            units: ["MU", "MK"],
-            subUnits: {
-                MU: ["Human Resources & General Affair", "Fasilitas & Sarana"],
-                MK: ["Accounting", "Budgeting", "Treassury", "Tax"],
-            },
-        },
-        SSQC: {
-            units: ["MQ"],
-            subUnits: {
-                MQ: ["Avsec", "Safety Quality Control"],
-            },
-        },
-        Ancillary: {
-            units: ["MB"],
-            subUnits: {
-                MB: ["GPL", "GLC", "Joumpa"],
-            },
-        },
+    // Helper function untuk get unit name dari relasi database
+    const getUnitName = () => {
+        if (employee.unit && employee.unit.name) {
+            return employee.unit.name;
+        }
+        return employee.unit_id || "-";
     };
 
-    const getUnitName = (unitOrganisasi, unitId) => {
-        if (!unitOrganisasi || !unitId) return null;
-        const structure = organizationStructure[unitOrganisasi];
-        if (structure && structure.units.includes(unitId)) {
-            return unitId;
+    // Helper function untuk get sub unit name dari relasi database
+    const getSubUnitName = () => {
+        if (employee.sub_unit && employee.sub_unit.name) {
+            return employee.sub_unit.name;
         }
-        return null;
+        // Check if unit organisasi has no sub units (EGM, GM)
+        if (["EGM", "GM"].includes(employee.unit_organisasi)) {
+            return "-";
+        }
+        return employee.sub_unit_id || "-";
     };
 
-    const getSubUnitName = (unitOrganisasi, unitId, subUnitId) => {
-        if (!unitOrganisasi || !unitId || !subUnitId) return null;
-        const structure = organizationStructure[unitOrganisasi];
-        if (
-            structure &&
-            structure.subUnits[unitId] &&
-            structure.subUnits[unitId].includes(subUnitId)
-        ) {
-            return subUnitId;
+    // Helper function untuk format display struktur organisasi lengkap
+    const getOrganizationStructure = () => {
+        const parts = [];
+
+        if (employee.unit_organisasi) {
+            parts.push(employee.unit_organisasi);
         }
-        return null;
+
+        const unitName = getUnitName();
+        if (unitName && unitName !== "-") {
+            parts.push(unitName);
+        }
+
+        const subUnitName = getSubUnitName();
+        if (subUnitName && subUnitName !== "-") {
+            parts.push(subUnitName);
+        }
+
+        return parts.join(" → ");
     };
 
     const formatDate = (dateString) => {
@@ -227,37 +163,25 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     <p className="text-xl font-medium text-white/90">
                                         NIP: {employee.nip || "-"}
                                     </p>
+
+                                    {/* Breakdown detail struktur organisasi */}
                                     <div className="flex flex-wrap gap-2 text-sm">
-                                        <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
-                                            {employee.unit_organisasi || "-"}
-                                        </span>
-                                        {getUnitName(
-                                            employee.unit_organisasi,
-                                            employee.unit_id
-                                        ) && (
-                                            <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
-                                                Unit:{" "}
-                                                {getUnitName(
-                                                    employee.unit_organisasi,
-                                                    employee.unit_id
-                                                )}
+                                        {employee.unit_organisasi && (
+                                            <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
+                                                {employee.unit_organisasi}
                                             </span>
                                         )}
-                                        {getSubUnitName(
-                                            employee.unit_organisasi,
-                                            employee.unit_id,
-                                            employee.sub_unit_id
-                                        ) &&
+                                        {getUnitName() !== "-" && (
+                                            <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
+                                                Unit: {getUnitName()}
+                                            </span>
+                                        )}
+                                        {getSubUnitName() !== "-" &&
                                             !["EGM", "GM"].includes(
                                                 employee.unit_organisasi
                                             ) && (
                                                 <span className="inline-block px-3 py-1 font-semibold text-purple-100 rounded-full bg-white/20">
-                                                    Sub Unit:{" "}
-                                                    {getSubUnitName(
-                                                        employee.unit_organisasi,
-                                                        employee.unit_id,
-                                                        employee.sub_unit_id
-                                                    )}
+                                                    Sub Unit: {getSubUnitName()}
                                                 </span>
                                             )}
                                     </div>
@@ -284,22 +208,11 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     />
                                     <FieldRow
                                         label="Unit"
-                                        value={
-                                            getUnitName(
-                                                employee.unit_organisasi,
-                                                employee.unit_id
-                                            ) || employee.unit_id
-                                        }
+                                        value={getUnitName()}
                                     />
                                     <FieldRow
                                         label="Sub Unit"
-                                        value={
-                                            getSubUnitName(
-                                                employee.unit_organisasi,
-                                                employee.unit_id,
-                                                employee.sub_unit_id
-                                            ) || employee.sub_unit_id
-                                        }
+                                        value={getSubUnitName()}
                                     />
                                     <FieldRow
                                         label="Nama Organisasi"
