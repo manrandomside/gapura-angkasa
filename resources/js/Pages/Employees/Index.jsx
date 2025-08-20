@@ -44,6 +44,82 @@ export default function Index({
     subtitle = "Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai",
     auth,
 }) {
+    // FIXED: Helper functions untuk notification management dengan pergantian hari
+    const isCreatedToday = (employee) => {
+        if (!employee.created_at) return false;
+
+        const createdDate = new Date(employee.created_at);
+        const today = new Date();
+
+        // Reset waktu ke 00:00:00 untuk perbandingan hari saja
+        const createdDay = new Date(
+            createdDate.getFullYear(),
+            createdDate.getMonth(),
+            createdDate.getDate()
+        );
+        const currentDay = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+        );
+
+        // Return true jika dibuat hari ini
+        return createdDay.getTime() === currentDay.getTime();
+    };
+
+    const getDismissedNotifications = () => {
+        try {
+            const dismissed = localStorage.getItem(
+                "dismissedEmployeeNotifications"
+            );
+            if (!dismissed) return new Set();
+
+            const parsed = JSON.parse(dismissed);
+            // Filter berdasarkan tanggal untuk auto-cleanup
+            const today = new Date().toDateString();
+            const validDismissals = parsed.filter((item) => {
+                const dismissedDate = new Date(item.date).toDateString();
+                return dismissedDate === today; // Hanya keep yang dismissed hari ini
+            });
+
+            // Save back the cleaned data
+            localStorage.setItem(
+                "dismissedEmployeeNotifications",
+                JSON.stringify(validDismissals)
+            );
+
+            return new Set(validDismissals.map((item) => item.employeeId));
+        } catch (error) {
+            console.error("Error loading dismissed notifications:", error);
+            return new Set();
+        }
+    };
+
+    const saveDismissedNotification = (employeeId) => {
+        try {
+            const existing = JSON.parse(
+                localStorage.getItem("dismissedEmployeeNotifications") || "[]"
+            );
+            const newDismissal = {
+                employeeId: employeeId,
+                date: new Date().toISOString(),
+            };
+
+            // Tambah ke existing, hindari duplikasi
+            const updated = existing.filter(
+                (item) => item.employeeId !== employeeId
+            );
+            updated.push(newDismissal);
+
+            localStorage.setItem(
+                "dismissedEmployeeNotifications",
+                JSON.stringify(updated)
+            );
+        } catch (error) {
+            console.error("Error saving dismissed notification:", error);
+        }
+    };
+
     // State management
     const [searchQuery, setSearchQuery] = useState(filters.search || "");
     const [statusFilter, setStatusFilter] = useState(
@@ -84,10 +160,12 @@ export default function Index({
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
 
-    // Simplified state untuk tracking karyawan baru
+    // FIXED: Notification state dengan localStorage persistence
+    const [dismissedNotifications, setDismissedNotifications] = useState(() => {
+        return getDismissedNotifications();
+    });
     const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
     const [clickedEmployees, setClickedEmployees] = useState(new Set());
-    const [autoHiddenEmployees, setAutoHiddenEmployees] = useState(new Set());
 
     // STATIC: Struktur organisasi lengkap sesuai dengan create employee
     const organizationStructure = {
@@ -358,7 +436,7 @@ export default function Index({
         availableSubUnits,
     ]);
 
-    // MODIFIED: Effect untuk handle karyawan baru dengan auto-hide 24 jam
+    // FIXED: Effect untuk handle karyawan baru
     useEffect(() => {
         if (newEmployee) {
             // Tambahkan ID karyawan baru ke set
@@ -376,17 +454,18 @@ export default function Index({
                     });
                 }
             }, 500);
-
-            // MODIFIED: Auto-hide "Baru Ditambahkan" label setelah 24 jam
-            setTimeout(() => {
-                setAutoHiddenEmployees((prev) => {
-                    const updated = new Set(prev);
-                    updated.add(newEmployee.id);
-                    return updated;
-                });
-            }, 86400000); // 24 jam = 86400000ms
         }
     }, [newEmployee]);
+
+    // FIXED: Cleanup notifications pada component mount
+    useEffect(() => {
+        const cleanup = () => {
+            const currentDismissed = getDismissedNotifications();
+            setDismissedNotifications(currentDismissed);
+        };
+
+        cleanup();
+    }, []);
 
     // Enhanced notification handling untuk backend notifications
     useEffect(() => {
@@ -404,99 +483,67 @@ export default function Index({
         }
     }, [notification, success, error, message]);
 
-    // MODIFIED: Auto-hide untuk karyawan yang dibuat dalam rentang waktu 24 jam
-    useEffect(() => {
-        const newEmployeeIdsArray =
-            employees.data
-                ?.filter((employee) => {
-                    const createdAt = new Date(employee.created_at);
-                    const now = new Date();
-                    const diffInHours = (now - createdAt) / (1000 * 60 * 60);
-                    return diffInHours <= 24 && diffInHours > 0;
-                })
-                .map((employee) => employee.id) || [];
-
-        if (newEmployeeIdsArray.length > 0) {
-            newEmployeeIdsArray.forEach((employeeId) => {
-                // Set timer untuk auto-hide setelah 24 jam dari created_at
-                const employee = employees.data.find(
-                    (emp) => emp.id === employeeId
-                );
-                if (employee) {
-                    const createdAt = new Date(employee.created_at);
-                    const now = new Date();
-                    const remainingTime = 86400000 - (now - createdAt); // 24 jam - waktu yang sudah lewat
-
-                    if (remainingTime > 0) {
-                        const timer = setTimeout(() => {
-                            setAutoHiddenEmployees((prev) => {
-                                const updated = new Set(prev);
-                                updated.add(employeeId);
-                                return updated;
-                            });
-                        }, remainingTime);
-
-                        return () => clearTimeout(timer);
-                    }
-                }
-            });
-        }
-    }, [employees.data]);
-
-    // Check if employee should show "Baru Ditambahkan" label
+    // FIXED: Improved isNewEmployee function dengan pergantian hari logic
     const isNewEmployee = (employee) => {
-        // Don't show if user has clicked on this employee's profile
+        // Jangan tampilkan jika sudah di-dismiss hari ini
+        if (dismissedNotifications.has(employee.id)) {
+            return false;
+        }
+
+        // Jangan tampilkan jika user sudah klik pada employee ini
         if (clickedEmployees.has(employee.id)) {
             return false;
         }
 
-        // Don't show if auto-hidden after 24 hours
-        if (autoHiddenEmployees.has(employee.id)) {
-            return false;
-        }
-
-        // Show if this is the newly created employee from session
+        // Tampilkan jika ini adalah employee yang baru dibuat dari session
         if (newEmployee && employee.id === newEmployee.id) {
             return true;
         }
 
-        // Show if this employee is in the newEmployeeIds set
+        // Tampilkan jika ada di newEmployeeIds set (baru ditambah via form)
         if (newEmployeeIds.has(employee.id)) {
             return true;
         }
 
         // Enhanced: Check dari notifications.newToday
         if (notifications?.newToday && Array.isArray(notifications.newToday)) {
-            return notifications.newToday.some(
+            const isInNewToday = notifications.newToday.some(
                 (newEmp) => newEmp.id === employee.id
             );
+            if (isInNewToday) return true;
         }
 
-        // Show if created within last 24 hours
-        const createdAt = new Date(employee.created_at);
-        const now = new Date();
-        const diffInHours = (now - createdAt) / (1000 * 60 * 60);
-        return diffInHours <= 24 && diffInHours > 0;
+        // FIXED: Ubah dari 24 jam menjadi pergantian hari
+        // Hanya tampilkan jika dibuat hari ini
+        return isCreatedToday(employee);
     };
 
-    // Handle click on employee profile elements
+    // FIXED: Handle click dengan persistent dismissal
     const handleEmployeeProfileClick = (
         employeeId,
         event,
         action = "hide-label"
     ) => {
-        // Prevent event bubbling to table row
         event.stopPropagation();
 
         if (action === "hide-label") {
-            // Add to clicked employees to hide "Baru Ditambahkan" label
+            // Save ke localStorage
+            saveDismissedNotification(employeeId);
+
+            // Update state
+            setDismissedNotifications((prev) => {
+                const updated = new Set(prev);
+                updated.add(employeeId);
+                return updated;
+            });
+
+            // Update other states
             setClickedEmployees((prev) => {
                 const updated = new Set(prev);
                 updated.add(employeeId);
                 return updated;
             });
 
-            // Also remove from newEmployeeIds if present
             setNewEmployeeIds((prev) => {
                 const updated = new Set(prev);
                 updated.delete(employeeId);
@@ -505,8 +552,18 @@ export default function Index({
         }
     };
 
-    // Enhanced function untuk handle klik pada karyawan
+    // FIXED: Enhanced handleEmployeeClick dengan dismissal
     const handleEmployeeClick = (employeeId, action = "view") => {
+        // Save dismiss ke localStorage
+        saveDismissedNotification(employeeId);
+
+        // Update dismissed notifications
+        setDismissedNotifications((prev) => {
+            const updated = new Set(prev);
+            updated.add(employeeId);
+            return updated;
+        });
+
         // Hapus dari daftar karyawan baru
         if (newEmployeeIds.has(employeeId)) {
             setNewEmployeeIds((prev) => {
@@ -537,7 +594,7 @@ export default function Index({
         }
     };
 
-    // MODIFIED: Simplified komponen untuk label "baru ditambahkan" - diperkecil dan clickable
+    // FIXED: Simplified komponen untuk label "baru ditambahkan"
     const SimplifiedNewEmployeeLabel = ({ employee }) => {
         if (!isNewEmployee(employee)) return null;
 
