@@ -557,6 +557,68 @@ export default function Index({
         );
     };
 
+    // FIXED: New immediate filter application function
+    const applyFiltersImmediate = (additionalFilters = {}) => {
+        setLoading(true);
+        setIsNavigating(true);
+
+        const params = {
+            page: 1, // Reset to page 1 on filter change
+            per_page: perPage,
+        };
+
+        // Add search query
+        if (searchQuery.trim()) {
+            params.search = searchQuery.trim();
+        }
+
+        // FIXED: Use current state values dan merge dengan additional filters
+        const currentFilters = {
+            status_pegawai: statusFilter,
+            unit_organisasi: unitFilter,
+            unit_id: unitIdFilter,
+            sub_unit_id: subUnitIdFilter,
+            jenis_kelamin: genderFilter,
+            jenis_sepatu: shoeTypeFilter,
+            ukuran_sepatu: shoeSizeFilter,
+            kelompok_jabatan: kelompokJabatanFilter,
+            ...additionalFilters, // Override dengan filter baru
+        };
+
+        // Add filters yang tidak "all"
+        Object.entries(currentFilters).forEach(([key, value]) => {
+            if (
+                value !== "all" &&
+                value !== null &&
+                value !== undefined &&
+                value !== ""
+            ) {
+                params[key] = value;
+            }
+        });
+
+        console.log("Applying filters immediately:", params);
+
+        router.visit(route("employees.index"), {
+            data: params,
+            preserveState: true,
+            preserveScroll: true,
+            onStart: () => {
+                console.log("Filter request started");
+            },
+            onFinish: () => {
+                setLoading(false);
+                setTimeout(() => setIsNavigating(false), 100); // Reduced timeout
+                console.log("Filter request completed");
+            },
+            onError: (errors) => {
+                console.error("Filter error:", errors);
+                setLoading(false);
+                setIsNavigating(false);
+            },
+        });
+    };
+
     // FIXED: Enhanced applyFilters dengan parameter yang benar dan error handling
     const applyFilters = (page = 1, newPerPage = perPage) => {
         setLoading(true);
@@ -594,7 +656,7 @@ export default function Index({
             },
             onFinish: () => {
                 setLoading(false);
-                setTimeout(() => setIsNavigating(false), 300);
+                setTimeout(() => setIsNavigating(false), 100);
                 console.log("Filter request completed");
             },
             onError: (errors) => {
@@ -614,15 +676,22 @@ export default function Index({
             clearTimeout(searchTimeout);
         }
 
-        const timeout = setTimeout(() => {
-            console.log(`Executing search for: "${value}"`);
-            applyFilters(1); // Reset to page 1 on search
-        }, 500);
+        // FIXED: Apply search immediately jika kosong, atau dengan debounce jika ada value
+        if (value.trim() === "") {
+            // Apply immediately untuk clear search
+            applyFiltersImmediate({ search: "" });
+        } else {
+            // Apply dengan debounce untuk search dengan value
+            const timeout = setTimeout(() => {
+                console.log(`Executing search for: "${value}"`);
+                applyFiltersImmediate(); // Akan menggunakan searchQuery state yang sudah diupdate
+            }, 300); // Reduced dari 500ms ke 300ms untuk response lebih cepat
 
-        setSearchTimeout(timeout);
+            setSearchTimeout(timeout);
+        }
     };
 
-    // FIXED: Enhanced handleFilterChange dengan auto-search yang lebih cepat
+    // FIXED: Enhanced handleFilterChange dengan immediate application
     const handleFilterChange = (filterType, value) => {
         console.log(`Filter changed: ${filterType} = ${value}`);
 
@@ -631,48 +700,61 @@ export default function Index({
             clearTimeout(searchTimeout);
         }
 
+        // FIXED: Update state immediately dan apply filter langsung tanpa delay
+        let newFilters = {};
+
         switch (filterType) {
             case "status":
                 setStatusFilter(value);
+                newFilters.status_pegawai = value;
                 break;
             case "unit":
                 setUnitFilter(value);
                 // FIXED: Reset unit dan sub unit ketika unit organisasi berubah
                 setUnitIdFilter("all");
                 setSubUnitIdFilter("all");
-                // FIXED: Update units dengan static data + API validation
+                newFilters.unit_organisasi = value;
+                newFilters.unit_id = "all";
+                newFilters.sub_unit_id = "all";
+                // Update units dengan static data + API validation
                 updateUnitsWithAPI(value);
                 break;
             case "unitId":
                 setUnitIdFilter(value);
                 // FIXED: Reset sub unit ketika unit berubah
                 setSubUnitIdFilter("all");
-                // FIXED: Update sub units dengan static data + API validation
+                newFilters.unit_id = value;
+                newFilters.sub_unit_id = "all";
+                // Update sub units dengan static data + API validation
                 updateSubUnitsWithAPI(value);
                 break;
             case "subUnitId":
                 setSubUnitIdFilter(value);
+                newFilters.sub_unit_id = value;
                 break;
             case "gender":
                 setGenderFilter(value);
+                newFilters.jenis_kelamin = value;
                 break;
             case "shoeType":
                 setShoeTypeFilter(value);
+                newFilters.jenis_sepatu = value;
                 break;
             case "shoeSize":
                 setShoeSizeFilter(value);
+                newFilters.ukuran_sepatu = value;
                 break;
             case "kelompokJabatan":
                 setKelompokJabatanFilter(value);
+                newFilters.kelompok_jabatan = value;
                 break;
             default:
                 console.warn(`Unknown filter type: ${filterType}`);
+                return;
         }
 
-        // FIXED: Apply filters immediately dengan delay yang lebih pendek untuk response yang lebih cepat
-        setTimeout(() => {
-            applyFilters(1); // Reset to page 1 on filter change
-        }, 50); // Dipercepat dari 100ms ke 50ms untuk instant search
+        // FIXED: Apply filters immediately menggunakan current state + new filter
+        applyFiltersImmediate(newFilters);
     };
 
     // Handle per page change
@@ -690,6 +772,7 @@ export default function Index({
     const clearAllFilters = () => {
         console.log("Clearing all filters");
 
+        // Clear all state immediately
         setSearchQuery("");
         setStatusFilter("all");
         setUnitFilter("all");
@@ -709,6 +792,7 @@ export default function Index({
             clearTimeout(searchTimeout);
         }
 
+        // FIXED: Apply clear filters immediately
         router.visit(route("employees.index"), {
             preserveState: true,
             preserveScroll: true,
