@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class EmployeeController extends Controller
 {
@@ -230,15 +231,25 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // MAIN CRUD METHODS - FIXED FOR ENHANCED SEARCH
+    // MAIN CRUD METHODS - ENHANCED FOR PERFECT SEARCH/FILTER
     // =====================================================
 
     /**
-     * FIXED: Enhanced index method dengan search functionality yang diperbaiki
+     * ENHANCED: Index method dengan search/filter functionality yang sempurna
      */
     public function index(Request $request)
     {
         try {
+            // Log request untuk debugging
+            Log::info('Employee Index Request', [
+                'filters' => $request->only([
+                    'search', 'status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 
+                    'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'
+                ]),
+                'page' => $request->get('page', 1),
+                'per_page' => $request->get('per_page', 20)
+            ]);
+
             // Build query with relationships
             $query = Employee::query();
 
@@ -253,48 +264,56 @@ class EmployeeController extends Controller
                 $query->with('subUnit');
             }
 
-            // Apply active scope
-            $query->where('status', 'active');
+            // Filter untuk status aktif (jika field 'status' ada)
+            if (Schema::hasColumn('employees', 'status')) {
+                $query->where('status', 'active');
+            }
 
-            // Build filter conditions for statistics
+            // Initialize filter conditions untuk statistics
             $filterConditions = [];
-            
-            // FIXED: Enhanced search dengan unit/sub unit search yang lebih akurat
+
+            // ENHANCED: Global search dengan field yang lebih lengkap
             if ($request->filled('search')) {
-                $searchTerm = $request->search;
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where('nik', 'like', "%{$searchTerm}%")
-                      ->orWhere('nip', 'like', "%{$searchTerm}%")
-                      ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
-                      ->orWhere('jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                      ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
-                      ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
-                      ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
-                      ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                      ->orWhere('alamat', 'like', "%{$searchTerm}%")
-                      ->orWhere('handphone', 'like', "%{$searchTerm}%")
-                      ->orWhere('email', 'like', "%{$searchTerm}%")
-                      ->orWhere('instansi_pendidikan', 'like', "%{$searchTerm}%");
-                      
-                    // FIXED: Search dalam unit dan sub unit relationships dengan error handling
-                    try {
-                        $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
-                            $unitQuery->where('name', 'like', "%{$searchTerm}%")
-                                     ->orWhere('code', 'like', "%{$searchTerm}%");
-                        });
+                $searchTerm = trim($request->search);
+                
+                if (!empty($searchTerm)) {
+                    $query->where(function($q) use ($searchTerm) {
+                        $q->where('nama_lengkap', 'like', "%{$searchTerm}%")
+                          ->orWhere('nip', 'like', "%{$searchTerm}%")
+                          ->orWhere('nik', 'like', "%{$searchTerm}%")
+                          ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
+                          ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
+                          ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
+                          ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
+                          ->orWhere('handphone', 'like', "%{$searchTerm}%")
+                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%");
+                          
+                        // Search pada organization name jika relationship ada
+                        if (method_exists(Employee::class, 'organization')) {
+                            $q->orWhereHas('organization', function($orgQuery) use ($searchTerm) {
+                                $orgQuery->where('name', 'like', "%{$searchTerm}%");
+                            });
+                        }
                         
-                        $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
-                            $subUnitQuery->where('name', 'like', "%{$searchTerm}%")
-                                        ->orWhere('code', 'like', "%{$searchTerm}%");
-                        });
-                    } catch (\Exception $e) {
-                        // Skip relationship search if models don't exist
-                        Log::warning('Unit/SubUnit relationship search skipped: ' . $e->getMessage());
-                    }
-                });
-                $filterConditions['search'] = $searchTerm;
+                        // Search pada unit name jika relationship ada
+                        if (method_exists(Employee::class, 'unit')) {
+                            $q->orWhereHas('unit', function($unitQuery) use ($searchTerm) {
+                                $unitQuery->where('name', 'like', "%{$searchTerm}%");
+                            });
+                        }
+                        
+                        // Search pada sub unit name jika relationship ada
+                        if (method_exists(Employee::class, 'subUnit')) {
+                            $q->orWhereHas('subUnit', function($subUnitQuery) use ($searchTerm) {
+                                $subUnitQuery->where('name', 'like', "%{$searchTerm}%");
+                            });
+                        }
+                    });
+                    
+                    $filterConditions['search'] = $searchTerm;
+                }
             }
 
             // FIXED: Individual filters dengan validation yang lebih baik
@@ -313,45 +332,57 @@ class EmployeeController extends Controller
                 $filterConditions['unit_organisasi'] = $request->unit_organisasi;
             }
 
-            // FIXED: Unit filter berdasarkan unit name atau ID
+            // ENHANCED: Unit filter berdasarkan unit name atau ID dengan error handling
             if ($request->filled('unit_id') && $request->unit_id !== 'all') {
-                // Cek apakah unit_id adalah ID numeric atau nama unit
                 if (is_numeric($request->unit_id)) {
                     $query->where('unit_id', $request->unit_id);
                 } else {
                     // Jika bukan numeric, cari berdasarkan nama unit dalam relationship
                     try {
-                        $query->whereHas('unit', function ($unitQuery) use ($request) {
-                            $unitQuery->where('name', $request->unit_id)
-                                     ->orWhere('code', $request->unit_id);
-                        });
+                        if (method_exists(Employee::class, 'unit')) {
+                            $query->whereHas('unit', function ($unitQuery) use ($request) {
+                                $unitQuery->where('name', $request->unit_id)
+                                         ->orWhere('code', $request->unit_id);
+                            });
+                        } else {
+                            // Fallback: cari berdasarkan kolom terkait jika ada
+                            if (Schema::hasColumn('employees', 'unit_name')) {
+                                $query->where('unit_name', $request->unit_id);
+                            }
+                        }
                     } catch (\Exception $e) {
-                        // Fallback: skip unit filter jika relationship tidak ada
                         Log::warning('Unit filter skipped: ' . $e->getMessage());
                     }
                 }
                 $filterConditions['unit_id'] = $request->unit_id;
             }
 
-            // FIXED: Sub unit filter berdasarkan sub unit name atau ID
+            // ENHANCED: Sub unit filter berdasarkan sub unit name atau ID dengan error handling
             if ($request->filled('sub_unit_id') && $request->sub_unit_id !== 'all') {
                 if (is_numeric($request->sub_unit_id)) {
                     $query->where('sub_unit_id', $request->sub_unit_id);
                 } else {
                     // Jika bukan numeric, cari berdasarkan nama sub unit dalam relationship
                     try {
-                        $query->whereHas('subUnit', function ($subUnitQuery) use ($request) {
-                            $subUnitQuery->where('name', $request->sub_unit_id)
-                                        ->orWhere('code', $request->sub_unit_id);
-                        });
+                        if (method_exists(Employee::class, 'subUnit')) {
+                            $query->whereHas('subUnit', function ($subUnitQuery) use ($request) {
+                                $subUnitQuery->where('name', $request->sub_unit_id)
+                                            ->orWhere('code', $request->sub_unit_id);
+                            });
+                        } else {
+                            // Fallback: cari berdasarkan kolom terkait jika ada
+                            if (Schema::hasColumn('employees', 'sub_unit_name')) {
+                                $query->where('sub_unit_name', $request->sub_unit_id);
+                            }
+                        }
                     } catch (\Exception $e) {
-                        // Fallback: skip sub unit filter jika relationship tidak ada
                         Log::warning('SubUnit filter skipped: ' . $e->getMessage());
                     }
                 }
                 $filterConditions['sub_unit_id'] = $request->sub_unit_id;
             }
 
+            // FIXED: Filter lainnya dengan validasi
             if ($request->filled('jenis_kelamin') && $request->jenis_kelamin !== 'all') {
                 $query->where('jenis_kelamin', $request->jenis_kelamin);
                 $filterConditions['jenis_kelamin'] = $request->jenis_kelamin;
@@ -367,16 +398,16 @@ class EmployeeController extends Controller
                 $filterConditions['ukuran_sepatu'] = $request->ukuran_sepatu;
             }
 
-            // FIXED: Pagination dengan per_page validation
-            $perPage = $request->get('per_page', 20);
-            $perPage = in_array($perPage, [10, 20, 50, 100]) ? $perPage : 20;
+            // Pagination dengan validation
+            $perPage = min(max((int) $request->get('per_page', 20), 5), 100);
             
+            // Apply ordering untuk hasil yang konsisten
             $employees = $query->orderBy('created_at', 'desc')
                              ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
                              ->withQueryString();
 
-            // Calculate statistics
+            // Calculate statistics with applied filters
             $statistics = $this->getEnhancedStatistics($filterConditions);
 
             // Get organizations for filter dropdown
@@ -396,6 +427,13 @@ class EmployeeController extends Controller
             // Get current time information
             $timeInfo = $this->getTimeBasedGreeting();
             $businessHours = $this->getBusinessHoursStatus();
+
+            // Log results untuk debugging
+            Log::info('Employee Index Results', [
+                'total_found' => $employees->total(),
+                'current_page' => $employees->currentPage(),
+                'active_filters' => count(array_filter($filterConditions))
+            ]);
 
             return Inertia::render('Employees/Index', [
                 'employees' => $employees,
@@ -426,7 +464,6 @@ class EmployeeController extends Controller
                     'on_last_page' => $employees->onLastPage(),
                     'next_page_url' => $employees->nextPageUrl(),
                     'prev_page_url' => $employees->previousPageUrl(),
-                    'links' => $employees->links()->elements[0] ?? []
                 ],
                 
                 // Comprehensive notification data
@@ -458,44 +495,97 @@ class EmployeeController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Employee Index Error', [
-                'error' => $e->getMessage(),
+            Log::error('Employee Index Error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all()
+                'request' => $request->all()
             ]);
 
-            return Inertia::render('Employees/Index', [
-                'employees' => ['data' => []],
-                'organizations' => [],
-                'filterOptions' => $this->getDefaultFilterOptions(),
-                'statistics' => $this->getDefaultStatistics(),
-                'filters' => $request->only([
-                    'search', 
-                    'status_pegawai', 
-                    'kelompok_jabatan',
-                    'unit_organisasi',
-                    'unit_id',
-                    'sub_unit_id',
-                    'jenis_kelamin', 
-                    'jenis_sepatu', 
-                    'ukuran_sepatu'
-                ]),
-                'pagination' => $this->getDefaultPagination(),
-                'notifications' => [
-                    'session' => null, 
-                    'newToday' => [], 
-                    'newYesterday' => 0,
-                    'newThisWeek' => [], 
-                    'timeInfo' => $this->getTimeBasedGreeting(),
-                    'witaTime' => $this->formatIndonesian($this->getWitaDate()),
-                ],
-                'newEmployee' => null,
-                'error' => 'Terjadi kesalahan saat memuat data karyawan: ' . $e->getMessage(),
-                'notification' => null,
-                'alerts' => [],
-                'title' => 'Management Karyawan',
-                'subtitle' => 'Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai',
-            ]);
+            return redirect()->back()
+                ->with('error', 'Terjadi kesalahan saat memuat data karyawan. Silakan coba lagi.');
+        }
+    }
+
+    /**
+     * ENHANCED: Method untuk API search (jika diperlukan untuk AJAX)
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = Employee::query();
+            
+            // Load relationships if they exist
+            if (method_exists(Employee::class, 'organization')) {
+                $query->with('organization');
+            }
+            if (method_exists(Employee::class, 'unit')) {
+                $query->with('unit');
+            }
+            if (method_exists(Employee::class, 'subUnit')) {
+                $query->with('subUnit');
+            }
+
+            // Filter untuk status aktif
+            if (Schema::hasColumn('employees', 'status')) {
+                $query->where('status', 'active');
+            }
+
+            // Apply all the same filters as index method
+            $filterConditions = [];
+
+            // Global search
+            if ($request->filled('search')) {
+                $searchTerm = trim($request->search);
+                
+                if (!empty($searchTerm)) {
+                    $query->where(function($q) use ($searchTerm) {
+                        $q->where('nama_lengkap', 'like', "%{$searchTerm}%")
+                          ->orWhere('nip', 'like', "%{$searchTerm}%")
+                          ->orWhere('nik', 'like', "%{$searchTerm}%")
+                          ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%");
+                    });
+                    $filterConditions['search'] = $searchTerm;
+                }
+            }
+
+            // Apply the same individual filters
+            foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'] as $filterKey) {
+                if ($request->filled($filterKey) && $request->$filterKey !== 'all') {
+                    $query->where($filterKey, $request->$filterKey);
+                    $filterConditions[$filterKey] = $request->$filterKey;
+                }
+            }
+
+            $perPage = min(max((int) $request->get('per_page', 20), 5), 100);
+            
+            $employees = $query->orderBy('created_at', 'desc')
+                             ->orderBy('nama_lengkap', 'asc')
+                             ->paginate($perPage)
+                             ->withQueryString();
+
+            // Return JSON response untuk AJAX calls
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'employees' => $employees,
+                    'statistics' => $this->getEnhancedStatistics($filterConditions),
+                    'success' => true
+                ]);
+            }
+
+            // Redirect ke index untuk non-JSON requests
+            return redirect()->route('employees.index', $request->all());
+
+        } catch (\Exception $e) {
+            Log::error('Employee Search Error: ' . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'error' => 'Terjadi kesalahan saat melakukan pencarian',
+                    'success' => false
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat melakukan pencarian');
         }
     }
 
@@ -1332,11 +1422,11 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // SAFE PRIVATE HELPER METHODS - FIXED NULL HANDLING
+    // SAFE PRIVATE HELPER METHODS - ENHANCED NULL HANDLING
     // =====================================================
 
     /**
-     * Get enhanced statistics with safe null handling
+     * ENHANCED: Get enhanced statistics with safe null handling and comprehensive filter support
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
@@ -1347,34 +1437,41 @@ class EmployeeController extends Controller
 
             // If no filters applied, get global statistics
             if (empty($filterConditions)) {
-                $total = Employee::where('status', 'active')->count();
-                $pegawaiTetap = Employee::where('status', 'active')->where('status_pegawai', 'PEGAWAI TETAP')->count();
-                $pkwt = Employee::where('status', 'active')->where('status_pegawai', 'PKWT')->count();
+                $baseQuery = Employee::query();
+                if (Schema::hasColumn('employees', 'status')) {
+                    $baseQuery->where('status', 'active');
+                }
+                
+                $total = $baseQuery->count();
+                $pegawaiTetap = (clone $baseQuery)->where('status_pegawai', 'PEGAWAI TETAP')->count();
+                $pkwt = (clone $baseQuery)->where('status_pegawai', 'PKWT')->count();
                 
                 // TAD Statistics dengan split
-                $tadPaketSDM = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET SDM')->count();
-                $tadPaketPekerjaan = Employee::where('status', 'active')->where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
+                $tadPaketSDM = (clone $baseQuery)->where('status_pegawai', 'TAD PAKET SDM')->count();
+                $tadPaketPekerjaan = (clone $baseQuery)->where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
                 $tadTotal = $tadPaketSDM + $tadPaketPekerjaan;
                 
                 // Backward compatibility - include legacy TAD
-                $tadLegacy = Employee::where('status', 'active')->where('status_pegawai', 'TAD')->count();
+                $tadLegacy = (clone $baseQuery)->where('status_pegawai', 'TAD')->count();
                 if ($tadLegacy > 0) {
                     $tadTotal += $tadLegacy;
                 }
                 
-                $uniqueUnits = Employee::where('status', 'active')->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+                $uniqueUnits = (clone $baseQuery)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
             } else {
                 // Apply filters to calculate statistics
-                $query = Employee::where('status', 'active');
+                $query = Employee::query();
+                if (Schema::hasColumn('employees', 'status')) {
+                    $query->where('status', 'active');
+                }
                 
-                // FIXED: Apply filters menggunakan enhanced search logic
+                // ENHANCED: Apply filters menggunakan enhanced search logic
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
-                        $q->where('nik', 'like', "%{$searchTerm}%")
+                        $q->where('nama_lengkap', 'like', "%{$searchTerm}%")
                           ->orWhere('nip', 'like', "%{$searchTerm}%")
-                          ->orWhere('nama_lengkap', 'like', "%{$searchTerm}%")
-                          ->orWhere('jabatan', 'like', "%{$searchTerm}%")
+                          ->orWhere('nik', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
                           ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
@@ -1382,21 +1479,23 @@ class EmployeeController extends Controller
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
                           ->orWhere('alamat', 'like', "%{$searchTerm}%")
-                          ->orWhere('handphone', 'like', "%{$searchTerm}%")
-                          ->orWhere('email', 'like', "%{$searchTerm}%")
-                          ->orWhere('instansi_pendidikan', 'like', "%{$searchTerm}%");
+                          ->orWhere('handphone', 'like', "%{$searchTerm}%");
                           
                         // Try relationship search with error handling
                         try {
-                            $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
-                                $unitQuery->where('name', 'like', "%{$searchTerm}%")
-                                         ->orWhere('code', 'like', "%{$searchTerm}%");
-                            });
+                            if (method_exists(Employee::class, 'unit')) {
+                                $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
+                                    $unitQuery->where('name', 'like', "%{$searchTerm}%")
+                                             ->orWhere('code', 'like', "%{$searchTerm}%");
+                                });
+                            }
                             
-                            $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
-                                $subUnitQuery->where('name', 'like', "%{$searchTerm}%")
-                                            ->orWhere('code', 'like', "%{$searchTerm}%");
-                            });
+                            if (method_exists(Employee::class, 'subUnit')) {
+                                $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
+                                    $subUnitQuery->where('name', 'like', "%{$searchTerm}%")
+                                                ->orWhere('code', 'like', "%{$searchTerm}%");
+                                });
+                            }
                         } catch (\Exception $e) {
                             // Skip relationship search if models don't exist
                             Log::warning('Statistics relationship search skipped: ' . $e->getMessage());
@@ -1526,25 +1625,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get unique shoe size options - SAFE VERSION
-     */
-    private function getShoeSizeOptions()
-    {
-        try {
-            $sizes = Employee::whereNotNull('ukuran_sepatu')
-                ->where('ukuran_sepatu', '!=', '')
-                ->distinct()
-                ->orderBy('ukuran_sepatu')
-                ->pluck('ukuran_sepatu');
-
-            return $sizes ? $sizes->toArray() : [];
-        } catch (\Exception $e) {
-            Log::error('Shoe Size Options Error: ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
      * Get new employees today count - SAFE VERSION
      */
     private function getNewEmployeesToday()
@@ -1553,9 +1633,12 @@ class EmployeeController extends Controller
             $today = Carbon::now()->startOfDay();
             $endOfDay = Carbon::now()->endOfDay();
 
-            return Employee::whereBetween('created_at', [$today, $endOfDay])
-                          ->where('status', 'active')
-                          ->count();
+            $query = Employee::whereBetween('created_at', [$today, $endOfDay]);
+            if (Schema::hasColumn('employees', 'status')) {
+                $query->where('status', 'active');
+            }
+
+            return $query->count();
         } catch (\Exception $e) {
             Log::error('New Employees Today Error: ' . $e->getMessage());
             return 0;
@@ -1571,9 +1654,12 @@ class EmployeeController extends Controller
             $yesterday = Carbon::now()->subDay()->startOfDay();
             $endOfYesterday = Carbon::now()->subDay()->endOfDay();
 
-            return Employee::whereBetween('created_at', [$yesterday, $endOfYesterday])
-                          ->where('status', 'active')
-                          ->count();
+            $query = Employee::whereBetween('created_at', [$yesterday, $endOfYesterday]);
+            if (Schema::hasColumn('employees', 'status')) {
+                $query->where('status', 'active');
+            }
+
+            return $query->count();
         } catch (\Exception $e) {
             Log::error('New Employees Yesterday Error: ' . $e->getMessage());
             return 0;
@@ -1589,9 +1675,12 @@ class EmployeeController extends Controller
             $startOfWeek = Carbon::now()->startOfWeek();
             $now = Carbon::now();
 
-            return Employee::whereBetween('created_at', [$startOfWeek, $now])
-                          ->where('status', 'active')
-                          ->count();
+            $query = Employee::whereBetween('created_at', [$startOfWeek, $now]);
+            if (Schema::hasColumn('employees', 'status')) {
+                $query->where('status', 'active');
+            }
+
+            return $query->count();
         } catch (\Exception $e) {
             Log::error('New Employees This Week Error: ' . $e->getMessage());
             return 0;

@@ -557,7 +557,7 @@ export default function Index({
         );
     };
 
-    // FIXED: Enhanced applyFilters dengan parameter yang benar
+    // FIXED: Enhanced applyFilters dengan parameter yang benar dan error handling
     const applyFilters = (page = 1, newPerPage = perPage) => {
         setLoading(true);
         setIsNavigating(true);
@@ -575,11 +575,8 @@ export default function Index({
         // FIXED: Add filters dengan nama parameter yang konsisten dengan backend
         if (statusFilter !== "all") params.status_pegawai = statusFilter;
         if (unitFilter !== "all") params.unit_organisasi = unitFilter;
-
-        // FIXED: Gunakan nama unit/sub unit bukan ID untuk konsistensi dengan static data
         if (unitIdFilter !== "all") params.unit_id = unitIdFilter;
         if (subUnitIdFilter !== "all") params.sub_unit_id = subUnitIdFilter;
-
         if (genderFilter !== "all") params.jenis_kelamin = genderFilter;
         if (shoeTypeFilter !== "all") params.jenis_sepatu = shoeTypeFilter;
         if (shoeSizeFilter !== "all") params.ukuran_sepatu = shoeSizeFilter;
@@ -592,9 +589,13 @@ export default function Index({
             data: params,
             preserveState: true,
             preserveScroll: true,
+            onStart: () => {
+                console.log("Filter request started");
+            },
             onFinish: () => {
                 setLoading(false);
                 setTimeout(() => setIsNavigating(false), 300);
+                console.log("Filter request completed");
             },
             onError: (errors) => {
                 console.error("Filter error:", errors);
@@ -607,24 +608,28 @@ export default function Index({
     // FIXED: Enhanced search dengan debounce yang lebih robust
     const handleSearchChange = (value) => {
         setSearchQuery(value);
-
-        console.log(`Search query changed: "${value}"`); // Debug log
+        console.log(`Search query changed: "${value}"`);
 
         if (searchTimeout) {
             clearTimeout(searchTimeout);
         }
 
         const timeout = setTimeout(() => {
-            console.log(`Executing search for: "${value}"`); // Debug log
+            console.log(`Executing search for: "${value}"`);
             applyFilters(1); // Reset to page 1 on search
         }, 500);
 
         setSearchTimeout(timeout);
     };
 
-    // FIXED: Enhanced handleFilterChange dengan validasi yang lebih baik
+    // FIXED: Enhanced handleFilterChange dengan auto-search yang lebih cepat
     const handleFilterChange = (filterType, value) => {
-        console.log(`Filter changed: ${filterType} = ${value}`); // Debug log
+        console.log(`Filter changed: ${filterType} = ${value}`);
+
+        // Clear any existing search timeout to avoid conflicts
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
 
         switch (filterType) {
             case "status":
@@ -664,10 +669,10 @@ export default function Index({
                 console.warn(`Unknown filter type: ${filterType}`);
         }
 
-        // Apply filters after a short delay to allow state updates
+        // FIXED: Apply filters immediately dengan delay yang lebih pendek untuk response yang lebih cepat
         setTimeout(() => {
             applyFilters(1); // Reset to page 1 on filter change
-        }, 100);
+        }, 50); // Dipercepat dari 100ms ke 50ms untuk instant search
     };
 
     // Handle per page change
@@ -683,7 +688,7 @@ export default function Index({
 
     // FIXED: Clear all filters dengan reset yang lebih lengkap
     const clearAllFilters = () => {
-        console.log("Clearing all filters"); // Debug log
+        console.log("Clearing all filters");
 
         setSearchQuery("");
         setStatusFilter("all");
@@ -708,7 +713,7 @@ export default function Index({
             preserveState: true,
             preserveScroll: true,
             onFinish: () => {
-                console.log("All filters cleared successfully"); // Debug log
+                console.log("All filters cleared successfully");
             },
         });
     };
@@ -726,7 +731,7 @@ export default function Index({
             shoeSizeFilter !== "all" ||
             kelompokJabatanFilter !== "all";
 
-        console.log("Has active filters:", hasFilters); // Debug log
+        console.log("Has active filters:", hasFilters);
         return hasFilters;
     };
 

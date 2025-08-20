@@ -491,7 +491,8 @@ Route::prefix('employees')->group(function () {
         ->where('identifier', '[0-9]+');
     
     // Search and filter
-    Route::get('/search/api', [EmployeeController::class, 'search'])->name('employees.search');
+    Route::get('/search/api', [EmployeeController::class, 'search'])->name('employees.search.api');
+    Route::get('/filter-options', [EmployeeController::class, 'getFilterOptions'])->name('employees.filter.options');
     Route::get('/suggestions', [EmployeeController::class, 'suggestions'])->name('employees.suggestions');
     
     // Statistics and analytics
