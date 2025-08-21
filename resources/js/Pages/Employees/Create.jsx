@@ -228,135 +228,6 @@ const FormNotification = ({ type, title, message, onClose }) => {
     );
 };
 
-// TEMPORARY DEBUG COMPONENT - Remove after testing
-const DebugAPITest = () => {
-    const [debugResults, setDebugResults] = useState({});
-    const [isDebugging, setIsDebugging] = useState(false);
-
-    const testAPI = async (endpoint, params = {}) => {
-        setIsDebugging(true);
-        const paramString = new URLSearchParams(params).toString();
-        const url = `/api/${endpoint}${paramString ? "?" + paramString : ""}`;
-
-        console.log(`Testing API: ${url}`);
-
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-
-            const result = {
-                url,
-                status: response.status,
-                ok: response.ok,
-                data,
-                timestamp: new Date().toLocaleTimeString(),
-            };
-
-            setDebugResults((prev) => ({
-                ...prev,
-                [endpoint]: result,
-            }));
-
-            console.log(`API Test Result for ${endpoint}:`, result);
-        } catch (error) {
-            const result = {
-                url,
-                error: error.message,
-                timestamp: new Date().toLocaleTimeString(),
-            };
-
-            setDebugResults((prev) => ({
-                ...prev,
-                [endpoint]: result,
-            }));
-
-            console.error(`API Test Error for ${endpoint}:`, error);
-        } finally {
-            setIsDebugging(false);
-        }
-    };
-
-    const unitOrganisasiOptions = [
-        "EGM",
-        "GM",
-        "Airside",
-        "Landside",
-        "Back Office",
-        "SSQC",
-        "Ancillary",
-    ];
-
-    return (
-        <div className="p-4 mb-6 border border-yellow-200 rounded-lg bg-yellow-50">
-            <h3 className="mb-3 text-lg font-semibold text-yellow-800">
-                API Debug Tool - Dropdown Cascade Testing
-            </h3>
-
-            <div className="mb-4 space-y-2">
-                <div className="flex flex-wrap gap-2">
-                    {unitOrganisasiOptions.map((unit) => (
-                        <button
-                            key={unit}
-                            onClick={() =>
-                                testAPI("units", { unit_organisasi: unit })
-                            }
-                            disabled={isDebugging}
-                            className="px-3 py-1 text-sm text-blue-800 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50"
-                        >
-                            Test Units: {unit}
-                        </button>
-                    ))}
-                </div>
-
-                <button
-                    onClick={() => testAPI("sub-units", { unit_id: 1 })}
-                    disabled={isDebugging}
-                    className="px-3 py-1 text-sm text-green-800 bg-green-100 rounded hover:bg-green-200 disabled:opacity-50"
-                >
-                    Test Sub Units (unit_id: 1)
-                </button>
-            </div>
-
-            {isDebugging && (
-                <div className="mb-3 text-sm text-blue-600">
-                    <Loader2 className="inline w-4 h-4 mr-2 animate-spin" />
-                    Testing API...
-                </div>
-            )}
-
-            <div className="space-y-2 overflow-y-auto max-h-60">
-                {Object.entries(debugResults).map(([endpoint, result]) => (
-                    <div
-                        key={endpoint}
-                        className="p-2 text-xs bg-gray-100 rounded"
-                    >
-                        <div className="font-semibold">
-                            {endpoint} ({result.timestamp})
-                        </div>
-                        <div className="text-gray-600">URL: {result.url}</div>
-                        {result.error ? (
-                            <div className="text-red-600">
-                                Error: {result.error}
-                            </div>
-                        ) : (
-                            <div>
-                                <div className="text-green-600">
-                                    Status: {result.status}{" "}
-                                    {result.ok ? "(OK)" : "(Error)"}
-                                </div>
-                                <div className="mt-1">
-                                    Response:{" "}
-                                    {JSON.stringify(result.data, null, 2)}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
 export default function Create({
     organizations = [],
     unitOptions = [],
@@ -436,7 +307,7 @@ export default function Create({
         }
     }, [success, error]);
 
-    // FIXED: Fetch units berdasarkan unit organisasi - menggunakan fetch API seperti Edit.jsx
+    // FIXED: Fetch units berdasarkan unit organisasi dengan error handling yang lebih baik
     const fetchUnits = async (unitOrganisasi) => {
         if (!unitOrganisasi) {
             setAvailableUnits([]);
@@ -447,34 +318,70 @@ export default function Create({
         }
 
         setLoadingUnits(true);
-        console.log("Fetching units for:", unitOrganisasi); // Debug log
+        console.log("Fetching units for:", unitOrganisasi);
 
         try {
             const response = await fetch(
                 `/api/units?unit_organisasi=${encodeURIComponent(
                     unitOrganisasi
-                )}`
+                )}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                    },
+                }
             );
-            const result = await response.json();
 
-            console.log("Units API response:", result); // Debug log
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log("Units API response:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setAvailableUnits(result.data);
                 console.log("Units loaded successfully:", result.data);
+
+                // Show success notification only if units were found
+                if (result.data.length > 0) {
+                    setNotification({
+                        type: "success",
+                        title: "Berhasil!",
+                        message: `${result.data.length} unit berhasil dimuat untuk ${unitOrganisasi}`,
+                    });
+                }
             } else {
                 console.warn("No units found for:", unitOrganisasi, result);
                 setAvailableUnits([]);
+
+                // Show info notification
+                setNotification({
+                    type: "info",
+                    title: "Informasi",
+                    message:
+                        result.message ||
+                        `Tidak ada unit tersedia untuk ${unitOrganisasi}`,
+                });
             }
         } catch (error) {
             console.error("Error fetching units:", error);
             setAvailableUnits([]);
+
+            // Show error notification
+            setNotification({
+                type: "error",
+                title: "Kesalahan!",
+                message: `Gagal memuat unit untuk ${unitOrganisasi}: ${error.message}`,
+            });
         } finally {
             setLoadingUnits(false);
         }
     };
 
-    // FIXED: Fetch sub units berdasarkan unit_id - menggunakan fetch API seperti Edit.jsx
+    // FIXED: Fetch sub units berdasarkan unit_id dengan error handling yang lebih baik
     const fetchSubUnits = async (unitId) => {
         if (!unitId) {
             setAvailableSubUnits([]);
@@ -483,26 +390,64 @@ export default function Create({
         }
 
         setLoadingSubUnits(true);
-        console.log("Fetching sub units for unit_id:", unitId); // Debug log
+        console.log("Fetching sub units for unit_id:", unitId);
 
         try {
             const response = await fetch(
-                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`
+                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                    },
+                }
             );
-            const result = await response.json();
 
-            console.log("Sub units API response:", result); // Debug log
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log("Sub units API response:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setAvailableSubUnits(result.data);
                 console.log("Sub units loaded successfully:", result.data);
+
+                if (result.data.length > 0) {
+                    // Show success notification for sub units
+                    setNotification({
+                        type: "success",
+                        title: "Berhasil!",
+                        message: `${result.data.length} sub unit berhasil dimuat`,
+                    });
+                }
             } else {
                 console.warn("No sub units found for unit_id:", unitId, result);
                 setAvailableSubUnits([]);
+
+                // Only show notification if it's an actual error, not when unit doesn't have sub units
+                if (result.success === false) {
+                    setNotification({
+                        type: "info",
+                        title: "Informasi",
+                        message:
+                            result.message ||
+                            "Unit ini tidak memiliki sub unit",
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching sub units:", error);
             setAvailableSubUnits([]);
+
+            // Show error notification
+            setNotification({
+                type: "error",
+                title: "Kesalahan!",
+                message: `Gagal memuat sub unit: ${error.message}`,
+            });
         } finally {
             setLoadingSubUnits(false);
         }
@@ -645,13 +590,13 @@ export default function Create({
         return error;
     };
 
-    // FIXED: Enhanced handleInputChange dengan cascading dropdown dan error clearing
+    // ENHANCED: handleInputChange dengan improved cascading logic
     const handleInputChange = (name, value) => {
         setData(name, value);
 
         // FIXED: Handle cascading dropdown untuk struktur organisasi
         if (name === "unit_organisasi") {
-            console.log("Unit organisasi changed to:", value); // Debug log
+            console.log("Unit organisasi changed to:", value);
 
             // Reset unit dan sub unit saat unit organisasi berubah
             setData("unit_id", "");
@@ -659,9 +604,17 @@ export default function Create({
             setAvailableUnits([]);
             setAvailableSubUnits([]);
 
+            // Clear validation errors
+            clearErrors("unit_id");
+            clearErrors("sub_unit_id");
+            setFormValidation((prev) => ({
+                ...prev,
+                unit_id: "",
+                sub_unit_id: "",
+            }));
+
             // Clear sub_unit_id error jika unit organisasi tidak memerlukan sub unit
             if (unitWithoutSubUnits.includes(value)) {
-                clearErrors("sub_unit_id");
                 setFormValidation((prev) => ({
                     ...prev,
                     sub_unit_id: "",
@@ -673,13 +626,20 @@ export default function Create({
                 fetchUnits(value);
             }
         } else if (name === "unit_id") {
-            console.log("Unit ID changed to:", value); // Debug log
+            console.log("Unit ID changed to:", value);
 
             // Reset sub unit saat unit berubah
             setData("sub_unit_id", "");
             setAvailableSubUnits([]);
 
-            // Fetch sub units untuk unit yang dipilih (hanya jika required)
+            // Clear validation errors
+            clearErrors("sub_unit_id");
+            setFormValidation((prev) => ({
+                ...prev,
+                sub_unit_id: "",
+            }));
+
+            // Load sub units untuk unit yang dipilih (hanya jika required)
             if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
                 fetchSubUnits(value);
             }
@@ -748,14 +708,6 @@ export default function Create({
         setIsSubmitting(true);
 
         console.log("Form Data Submission:", data);
-        console.log("NIK Value:", data.nik);
-        console.log("NIP Value:", data.nip);
-        console.log("Gender Value:", data.jenis_kelamin);
-        console.log("Kelompok Jabatan Value:", data.kelompok_jabatan);
-        console.log("Unit Organisasi:", data.unit_organisasi);
-        console.log("Unit ID:", data.unit_id);
-        console.log("Sub Unit ID:", data.sub_unit_id);
-        console.log("Status Pegawai:", data.status_pegawai);
 
         // Validate required fields
         const requiredFieldErrors = validateRequiredFields();
@@ -828,8 +780,8 @@ export default function Create({
 
         console.log("Clean Data for Submission:", cleanData);
 
-        // FIXED: Submit data langsung tanpa wrapper object - correct Inertia format
-        post(route("employees.store"), cleanData, {
+        // Submit to backend
+        post(route("employees.store"), {
             onBefore: () => {
                 console.log("Starting form submission...");
             },
@@ -1141,12 +1093,12 @@ export default function Create({
                             label="Unit"
                             required={true}
                             options={availableUnits.map((unit) => ({
-                                value: unit.id,
-                                label: unit.name,
+                                value: unit.id || unit.value,
+                                label: unit.label || unit.name,
                             }))}
                             placeholder={
                                 loadingUnits
-                                    ? "Loading..."
+                                    ? "Loading units..."
                                     : availableUnits.length > 0
                                     ? "Pilih Unit"
                                     : "Pilih Unit Organisasi dulu"
@@ -1164,12 +1116,12 @@ export default function Create({
                             label="Sub Unit"
                             required={isSubUnitRequired}
                             options={availableSubUnits.map((subUnit) => ({
-                                value: subUnit.id,
-                                label: subUnit.name,
+                                value: subUnit.id || subUnit.value,
+                                label: subUnit.label || subUnit.name,
                             }))}
                             placeholder={
                                 loadingSubUnits
-                                    ? "Loading..."
+                                    ? "Loading sub units..."
                                     : unitWithoutSubUnits.includes(
                                           data.unit_organisasi
                                       )
@@ -1212,33 +1164,44 @@ export default function Create({
                                     {data.unit_organisasi}
                                 </span>
                                 {availableUnits.find(
-                                    (u) => u.id == data.unit_id
+                                    (u) => (u.id || u.value) == data.unit_id
                                 ) && (
                                     <>
                                         <span>→</span>
                                         <span className="px-2 py-1 bg-green-100 rounded">
-                                            {
+                                            {availableUnits.find(
+                                                (u) =>
+                                                    (u.id || u.value) ==
+                                                    data.unit_id
+                                            )?.name ||
                                                 availableUnits.find(
-                                                    (u) => u.id == data.unit_id
-                                                )?.name
-                                            }
+                                                    (u) =>
+                                                        (u.id || u.value) ==
+                                                        data.unit_id
+                                                )?.label}
                                         </span>
                                     </>
                                 )}
                                 {isSubUnitRequired ? (
                                     availableSubUnits.find(
-                                        (su) => su.id == data.sub_unit_id
+                                        (su) =>
+                                            (su.id || su.value) ==
+                                            data.sub_unit_id
                                     ) && (
                                         <>
                                             <span>→</span>
                                             <span className="px-2 py-1 bg-green-100 rounded">
-                                                {
+                                                {availableSubUnits.find(
+                                                    (su) =>
+                                                        (su.id || su.value) ==
+                                                        data.sub_unit_id
+                                                )?.name ||
                                                     availableSubUnits.find(
                                                         (su) =>
-                                                            su.id ==
+                                                            (su.id ||
+                                                                su.value) ==
                                                             data.sub_unit_id
-                                                    )?.name
-                                                }
+                                                    )?.label}
                                             </span>
                                         </>
                                     )
@@ -1511,9 +1474,6 @@ export default function Create({
             )}
 
             <div className="p-6 space-y-6">
-                {/* TEMPORARY: Debug Component - Remove after testing */}
-                <DebugAPITest />
-
                 {/* Header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">

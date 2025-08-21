@@ -45,6 +45,7 @@ class EmployeeController extends Controller
 
     /**
      * FIXED: Get units berdasarkan unit organisasi untuk cascading dropdown
+     * Format response: {success: true/false, data: [], message: ''}
      */
     public function getUnits(Request $request)
     {
@@ -58,16 +59,24 @@ class EmployeeController extends Controller
             ]);
             
             if (!$unitOrganisasi) {
-                return response()->json([]);
+                return response()->json([
+                    'success' => false,
+                    'data' => [],
+                    'message' => 'Parameter unit_organisasi tidak ditemukan'
+                ]);
             }
 
             // Validate unit organisasi
-            $validUnitOrganisasi = Unit::UNIT_ORGANISASI_OPTIONS ?? [
+            $validUnitOrganisasi = [
                 'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
             ];
             
             if (!in_array($unitOrganisasi, $validUnitOrganisasi)) {
-                return response()->json([]);
+                return response()->json([
+                    'success' => false,
+                    'data' => [],
+                    'message' => 'Unit organisasi tidak valid'
+                ]);
             }
 
             // Check if Unit model exists
@@ -84,14 +93,30 @@ class EmployeeController extends Controller
                 ];
                 
                 $units = $staticStructure[$unitOrganisasi] ?? [];
-                return response()->json(array_map(function($unit) {
+                
+                if (empty($units)) {
+                    return response()->json([
+                        'success' => false,
+                        'data' => [],
+                        'message' => 'Tidak ada unit untuk unit organisasi ini'
+                    ]);
+                }
+                
+                $response = array_map(function($unit) {
                     return [
                         'value' => $unit,
                         'label' => $unit,
                         'id' => $unit,
                         'code' => $unit,
+                        'name' => $unit
                     ];
-                }, $units));
+                }, $units);
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $response,
+                    'message' => 'Units loaded from static data'
+                ]);
             }
 
             // Get units from database
@@ -108,19 +133,59 @@ class EmployeeController extends Controller
             ]);
 
             if ($units->isEmpty()) {
-                return response()->json([]);
+                // Fallback ke static data jika database kosong
+                $staticStructure = [
+                    'EGM' => ['EGM'],
+                    'GM' => ['GM'],
+                    'Airside' => ['MO', 'ME'],
+                    'Landside' => ['MF', 'MS'],
+                    'Back Office' => ['MU', 'MK'],
+                    'SSQC' => ['MQ'],
+                    'Ancillary' => ['MB'],
+                ];
+                
+                $staticUnits = $staticStructure[$unitOrganisasi] ?? [];
+                
+                if (!empty($staticUnits)) {
+                    $response = array_map(function($unit) {
+                        return [
+                            'value' => $unit,
+                            'label' => $unit,
+                            'id' => $unit,
+                            'code' => $unit,
+                            'name' => $unit
+                        ];
+                    }, $staticUnits);
+                    
+                    return response()->json([
+                        'success' => true,
+                        'data' => $response,
+                        'message' => 'Units loaded from static fallback'
+                    ]);
+                }
+                
+                return response()->json([
+                    'success' => false,
+                    'data' => [],
+                    'message' => 'Tidak ada unit tersedia untuk unit organisasi ini'
+                ]);
             }
 
             $response = $units->map(function($unit) {
                 return [
                     'value' => $unit->name,
-                    'label' => $unit->name . ' (' . $unit->code . ')',
+                    'label' => $unit->name,
                     'id' => $unit->id,
                     'code' => $unit->code,
+                    'name' => $unit->name
                 ];
             });
 
-            return response()->json($response);
+            return response()->json([
+                'success' => true,
+                'data' => $response->toArray(),
+                'message' => 'Units loaded successfully'
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Get Units API Error', [
@@ -129,26 +194,37 @@ class EmployeeController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([]);
+            return response()->json([
+                'success' => false,
+                'data' => [],
+                'message' => 'Terjadi kesalahan saat mengambil data unit: ' . $e->getMessage()
+            ]);
         }
     }
 
     /**
      * FIXED: Get sub units berdasarkan unit untuk cascading dropdown
+     * Format response: {success: true/false, data: [], message: ''}
      */
     public function getSubUnits(Request $request)
     {
         try {
-            $unit = $request->get('unit');
+            $unitId = $request->get('unit_id');
+            $unitName = $request->get('unit'); // Support both unit_id and unit name
             
             Log::info('Get Sub Units API called', [
-                'unit' => $unit,
+                'unit_id' => $unitId,
+                'unit_name' => $unitName,
                 'request_method' => $request->method(),
                 'all_params' => $request->all()
             ]);
             
-            if (!$unit) {
-                return response()->json([]);
+            if (!$unitId && !$unitName) {
+                return response()->json([
+                    'success' => false,
+                    'data' => [],
+                    'message' => 'Parameter unit_id atau unit tidak ditemukan'
+                ]);
             }
 
             // Unit organisasi yang tidak memiliki sub unit
@@ -162,32 +238,63 @@ class EmployeeController extends Controller
                     'ME' => ['GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance', 'BTT Operator', 'Line Maintenance'],
                     'MF' => ['KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways', 'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili', 'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines', 'Sichuan Airlines', 'Aeroflot', 'Charter Flight'],
                     'MS' => ['MPGA', 'QG', 'IP'],
-                    'MU' => ['Human Resource & General Affair', 'Fasilitas & Sarana'],
+                    'MU' => ['Human Resources & General Affair', 'Fasilitas & Sarana'],
                     'MK' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
                     'MQ' => ['Avsec', 'Safety Quality Control'],
                     'MB' => ['GPL', 'GLC', 'Joumpa'],
                 ];
                 
+                $unit = $unitName ?: $unitId;
                 $subUnits = $staticStructure[$unit] ?? [];
-                return response()->json(array_map(function($subUnit) {
+                
+                if (empty($subUnits)) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => [],
+                        'message' => 'Unit ini tidak memiliki sub unit'
+                    ]);
+                }
+                
+                $response = array_map(function($subUnit) {
                     return [
                         'value' => $subUnit,
                         'label' => $subUnit,
                         'id' => $subUnit,
                         'code' => $subUnit,
+                        'name' => $subUnit
                     ];
-                }, $subUnits));
+                }, $subUnits);
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $response,
+                    'message' => 'Sub units loaded from static data'
+                ]);
             }
 
-            // Cari unit berdasarkan nama
-            $unitRecord = Unit::where('name', $unit)->first();
+            // Cari unit berdasarkan ID atau nama
+            $unitRecord = null;
+            if ($unitId) {
+                $unitRecord = Unit::find($unitId);
+            } elseif ($unitName) {
+                $unitRecord = Unit::where('name', $unitName)->first();
+            }
+            
             if (!$unitRecord) {
-                return response()->json([]);
+                return response()->json([
+                    'success' => false,
+                    'data' => [],
+                    'message' => 'Unit tidak ditemukan'
+                ]);
             }
 
             // Check if this unit organisasi should have sub units
             if (in_array($unitRecord->unit_organisasi, $unitWithoutSubUnits)) {
-                return response()->json([]);
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Unit organisasi ini tidak memiliki sub unit'
+                ]);
             }
 
             // Get sub units from database
@@ -198,35 +305,177 @@ class EmployeeController extends Controller
                 ->get();
 
             Log::info('Sub units retrieved', [
-                'unit' => $unit,
+                'unit' => $unitRecord->name,
                 'unit_id' => $unitRecord->id,
                 'sub_units_count' => $subUnits->count(),
                 'sub_units' => $subUnits->pluck('name')->toArray()
             ]);
 
             if ($subUnits->isEmpty()) {
-                return response()->json([]);
+                // Fallback ke static data
+                $staticStructure = [
+                    'MO' => ['Flops', 'Depco', 'Ramp', 'Load Control', 'Load Master', 'ULD Control', 'Cargo Import', 'Cargo Export'],
+                    'ME' => ['GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance', 'BTT Operator', 'Line Maintenance'],
+                    'MF' => ['KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways', 'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili', 'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines', 'Sichuan Airlines', 'Aeroflot', 'Charter Flight'],
+                    'MS' => ['MPGA', 'QG', 'IP'],
+                    'MU' => ['Human Resources & General Affair', 'Fasilitas & Sarana'],
+                    'MK' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
+                    'MQ' => ['Avsec', 'Safety Quality Control'],
+                    'MB' => ['GPL', 'GLC', 'Joumpa'],
+                ];
+                
+                $staticSubUnits = $staticStructure[$unitRecord->name] ?? [];
+                
+                if (!empty($staticSubUnits)) {
+                    $response = array_map(function($subUnit) {
+                        return [
+                            'value' => $subUnit,
+                            'label' => $subUnit,
+                            'id' => $subUnit,
+                            'code' => $subUnit,
+                            'name' => $subUnit
+                        ];
+                    }, $staticSubUnits);
+                    
+                    return response()->json([
+                        'success' => true,
+                        'data' => $response,
+                        'message' => 'Sub units loaded from static fallback'
+                    ]);
+                }
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Unit ini tidak memiliki sub unit'
+                ]);
             }
 
             $response = $subUnits->map(function($subUnit) {
                 return [
                     'value' => $subUnit->name,
-                    'label' => $subUnit->name . ' (' . $subUnit->code . ')',
+                    'label' => $subUnit->name,
                     'id' => $subUnit->id,
                     'code' => $subUnit->code,
+                    'name' => $subUnit->name
                 ];
             });
 
-            return response()->json($response);
+            return response()->json([
+                'success' => true,
+                'data' => $response->toArray(),
+                'message' => 'Sub units loaded successfully'
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Get Sub Units API Error', [
-                'unit' => $request->get('unit'),
+                'unit_id' => $request->get('unit_id'),
+                'unit_name' => $request->get('unit'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([]);
+            return response()->json([
+                'success' => false,
+                'data' => [],
+                'message' => 'Terjadi kesalahan saat mengambil data sub unit: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * FIXED: Get unit organisasi options untuk dropdown
+     */
+    public function getUnitOrganisasiOptions()
+    {
+        try {
+            $options = [
+                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
+            ];
+            
+            $response = array_map(function($option) {
+                return [
+                    'value' => $option,
+                    'label' => $option,
+                ];
+            }, $options);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $response,
+                'message' => 'Unit organisasi options loaded successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'data' => [],
+                'message' => 'Terjadi kesalahan saat mengambil unit organisasi options: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * DEBUGGING: Get complete units hierarchy untuk debugging
+     */
+    public function getAllUnitsHierarchy()
+    {
+        try {
+            $hierarchy = [];
+            
+            $unitOrganisasiOptions = [
+                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
+            ];
+            
+            foreach ($unitOrganisasiOptions as $unitOrg) {
+                $hierarchy[$unitOrg] = [
+                    'units' => [],
+                    'sub_units' => []
+                ];
+                
+                // Get units
+                if (class_exists('App\Models\Unit')) {
+                    $units = Unit::where('unit_organisasi', $unitOrg)
+                        ->where('is_active', true)
+                        ->get();
+                    
+                    foreach ($units as $unit) {
+                        $hierarchy[$unitOrg]['units'][] = [
+                            'id' => $unit->id,
+                            'name' => $unit->name,
+                            'code' => $unit->code
+                        ];
+                        
+                        // Get sub units for this unit
+                        if (class_exists('App\Models\SubUnit')) {
+                            $subUnits = SubUnit::where('unit_id', $unit->id)
+                                ->where('is_active', true)
+                                ->get();
+                            
+                            $hierarchy[$unitOrg]['sub_units'][$unit->name] = $subUnits->map(function($subUnit) {
+                                return [
+                                    'id' => $subUnit->id,
+                                    'name' => $subUnit->name,
+                                    'code' => $subUnit->code
+                                ];
+                            })->toArray();
+                        }
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $hierarchy,
+                'message' => 'Complete hierarchy loaded'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'data' => [],
+                'message' => 'Error loading hierarchy: ' . $e->getMessage()
+            ]);
         }
     }
 
@@ -1343,7 +1592,7 @@ class EmployeeController extends Controller
                               'name' => $unit->name,
                               'code' => $unit->code,
                               'unit_organisasi' => $unit->unit_organisasi,
-                              'label' => $unit->name . ' (' . $unit->code . ')',
+                              'label' => $unit->name,
                           ];
                       })
                       ->toArray();
@@ -1374,7 +1623,7 @@ class EmployeeController extends Controller
                                   'unit_id' => $subUnit->unit_id,
                                   'unit_name' => $subUnit->unit ? $subUnit->unit->name : '',
                                   'unit_organisasi' => $subUnit->unit ? $subUnit->unit->unit_organisasi : '',
-                                  'label' => $subUnit->name . ' (' . $subUnit->code . ')',
+                                  'label' => $subUnit->name,
                               ];
                           })
                           ->toArray();
