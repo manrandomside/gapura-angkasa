@@ -18,6 +18,7 @@ use Inertia\Inertia;
 | Enhanced dengan filter sepatu dan ukuran sepatu
 | Updated dengan Unit Organisasi Expert System
 | FIXED: Parent-child dropdown dan cascading units
+| UPDATED: Employee History API routes untuk dashboard
 |
 */
 
@@ -36,10 +37,12 @@ Route::prefix('api')->group(function () {
     Route::get('/units/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
     Route::get('/units/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
     
-    // Dashboard API
+    // Dashboard API - UPDATED: Include Employee History
     Route::get('/dashboard/statistics', [DashboardController::class, 'getStatistics'])->name('api.dashboard.statistics');
     Route::get('/dashboard/charts', [DashboardController::class, 'getChartData'])->name('api.dashboard.charts');
     Route::get('/dashboard/activities', [DashboardController::class, 'getRecentActivities'])->name('api.dashboard.activities');
+    Route::get('/dashboard/employee-history', [DashboardController::class, 'getEmployeeHistory'])->name('api.dashboard.employee.history');
+    Route::get('/dashboard/employee-history-summary', [DashboardController::class, 'getEmployeeHistorySummary'])->name('api.dashboard.employee.history.summary');
     
     // Employee API dengan filter enhancement - UPDATED: Flexible identifier support
     Route::get('/employees/search', [EmployeeController::class, 'search'])->name('api.employees.search');
@@ -450,11 +453,13 @@ Route::get('/', function () {
 // Main dashboard route
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Dashboard API routes
+// Dashboard API routes - UPDATED: Include Employee History
 Route::prefix('dashboard')->group(function () {
     Route::get('/statistics', [DashboardController::class, 'getStatistics'])->name('dashboard.statistics');
     Route::get('/charts', [DashboardController::class, 'getChartData'])->name('dashboard.charts');
     Route::get('/activities', [DashboardController::class, 'getRecentActivities'])->name('dashboard.activities');
+    Route::get('/employee-history', [DashboardController::class, 'getEmployeeHistory'])->name('dashboard.employee.history');
+    Route::get('/employee-history-summary', [DashboardController::class, 'getEmployeeHistorySummary'])->name('dashboard.employee.history.summary');
     Route::post('/export', [DashboardController::class, 'exportData'])->name('dashboard.export');
     Route::get('/health', [DashboardController::class, 'healthCheck'])->name('dashboard.health');
 });
@@ -873,18 +878,19 @@ Route::prefix('utilities')->group(function () {
                 'unit_statistics' => 'enabled',
                 'flexible_identifier_support' => 'enabled', // UPDATED: New feature
                 'backward_compatibility' => 'enabled', // UPDATED: New feature
+                'employee_history_tracking' => 'enabled', // NEW: Employee history feature
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
             'timestamp' => now()->toISOString(),
-            'version' => '1.5.0', // UPDATED: Version bump untuk fixed parent-child dropdown
+            'version' => '1.6.0', // UPDATED: Version bump untuk employee history feature
         ]);
     })->name('utilities.health.check');
     
     Route::get('/system-info', function () {
         return response()->json([
             'system_name' => 'GAPURA ANGKASA SDM System',
-            'version' => '1.5.0', // UPDATED: Version bump
+            'version' => '1.6.0', // UPDATED: Version bump
             'features' => [
                 'employee_management' => 'active',
                 'shoe_filtering' => 'active',
@@ -901,6 +907,8 @@ Route::prefix('utilities')->group(function () {
                 'nik_and_id_support' => 'active', // UPDATED: New feature
                 'legacy_compatibility' => 'active', // UPDATED: New feature
                 'parent_child_dropdown' => 'fixed', // NEW: Fixed feature indicator
+                'employee_history_tracking' => 'active', // NEW: Employee history feature
+                'dashboard_history_widget' => 'active', // NEW: Dashboard history widget
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -1011,6 +1019,39 @@ if (app()->environment('local', 'development')) {
                     ];
                 }
                 
+                // NEW: Test 4: Employee History API
+                try {
+                    $response = app(DashboardController::class)->getEmployeeHistory();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['employee_history'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'history_count' => count($data['history'] ?? []),
+                        'period' => $data['period'] ?? 'Unknown',
+                        'sample_data' => array_slice($data['history'] ?? [], 0, 2)
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['employee_history'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // NEW: Test 5: Employee History Summary API
+                try {
+                    $response = app(DashboardController::class)->getEmployeeHistorySummary();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['employee_history_summary'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'summary' => $data['summary'] ?? [],
+                        'latest_employees_count' => count($data['latest_employees'] ?? [])
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['employee_history_summary'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
                 // Summary
                 $passCount = 0;
                 $totalTests = count($results['tests']);
@@ -1026,13 +1067,13 @@ if (app()->environment('local', 'development')) {
                 ];
                 
                 return response()->json([
-                    'message' => 'Unit API Testing Completed',
+                    'message' => 'Enhanced API Testing Completed (with Employee History)',
                     'results' => $results
                 ], 200, [], JSON_PRETTY_PRINT);
                 
             } catch (\Exception $e) {
                 return response()->json([
-                    'message' => 'Unit API Testing Failed',
+                    'message' => 'API Testing Failed',
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ], 500);
@@ -1252,6 +1293,30 @@ if (app()->environment('local', 'development')) {
                         return response()->json([
                             'success' => false,
                             'message' => 'Error retrieving sub units',
+                            'error' => $e->getMessage()
+                        ], 500);
+                    }
+
+                case 'employee-history':
+                    try {
+                        $response = app(DashboardController::class)->getEmployeeHistory();
+                        return $response;
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Error retrieving employee history',
+                            'error' => $e->getMessage()
+                        ], 500);
+                    }
+
+                case 'employee-history-summary':
+                    try {
+                        $response = app(DashboardController::class)->getEmployeeHistorySummary();
+                        return $response;
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Error retrieving employee history summary',
                             'error' => $e->getMessage()
                         ], 500);
                     }
@@ -1575,7 +1640,7 @@ Route::fallback(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan Fixed Parent-Child Dropdown v1.5.0
+| Route Documentation - Enhanced dengan Employee History API v1.6.0
 |--------------------------------------------------------------------------
 |
 | CRITICAL FIXES untuk Parent-Child Dropdown:
@@ -1585,8 +1650,14 @@ Route::fallback(function () {
 | ✅ Direct API testing dengan parameter
 | ✅ Comprehensive logging dan error handling
 |
+| NEW FEATURES v1.6.0 - Employee History:
+| ✅ Employee history API routes untuk dashboard
+| ✅ Enhanced testing untuk employee history endpoints
+| ✅ Updated version tracking dan system info
+| ✅ Comprehensive employee tracking system
+|
 | MAIN ROUTES:
-| - /dashboard                 - Dashboard utama dengan statistik
+| - /dashboard                 - Dashboard utama dengan statistik dan history widget
 | - /employees                 - Management karyawan (CRUD lengkap dengan flexible identifier routing)
 | - /organisasi               - Management organisasi
 | - /laporan                  - Reports dan statistik
@@ -1600,25 +1671,33 @@ Route::fallback(function () {
 | - /api/units/hierarchy                  - Get complete unit hierarchy
 | - /api/units/statistics                 - Get unit statistics
 |
+| NEW API ROUTES untuk Employee History:
+| - /api/dashboard/employee-history       - Get employee history (last 30 days)
+| - /api/dashboard/employee-history-summary - Get employee history summary stats
+| - /dashboard/employee-history           - Non-API version
+| - /dashboard/employee-history-summary   - Non-API summary version
+|
 | ENHANCED DEBUGGING ROUTES (development only):
 | - /dev/debug-units                      - Comprehensive unit structure debug
 | - /dev/test-api/{endpoint}              - Direct API testing dengan parameter
-| - /dev/test-unit-api                    - Complete unit API testing suite
+| - /dev/test-unit-api                    - Complete unit API testing suite (now includes employee history)
 | - /dev/test-unit-seeder                 - Test unit seeder
 |
-| TESTING ENDPOINTS:
+| TESTING ENDPOINTS (UPDATED):
 | - /dev/test-api/units?unit_organisasi=SSQC     - Test units API
 | - /dev/test-api/sub-units?unit_id=1            - Test sub units API
+| - /dev/test-api/employee-history               - Test employee history API
+| - /dev/test-api/employee-history-summary       - Test employee history summary API
 | - /dev/debug-units                             - Debug complete structure
 |
-| NEW FEATURES v1.5.0:
-| ✅ Fixed parent-child dropdown routing conflicts
-| ✅ Enhanced API debugging dan testing
-| ✅ Comprehensive unit structure validation
-| ✅ Direct API testing dengan parameter
-| ✅ Real-time debugging capabilities
-| ✅ Enhanced error handling dan logging
-| ✅ Improved route prioritization
+| NEW FEATURES v1.6.0:
+| ✅ Employee history tracking di dashboard
+| ✅ Real-time employee addition monitoring
+| ✅ Enhanced dashboard widget dengan history karyawan baru
+| ✅ API endpoints untuk employee history management
+| ✅ Comprehensive testing untuk history functionality
+| ✅ Updated system versioning (v1.6.0)
+| ✅ Enhanced debugging capabilities untuk history
 |
 | ROUTE PRIORITIES (order matters):
 | 1. API routes (highest priority)

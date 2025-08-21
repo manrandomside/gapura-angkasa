@@ -162,6 +162,132 @@ class DashboardController extends Controller
     }
 
     /**
+     * Get employee history untuk dashboard
+     * FITUR BARU: Method untuk menampilkan history karyawan yang baru ditambahkan
+     */
+    public function getEmployeeHistory()
+    {
+        try {
+            // Ambil karyawan yang ditambahkan dalam 30 hari terakhir
+            $recentEmployees = Employee::with(['unit', 'subUnit'])
+                ->select([
+                    'id',
+                    'nama_lengkap',
+                    'unit_organisasi',
+                    'unit_id',
+                    'sub_unit_id',
+                    'jabatan',
+                    'status_pegawai',
+                    'created_at'
+                ])
+                ->where('created_at', '>=', Carbon::now()->subDays(30))
+                ->where('status', 'active')
+                ->orderBy('created_at', 'desc')
+                ->limit(20)
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'unit_name' => $employee->unit ? $employee->unit->name : '-',
+                        'sub_unit_name' => $employee->subUnit ? $employee->subUnit->name : '-',
+                        'jabatan' => $employee->jabatan,
+                        'status_pegawai' => $employee->status_pegawai,
+                        'created_at' => $employee->created_at,
+                        'created_at_formatted' => $employee->created_at->diffForHumans(),
+                        'created_at_full' => $employee->created_at->format('d M Y, H:i'),
+                    ];
+                });
+
+            return response()->json([
+                'history' => $recentEmployees,
+                'total' => $recentEmployees->count(),
+                'period' => '30 hari terakhir',
+                'last_updated' => now()->toISOString(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'history' => [],
+                'total' => 0,
+                'error' => 'Gagal memuat history karyawan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get employee history summary untuk statistik dashboard
+     * FITUR BARU: Method untuk mendapatkan ringkasan history yang ditampilkan di card
+     */
+    public function getEmployeeHistorySummary()
+    {
+        try {
+            // Hitung karyawan yang ditambahkan hari ini
+            $todayCount = Employee::whereDate('created_at', Carbon::today())
+                ->where('status', 'active')
+                ->count();
+
+            // Hitung karyawan yang ditambahkan minggu ini
+            $weekCount = Employee::where('created_at', '>=', Carbon::now()->startOfWeek())
+                ->where('status', 'active')
+                ->count();
+
+            // Hitung karyawan yang ditambahkan bulan ini
+            $monthCount = Employee::where('created_at', '>=', Carbon::now()->startOfMonth())
+                ->where('status', 'active')
+                ->count();
+
+            // Ambil 5 karyawan terbaru untuk preview
+            $latestEmployees = Employee::with(['unit', 'subUnit'])
+                ->select([
+                    'id',
+                    'nama_lengkap',
+                    'unit_organisasi',
+                    'unit_id',
+                    'sub_unit_id',
+                    'jabatan',
+                    'created_at'
+                ])
+                ->where('status', 'active')
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function ($employee) {
+                    return [
+                        'id' => $employee->id,
+                        'nama_lengkap' => $employee->nama_lengkap,
+                        'unit_organisasi' => $employee->unit_organisasi,
+                        'unit_name' => $employee->unit ? $employee->unit->name : '-',
+                        'sub_unit_name' => $employee->subUnit ? $employee->subUnit->name : '-',
+                        'jabatan' => $employee->jabatan,
+                        'created_at' => $employee->created_at,
+                        'time_ago' => $employee->created_at->diffForHumans(),
+                    ];
+                });
+
+            return response()->json([
+                'summary' => [
+                    'today' => $todayCount,
+                    'week' => $weekCount,
+                    'month' => $monthCount,
+                ],
+                'latest_employees' => $latestEmployees,
+                'timestamp' => now()->toISOString(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'summary' => [
+                    'today' => 0,
+                    'week' => 0,
+                    'month' => 0,
+                ],
+                'latest_employees' => [],
+                'error' => 'Gagal memuat ringkasan history: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export dashboard data
      */
     public function exportData(Request $request)
