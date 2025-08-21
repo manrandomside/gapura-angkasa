@@ -27,6 +27,185 @@ import {
     Clock,
 } from "lucide-react";
 
+// History Modal Component
+const HistoryModal = ({ isOpen, onClose, recentEmployees }) => {
+    if (!isOpen) return null;
+
+    const formatDate = (dateString) => {
+        if (!dateString) return "Tanggal tidak tersedia";
+
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString("id-ID", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch (error) {
+            return "Tanggal tidak valid";
+        }
+    };
+
+    const getEmployeeName = (employee) => {
+        if (!employee) return "Nama tidak tersedia";
+        return employee.nama_lengkap || employee.nama || "Nama tidak tersedia";
+    };
+
+    const getEmployeeInitial = (employee) => {
+        const name = getEmployeeName(employee);
+        if (name === "Nama tidak tersedia") return "N";
+        return name.charAt(0).toUpperCase();
+    };
+
+    const safeEmployees = Array.isArray(recentEmployees) ? recentEmployees : [];
+
+    return (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div
+                    className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+                    aria-hidden="true"
+                    onClick={onClose}
+                ></div>
+
+                <span
+                    className="hidden sm:inline-block sm:align-middle sm:h-screen"
+                    aria-hidden="true"
+                >
+                    &#8203;
+                </span>
+
+                <div className="inline-block w-full max-w-4xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl sm:align-middle">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-12 h-12 bg-[#439454]/10 rounded-xl">
+                                <Clock className="w-6 h-6 text-[#439454]" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">
+                                    History Karyawan Baru
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                    Data karyawan yang baru ditambahkan
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 transition-colors duration-200 rounded-lg hover:text-gray-600 hover:bg-gray-100"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="overflow-y-auto max-h-96">
+                        {safeEmployees.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="flex items-center justify-center w-16 h-16 mb-4 bg-gray-100 rounded-full">
+                                    <Clock className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <h4 className="mb-2 text-lg font-medium text-gray-900">
+                                    Belum Ada Data Baru
+                                </h4>
+                                <p className="text-sm text-gray-500">
+                                    Belum ada karyawan yang ditambahkan dalam 7
+                                    hari terakhir
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {safeEmployees.map((employee, index) => {
+                                    const employeeId = employee?.id || index;
+                                    const employeeName =
+                                        getEmployeeName(employee);
+                                    const employeeInitial =
+                                        getEmployeeInitial(employee);
+
+                                    return (
+                                        <div
+                                            key={employeeId}
+                                            className="p-4 transition-all duration-200 border border-gray-200 rounded-xl hover:border-[#439454]/30 hover:shadow-md"
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <div className="flex items-center justify-center w-10 h-10 bg-[#439454] rounded-full text-white font-medium">
+                                                            {employeeInitial}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-semibold text-gray-900">
+                                                                {employeeName}
+                                                            </h4>
+                                                            <p className="text-sm text-gray-500">
+                                                                NIP:{" "}
+                                                                {employee?.nip ||
+                                                                    "Belum ada NIP"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                                            <div className="p-3 rounded-lg bg-blue-50">
+                                                                <p className="text-xs font-medium tracking-wide text-blue-600 uppercase">
+                                                                    Unit
+                                                                    Organisasi
+                                                                </p>
+                                                                <p className="mt-1 text-sm font-semibold text-blue-900">
+                                                                    {employee?.unit_organisasi ||
+                                                                        "Belum diatur"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="p-3 rounded-lg bg-green-50">
+                                                                <p className="text-xs font-medium tracking-wide text-green-600 uppercase">
+                                                                    Unit
+                                                                </p>
+                                                                <p className="mt-1 text-sm font-semibold text-green-900">
+                                                                    {employee?.unit ||
+                                                                        "Belum diatur"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="p-3 rounded-lg bg-purple-50">
+                                                                <p className="text-xs font-medium tracking-wide text-purple-600 uppercase">
+                                                                    Sub Unit
+                                                                </p>
+                                                                <p className="mt-1 text-sm font-semibold text-purple-900">
+                                                                    {employee?.sub_unit ||
+                                                                        "Belum diatur"}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                                                            <Calendar className="w-4 h-4 text-gray-400" />
+                                                            <span className="text-xs text-gray-500">
+                                                                Ditambahkan
+                                                                pada:{" "}
+                                                                {formatDate(
+                                                                    employee?.created_at
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function Index({
     employees = { data: [] },
     pagination = {},
@@ -44,6 +223,10 @@ export default function Index({
     subtitle = "Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai",
     auth,
 }) {
+    // State untuk history modal
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [recentEmployees, setRecentEmployees] = useState([]);
+
     // FIXED: Helper functions untuk notification management dengan pergantian hari
     const isCreatedToday = (employee) => {
         if (!employee.created_at) return false;
@@ -66,6 +249,35 @@ export default function Index({
         // Return true jika dibuat hari ini
         return createdDay.getTime() === currentDay.getTime();
     };
+
+    // Function untuk mengambil data karyawan baru
+    const fetchRecentEmployees = async () => {
+        try {
+            // Filter karyawan yang dibuat dalam 7 hari terakhir
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const recent = employees.data
+                .filter((employee) => {
+                    if (!employee.created_at) return false;
+                    const createdDate = new Date(employee.created_at);
+                    return createdDate >= sevenDaysAgo;
+                })
+                .sort(
+                    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+                );
+
+            setRecentEmployees(recent);
+        } catch (error) {
+            console.error("Error fetching recent employees:", error);
+            setRecentEmployees([]);
+        }
+    };
+
+    // Effect untuk load data saat component mount
+    useEffect(() => {
+        fetchRecentEmployees();
+    }, [employees.data]);
 
     const getDismissedNotifications = () => {
         try {
@@ -1104,6 +1316,15 @@ export default function Index({
                                 </p>
                             </div>
                             <div className="flex gap-3 mt-3 md:mt-0">
+                                {/* History Button - NEW */}
+                                <button
+                                    onClick={() => setShowHistoryModal(true)}
+                                    className="group inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                                >
+                                    <Clock className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                                    History
+                                </button>
+
                                 <Link
                                     href={route("employees.import")}
                                     className="group inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
@@ -2430,6 +2651,13 @@ export default function Index({
                     )}
                 </div>
             </div>
+
+            {/* History Modal */}
+            <HistoryModal
+                isOpen={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                recentEmployees={recentEmployees}
+            />
 
             {/* Employee Detail Modal */}
             <EmployeeDetailModal
