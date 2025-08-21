@@ -170,8 +170,6 @@ class Employee extends Model
      * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, nik, unit_organisasi);
      * ALTER TABLE employees ADD INDEX idx_unit_id (unit_id);
      * ALTER TABLE employees ADD INDEX idx_sub_unit_id (sub_unit_id);
-     * ALTER TABLE employees ADD INDEX idx_created_at (created_at);
-     * ALTER TABLE employees ADD INDEX idx_updated_at (updated_at);
      */
 
     // =====================================================
@@ -212,23 +210,19 @@ class Employee extends Model
     }
 
     /**
-     * Relasi ke Unit model
-     * Untuk mendapatkan nama unit berdasarkan unit_id
-     * UPDATED: For Employee History functionality
+     * Get unit yang belongs to this employee
      */
     public function unit()
     {
-        return $this->belongsTo(Unit::class, 'unit_id');
+        return $this->belongsTo(Unit::class);
     }
 
     /**
-     * Relasi ke SubUnit model  
-     * Untuk mendapatkan nama sub unit berdasarkan sub_unit_id
-     * UPDATED: For Employee History functionality
+     * Get sub unit yang belongs to this employee
      */
     public function subUnit()
     {
-        return $this->belongsTo(SubUnit::class, 'sub_unit_id');
+        return $this->belongsTo(SubUnit::class);
     }
 
     // =====================================================
@@ -241,47 +235,6 @@ class Employee extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
-    }
-
-    /**
-     * Scope untuk mengambil karyawan yang baru ditambahkan
-     * UPDATED: Untuk keperluan history dashboard
-     */
-    public function scopeRecentlyAdded($query, $days = 30)
-    {
-        return $query->where('created_at', '>=', Carbon::now()->subDays($days))
-                     ->where('status', 'active')
-                     ->orderBy('created_at', 'desc');
-    }
-
-    /**
-     * Scope untuk mengambil karyawan yang ditambahkan hari ini
-     * UPDATED: For Employee History dashboard widget
-     */
-    public function scopeAddedToday($query)
-    {
-        return $query->whereDate('created_at', Carbon::today())
-                     ->where('status', 'active');
-    }
-
-    /**
-     * Scope untuk mengambil karyawan dengan relasi lengkap
-     * UPDATED: Untuk optimasi query pada history
-     */
-    public function scopeWithOrganizationInfo($query)
-    {
-        return $query->with(['unit', 'subUnit'])
-                     ->select([
-                         'id',
-                         'nama_lengkap',
-                         'unit_organisasi', 
-                         'unit_id',
-                         'sub_unit_id',
-                         'jabatan',
-                         'status_pegawai',
-                         'created_at',
-                         'updated_at'
-                     ]);
     }
 
     /**
@@ -613,29 +566,6 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * Accessor untuk mendapatkan struktur organisasi lengkap
-     * UPDATED: Format "Unit Organisasi → Unit → Sub Unit" untuk Employee History
-     */
-    public function getOrganizationStructureAttribute()
-    {
-        $parts = [];
-        
-        if ($this->unit_organisasi) {
-            $parts[] = $this->unit_organisasi;
-        }
-        
-        if ($this->unit && $this->unit->name) {
-            $parts[] = $this->unit->name;
-        }
-        
-        if ($this->subUnit && $this->subUnit->name) {
-            $parts[] = $this->subUnit->name;
-        }
-        
-        return implode(' → ', $parts);
-    }
-
-    /**
      * REVISI: Enhanced TMT Pensiun calculation dengan logika baru (56 tahun)
      * Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
      * Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
@@ -701,8 +631,7 @@ class Employee extends Model
     }
 
     /**
-     * Get full organizational structure untuk Employee History
-     * UPDATED: Enhanced structure dengan error handling
+     * Get full organizational structure
      */
     public function getOrganizationalStructureAttribute()
     {

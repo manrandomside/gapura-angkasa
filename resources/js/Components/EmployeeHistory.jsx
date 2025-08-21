@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Clock, User, Building2, Calendar } from "lucide-react";
+import {
+    Clock,
+    User,
+    Building2,
+    Calendar,
+    RefreshCw,
+    AlertCircle,
+} from "lucide-react";
 
 const EmployeeHistory = () => {
     const [historyData, setHistoryData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         fetchEmployeeHistory();
@@ -13,18 +21,43 @@ const EmployeeHistory = () => {
     const fetchEmployeeHistory = async () => {
         try {
             setLoading(true);
+            setError(null);
+
             const response = await fetch("/api/dashboard/employee-history");
+
             if (response.ok) {
                 const data = await response.json();
-                setHistoryData(data.history || []);
+
+                // Check for success field in response
+                if (data.success) {
+                    setHistoryData(data.history || []);
+                } else {
+                    setError(data.error || "Gagal memuat data history");
+                }
             } else {
-                setError("Gagal memuat data history");
+                // Handle HTTP error statuses
+                const errorText =
+                    response.status === 404
+                        ? "Endpoint tidak ditemukan"
+                        : response.status === 500
+                        ? "Terjadi kesalahan server"
+                        : `Error: ${response.status}`;
+                setError(errorText);
             }
         } catch (error) {
             console.error("Error fetching employee history:", error);
-            setError("Terjadi kesalahan saat memuat data");
+            setError("Tidak dapat terhubung ke server");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchEmployeeHistory();
+        } finally {
+            setRefreshing(false);
         }
     };
 
@@ -89,20 +122,26 @@ const EmployeeHistory = () => {
         }
     };
 
+    // Loading state
     if (loading) {
         return (
             <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
-                        <Clock className="w-6 h-6 text-orange-600" />
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
+                            <Clock className="w-6 h-6 text-orange-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                History Karyawan
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                Karyawan yang baru ditambahkan
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                            History Karyawan
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                            Karyawan yang baru ditambahkan
-                        </p>
+                    <div className="flex items-center justify-center w-8 h-8">
+                        <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />
                     </div>
                 </div>
 
@@ -125,10 +164,61 @@ const EmployeeHistory = () => {
         );
     }
 
+    // Error state
     if (error) {
         return (
             <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
+                            <Clock className="w-6 h-6 text-orange-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                History Karyawan
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                                Karyawan yang baru ditambahkan
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="p-2 text-gray-400 transition-colors rounded-lg hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                        title="Refresh data"
+                    >
+                        <RefreshCw
+                            className={`w-4 h-4 ${
+                                refreshing ? "animate-spin" : ""
+                            }`}
+                        />
+                    </button>
+                </div>
+
+                <div className="py-8 text-center">
+                    <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 bg-red-100 rounded-lg">
+                        <AlertCircle className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="mb-3 text-sm text-red-600">{error}</div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="px-4 py-2 text-sm text-white transition-colors rounded-lg disabled:opacity-50"
+                        style={{ backgroundColor: "#439454" }}
+                    >
+                        {refreshing ? "Memuat..." : "Coba Lagi"}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Main render
+    return (
+        <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
                         <Clock className="w-6 h-6 text-orange-600" />
                     </div>
@@ -142,36 +232,36 @@ const EmployeeHistory = () => {
                     </div>
                 </div>
 
-                <div className="py-8 text-center">
-                    <div className="text-sm text-red-500">{error}</div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
-                    <Clock className="w-6 h-6 text-orange-600" />
-                </div>
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                        History Karyawan
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                        Karyawan yang baru ditambahkan
-                    </p>
-                </div>
+                {/* Refresh button */}
+                <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="p-2 text-gray-400 transition-colors rounded-lg hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                    title="Refresh data"
+                >
+                    <RefreshCw
+                        className={`w-4 h-4 ${
+                            refreshing ? "animate-spin" : ""
+                        }`}
+                    />
+                </button>
             </div>
 
             <div className="space-y-4 overflow-y-auto max-h-96">
                 {historyData.length === 0 ? (
                     <div className="py-8 text-center">
-                        <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-lg">
+                            <Clock className="w-6 h-6 text-gray-400" />
+                        </div>
                         <p className="text-sm text-gray-500">
                             Belum ada karyawan yang ditambahkan baru-baru ini
                         </p>
+                        <button
+                            onClick={handleRefresh}
+                            className="mt-2 text-xs text-gray-400 transition-colors hover:text-gray-600"
+                        >
+                            Klik refresh untuk memuat ulang
+                        </button>
                     </div>
                 ) : (
                     historyData.map((employee, index) => (
@@ -179,8 +269,11 @@ const EmployeeHistory = () => {
                             key={employee.id || index}
                             className="flex items-start gap-4 p-4 transition-all duration-200 border border-gray-100 rounded-xl hover:border-gray-200 hover:bg-gray-50"
                         >
-                            <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg">
-                                <User className="w-5 h-5 text-green-600" />
+                            <div
+                                className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-lg"
+                                style={{ backgroundColor: "#439454" }}
+                            >
+                                <User className="w-5 h-5 text-white" />
                             </div>
 
                             <div className="flex-1 min-w-0">
@@ -209,13 +302,19 @@ const EmployeeHistory = () => {
                                     </span>
                                 </div>
 
-                                {employee.jabatan && (
-                                    <div className="mt-1">
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {employee.jabatan && (
                                         <span className="inline-block px-2 py-1 text-xs text-blue-700 bg-blue-100 rounded-md">
                                             {employee.jabatan}
                                         </span>
-                                    </div>
-                                )}
+                                    )}
+
+                                    {employee.status_pegawai && (
+                                        <span className="inline-block px-2 py-1 text-xs text-purple-700 bg-purple-100 rounded-md">
+                                            {employee.status_pegawai}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))
@@ -224,10 +323,17 @@ const EmployeeHistory = () => {
 
             {historyData.length > 0 && (
                 <div className="pt-4 mt-4 border-t border-gray-100">
-                    <div className="text-center">
-                        <span className="text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>
                             Menampilkan {historyData.length} karyawan terbaru
                             dalam 30 hari terakhir
+                        </span>
+                        <span className="text-gray-400">
+                            Terakhir diperbarui:{" "}
+                            {new Date().toLocaleTimeString("id-ID", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })}
                         </span>
                     </div>
                 </div>
