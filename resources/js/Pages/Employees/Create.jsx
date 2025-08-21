@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Head, useForm, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import axios from "axios";
 import {
     Save,
     X,
@@ -229,6 +228,135 @@ const FormNotification = ({ type, title, message, onClose }) => {
     );
 };
 
+// TEMPORARY DEBUG COMPONENT - Remove after testing
+const DebugAPITest = () => {
+    const [debugResults, setDebugResults] = useState({});
+    const [isDebugging, setIsDebugging] = useState(false);
+
+    const testAPI = async (endpoint, params = {}) => {
+        setIsDebugging(true);
+        const paramString = new URLSearchParams(params).toString();
+        const url = `/api/${endpoint}${paramString ? "?" + paramString : ""}`;
+
+        console.log(`Testing API: ${url}`);
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            const result = {
+                url,
+                status: response.status,
+                ok: response.ok,
+                data,
+                timestamp: new Date().toLocaleTimeString(),
+            };
+
+            setDebugResults((prev) => ({
+                ...prev,
+                [endpoint]: result,
+            }));
+
+            console.log(`API Test Result for ${endpoint}:`, result);
+        } catch (error) {
+            const result = {
+                url,
+                error: error.message,
+                timestamp: new Date().toLocaleTimeString(),
+            };
+
+            setDebugResults((prev) => ({
+                ...prev,
+                [endpoint]: result,
+            }));
+
+            console.error(`API Test Error for ${endpoint}:`, error);
+        } finally {
+            setIsDebugging(false);
+        }
+    };
+
+    const unitOrganisasiOptions = [
+        "EGM",
+        "GM",
+        "Airside",
+        "Landside",
+        "Back Office",
+        "SSQC",
+        "Ancillary",
+    ];
+
+    return (
+        <div className="p-4 mb-6 border border-yellow-200 rounded-lg bg-yellow-50">
+            <h3 className="mb-3 text-lg font-semibold text-yellow-800">
+                API Debug Tool - Dropdown Cascade Testing
+            </h3>
+
+            <div className="mb-4 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                    {unitOrganisasiOptions.map((unit) => (
+                        <button
+                            key={unit}
+                            onClick={() =>
+                                testAPI("units", { unit_organisasi: unit })
+                            }
+                            disabled={isDebugging}
+                            className="px-3 py-1 text-sm text-blue-800 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50"
+                        >
+                            Test Units: {unit}
+                        </button>
+                    ))}
+                </div>
+
+                <button
+                    onClick={() => testAPI("sub-units", { unit_id: 1 })}
+                    disabled={isDebugging}
+                    className="px-3 py-1 text-sm text-green-800 bg-green-100 rounded hover:bg-green-200 disabled:opacity-50"
+                >
+                    Test Sub Units (unit_id: 1)
+                </button>
+            </div>
+
+            {isDebugging && (
+                <div className="mb-3 text-sm text-blue-600">
+                    <Loader2 className="inline w-4 h-4 mr-2 animate-spin" />
+                    Testing API...
+                </div>
+            )}
+
+            <div className="space-y-2 overflow-y-auto max-h-60">
+                {Object.entries(debugResults).map(([endpoint, result]) => (
+                    <div
+                        key={endpoint}
+                        className="p-2 text-xs bg-gray-100 rounded"
+                    >
+                        <div className="font-semibold">
+                            {endpoint} ({result.timestamp})
+                        </div>
+                        <div className="text-gray-600">URL: {result.url}</div>
+                        {result.error ? (
+                            <div className="text-red-600">
+                                Error: {result.error}
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="text-green-600">
+                                    Status: {result.status}{" "}
+                                    {result.ok ? "(OK)" : "(Error)"}
+                                </div>
+                                <div className="mt-1">
+                                    Response:{" "}
+                                    {JSON.stringify(result.data, null, 2)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 export default function Create({
     organizations = [],
     unitOptions = [],
@@ -308,7 +436,7 @@ export default function Create({
         }
     }, [success, error]);
 
-    // FIXED: Fetch units berdasarkan unit organisasi
+    // FIXED: Fetch units berdasarkan unit organisasi - menggunakan fetch API seperti Edit.jsx
     const fetchUnits = async (unitOrganisasi) => {
         if (!unitOrganisasi) {
             setAvailableUnits([]);
@@ -319,16 +447,24 @@ export default function Create({
         }
 
         setLoadingUnits(true);
-        try {
-            const response = await axios.get("/api/units", {
-                params: { unit_organisasi: unitOrganisasi },
-            });
+        console.log("Fetching units for:", unitOrganisasi); // Debug log
 
-            if (response.data.success && response.data.data) {
-                setAvailableUnits(response.data.data);
+        try {
+            const response = await fetch(
+                `/api/units?unit_organisasi=${encodeURIComponent(
+                    unitOrganisasi
+                )}`
+            );
+            const result = await response.json();
+
+            console.log("Units API response:", result); // Debug log
+
+            if (result.success && Array.isArray(result.data)) {
+                setAvailableUnits(result.data);
+                console.log("Units loaded successfully:", result.data);
             } else {
+                console.warn("No units found for:", unitOrganisasi, result);
                 setAvailableUnits([]);
-                console.warn("No units found for:", unitOrganisasi);
             }
         } catch (error) {
             console.error("Error fetching units:", error);
@@ -338,7 +474,7 @@ export default function Create({
         }
     };
 
-    // FIXED: Fetch sub units berdasarkan unit
+    // FIXED: Fetch sub units berdasarkan unit_id - menggunakan fetch API seperti Edit.jsx
     const fetchSubUnits = async (unitId) => {
         if (!unitId) {
             setAvailableSubUnits([]);
@@ -347,16 +483,22 @@ export default function Create({
         }
 
         setLoadingSubUnits(true);
-        try {
-            const response = await axios.get("/api/sub-units", {
-                params: { unit_id: unitId },
-            });
+        console.log("Fetching sub units for unit_id:", unitId); // Debug log
 
-            if (response.data.success && response.data.data) {
-                setAvailableSubUnits(response.data.data);
+        try {
+            const response = await fetch(
+                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`
+            );
+            const result = await response.json();
+
+            console.log("Sub units API response:", result); // Debug log
+
+            if (result.success && Array.isArray(result.data)) {
+                setAvailableSubUnits(result.data);
+                console.log("Sub units loaded successfully:", result.data);
             } else {
+                console.warn("No sub units found for unit_id:", unitId, result);
                 setAvailableSubUnits([]);
-                console.warn("No sub units found for unit:", unitId);
             }
         } catch (error) {
             console.error("Error fetching sub units:", error);
@@ -509,6 +651,8 @@ export default function Create({
 
         // FIXED: Handle cascading dropdown untuk struktur organisasi
         if (name === "unit_organisasi") {
+            console.log("Unit organisasi changed to:", value); // Debug log
+
             // Reset unit dan sub unit saat unit organisasi berubah
             setData("unit_id", "");
             setData("sub_unit_id", "");
@@ -529,6 +673,8 @@ export default function Create({
                 fetchUnits(value);
             }
         } else if (name === "unit_id") {
+            console.log("Unit ID changed to:", value); // Debug log
+
             // Reset sub unit saat unit berubah
             setData("sub_unit_id", "");
             setAvailableSubUnits([]);
@@ -1365,6 +1511,9 @@ export default function Create({
             )}
 
             <div className="p-6 space-y-6">
+                {/* TEMPORARY: Debug Component - Remove after testing */}
+                <DebugAPITest />
+
                 {/* Header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
