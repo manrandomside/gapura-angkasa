@@ -660,27 +660,11 @@ class Employee extends Model
     }
 
     /**
-     * Accessor untuk mendapatkan nama lengkap dengan format title case
-     */
-    public function getNamaLengkapFormattedAttribute()
-    {
-        return ucwords(strtolower($this->nama_lengkap));
-    }
-
-    /**
      * Accessor untuk mendapatkan jenis kelamin dalam format lengkap
      */
     public function getJenisKelaminLengkapAttribute()
     {
         return $this->jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan';
-    }
-
-    /**
-     * Accessor untuk mendapatkan status pegawai dengan format yang lebih rapi
-     */
-    public function getStatusPegawaiFormattedAttribute()
-    {
-        return ucwords(strtolower($this->status_pegawai));
     }
 
     /**
@@ -809,11 +793,13 @@ class Employee extends Model
     }
 
     /**
-     * Mutator untuk format nama lengkap
+     * FIXED: Mutator untuk nama lengkap - HAPUS auto-uppercase
+     * Sekarang nama akan disimpan sesuai dengan input asli pengguna
      */
     public function setNamaLengkapAttribute($value)
     {
-        $this->attributes['nama_lengkap'] = strtoupper(trim($value));
+        // Hanya trim spasi, tidak ada auto-uppercase
+        $this->attributes['nama_lengkap'] = trim($value);
     }
 
     /**
