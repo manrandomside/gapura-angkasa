@@ -187,13 +187,16 @@ const FormNotification = ({ type, title, message, onClose }) => {
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setVisible(false);
-            setTimeout(onClose, 300);
-        }, 5000);
+        // Auto-dismiss only for success notifications
+        if (type === "success") {
+            const timer = setTimeout(() => {
+                setVisible(false);
+                setTimeout(onClose, 300);
+            }, 3000);
 
-        return () => clearTimeout(timer);
-    }, [onClose]);
+            return () => clearTimeout(timer);
+        }
+    }, [onClose, type]);
 
     const getIcon = () => {
         switch (type) {
@@ -387,105 +390,177 @@ export default function Edit({
         }
     }, [success, error, message]);
 
-    // FIXED: Fetch units from API based on unit_organisasi
-    const fetchUnits = async (unitOrganisasi) => {
+    // ENHANCED: fetchUnits dengan notifikasi lengkap (hanya untuk user interaction)
+    const fetchUnits = async (unitOrganisasi, showNotification = true) => {
         if (!unitOrganisasi) {
             setAvailableUnits([]);
+            setAvailableSubUnits([]);
+            setData("unit_id", "");
+            setData("sub_unit_id", "");
             return;
         }
 
         setLoadingUnits(true);
+        console.log("Fetching units for:", unitOrganisasi);
+
         try {
             const response = await fetch(
                 `/api/units?unit_organisasi=${encodeURIComponent(
                     unitOrganisasi
-                )}`
+                )}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                    },
+                }
             );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
+            console.log("Units API response:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setAvailableUnits(result.data);
-                console.log("Units loaded from API:", result.data);
+                console.log("Units loaded successfully:", result.data);
+
+                // Show success notification only if showNotification is true and units were found
+                if (showNotification && result.data.length > 0) {
+                    setNotification({
+                        type: "success",
+                        title: "Berhasil!",
+                        message: `${result.data.length} unit berhasil dimuat untuk ${unitOrganisasi}`,
+                    });
+                }
             } else {
-                console.error("Failed to load units:", result);
+                console.warn("No units found for:", unitOrganisasi, result);
                 setAvailableUnits([]);
+
+                // Show info notification only if showNotification is true
+                if (showNotification) {
+                    setNotification({
+                        type: "info",
+                        title: "Informasi",
+                        message:
+                            result.message ||
+                            `Tidak ada unit tersedia untuk ${unitOrganisasi}`,
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching units:", error);
             setAvailableUnits([]);
+
+            // Show error notification only if showNotification is true
+            if (showNotification) {
+                setNotification({
+                    type: "error",
+                    title: "Kesalahan!",
+                    message: `Gagal memuat unit untuk ${unitOrganisasi}: ${error.message}`,
+                });
+            }
         } finally {
             setLoadingUnits(false);
         }
     };
 
-    // FIXED: Fetch sub units from API based on unit_id
-    const fetchSubUnits = async (unitId) => {
+    // ENHANCED: fetchSubUnits dengan notifikasi lengkap (hanya untuk user interaction)
+    const fetchSubUnits = async (unitId, showNotification = true) => {
         if (!unitId) {
             setAvailableSubUnits([]);
+            setData("sub_unit_id", "");
             return;
         }
 
         setLoadingSubUnits(true);
+        console.log("Fetching sub units for unit_id:", unitId);
+
         try {
             const response = await fetch(
-                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`
+                `/api/sub-units?unit_id=${encodeURIComponent(unitId)}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                    },
+                }
             );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
+            console.log("Sub units API response:", result);
 
             if (result.success && Array.isArray(result.data)) {
                 setAvailableSubUnits(result.data);
-                console.log("Sub units loaded from API:", result.data);
+                console.log("Sub units loaded successfully:", result.data);
+
+                // Show success notification only if showNotification is true and sub units were found
+                if (showNotification && result.data.length > 0) {
+                    setNotification({
+                        type: "success",
+                        title: "Berhasil!",
+                        message: `${result.data.length} sub unit berhasil dimuat`,
+                    });
+                }
             } else {
-                console.error("Failed to load sub units:", result);
+                console.warn("No sub units found for unit_id:", unitId, result);
                 setAvailableSubUnits([]);
+
+                // Only show notification if showNotification is true and it's an actual error
+                if (showNotification && result.success === false) {
+                    setNotification({
+                        type: "info",
+                        title: "Informasi",
+                        message:
+                            result.message ||
+                            "Unit ini tidak memiliki sub unit",
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching sub units:", error);
             setAvailableSubUnits([]);
+
+            // Show error notification only if showNotification is true
+            if (showNotification) {
+                setNotification({
+                    type: "error",
+                    title: "Kesalahan!",
+                    message: `Gagal memuat sub unit: ${error.message}`,
+                });
+            }
         } finally {
             setLoadingSubUnits(false);
         }
     };
 
-    // FIXED: Load initial data when component mounts
+    // FIXED: Load initial data when component mounts (tanpa notifikasi)
     useEffect(() => {
         console.log("Employee data on mount:", employee);
         console.log("Form data on mount:", data);
 
         if (employee) {
-            // Load units for current unit_organisasi
+            // Load units for current unit_organisasi (tanpa notifikasi)
             if (employee.unit_organisasi) {
                 console.log("Loading units for:", employee.unit_organisasi);
-                fetchUnits(employee.unit_organisasi);
+                fetchUnits(employee.unit_organisasi, false); // false = no notification
             }
 
-            // Load sub units for current unit_id
+            // Load sub units for current unit_id (tanpa notifikasi)
             if (employee.unit_id) {
                 console.log("Loading sub units for unit_id:", employee.unit_id);
-                fetchSubUnits(employee.unit_id);
+                fetchSubUnits(employee.unit_id, false); // false = no notification
             }
         }
     }, []);
-
-    // FIXED: Watch for unit_organisasi changes
-    useEffect(() => {
-        if (data.unit_organisasi) {
-            console.log("Unit organisasi changed to:", data.unit_organisasi);
-            fetchUnits(data.unit_organisasi);
-        } else {
-            setAvailableUnits([]);
-        }
-    }, [data.unit_organisasi]);
-
-    // FIXED: Watch for unit_id changes
-    useEffect(() => {
-        if (data.unit_id) {
-            console.log("Unit ID changed to:", data.unit_id);
-            fetchSubUnits(data.unit_id);
-        } else {
-            setAvailableSubUnits([]);
-        }
-    }, [data.unit_id]);
 
     // Auto-calculate TMT Pensiun when birth date changes
     useEffect(() => {
@@ -662,9 +737,9 @@ export default function Edit({
                 }));
             }
 
-            // Load units untuk unit organisasi yang dipilih
+            // Load units untuk unit organisasi yang dipilih (dengan notifikasi)
             if (value) {
-                fetchUnits(value);
+                fetchUnits(value, true); // true = show notification for user interaction
             }
         } else if (name === "unit_id") {
             console.log("Unit ID changed to:", value);
@@ -673,9 +748,9 @@ export default function Edit({
             setData("sub_unit_id", "");
             setAvailableSubUnits([]);
 
-            // Load sub units untuk unit yang dipilih (hanya jika required)
+            // Load sub units untuk unit yang dipilih (dengan notifikasi)
             if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
-                fetchSubUnits(value);
+                fetchSubUnits(value, true); // true = show notification for user interaction
             }
         }
 
