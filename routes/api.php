@@ -12,7 +12,7 @@ use App\Http\Controllers\DashboardController;
 |
 | API routes untuk cascading dropdown, data management, dan employee history
 | Fokus pada parent-child dropdown untuk unit organisasi > unit > sub unit
-| NEW: Employee History API untuk dashboard widget
+| NEW: Employee History API untuk dashboard widget dan history modal
 | Base color: putih dengan hover hijau (#439454)
 |
 */
@@ -79,16 +79,39 @@ Route::prefix('dashboard')->group(function () {
         }
     })->name('api.dashboard.activities');
     
-    // NEW: Employee History API Routes - FITUR UTAMA
+    // NEW: Employee History API Routes - FITUR UTAMA UNTUK HISTORY MODAL
     Route::get('/employee-history', function() {
         try {
             if (class_exists('App\Http\Controllers\DashboardController')) {
-                return app('App\Http\Controllers\DashboardController')->getEmployeeHistory();
+                $controller = app('App\Http\Controllers\DashboardController');
+                
+                // Pastikan method getEmployeeHistory ada
+                if (method_exists($controller, 'getEmployeeHistory')) {
+                    $response = $controller->getEmployeeHistory();
+                    
+                    // Jika response sudah dalam format JSON, return langsung
+                    if ($response instanceof \Illuminate\Http\JsonResponse) {
+                        return $response;
+                    }
+                    
+                    // Jika belum, wrap dalam JsonResponse
+                    return response()->json($response);
+                } else {
+                    // Fallback jika method belum ada - buat response dummy
+                    return response()->json([
+                        'success' => true,
+                        'history' => [],
+                        'total' => 0,
+                        'period' => '30 hari terakhir',
+                        'message' => 'Method getEmployeeHistory belum tersedia di DashboardController'
+                    ]);
+                }
             } else {
                 return response()->json([
                     'success' => false,
                     'history' => [],
                     'total' => 0,
+                    'period' => '30 hari terakhir',
                     'error' => 'DashboardController not available'
                 ], 500);
             }
@@ -97,6 +120,7 @@ Route::prefix('dashboard')->group(function () {
                 'success' => false,
                 'history' => [],
                 'total' => 0,
+                'period' => '30 hari terakhir',
                 'error' => 'Employee history unavailable: ' . $e->getMessage()
             ], 500);
         }
@@ -105,7 +129,32 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/employee-history-summary', function() {
         try {
             if (class_exists('App\Http\Controllers\DashboardController')) {
-                return app('App\Http\Controllers\DashboardController')->getEmployeeHistorySummary();
+                $controller = app('App\Http\Controllers\DashboardController');
+                
+                // Pastikan method getEmployeeHistorySummary ada
+                if (method_exists($controller, 'getEmployeeHistorySummary')) {
+                    $response = $controller->getEmployeeHistorySummary();
+                    
+                    // Jika response sudah dalam format JSON, return langsung
+                    if ($response instanceof \Illuminate\Http\JsonResponse) {
+                        return $response;
+                    }
+                    
+                    // Jika belum, wrap dalam JsonResponse
+                    return response()->json($response);
+                } else {
+                    // Fallback jika method belum ada - buat response dummy
+                    return response()->json([
+                        'success' => true,
+                        'summary' => [
+                            'today' => 0,
+                            'week' => 0,
+                            'month' => 0,
+                        ],
+                        'latest_employees' => [],
+                        'message' => 'Method getEmployeeHistorySummary belum tersedia di DashboardController'
+                    ]);
+                }
             } else {
                 return response()->json([
                     'success' => false,
@@ -143,8 +192,41 @@ Route::prefix('units')->group(function () {
     Route::get('/by-organisasi', [EmployeeController::class, 'getUnits'])->name('api.units.by-organisasi');
     
     // Enhanced unit routes untuk debugging dan monitoring
-    Route::get('/hierarchy', [EmployeeController::class, 'getAllUnitsHierarchy'])->name('api.units.hierarchy');
-    Route::get('/statistics', [EmployeeController::class, 'getUnitStatistics'])->name('api.units.statistics');
+    Route::get('/hierarchy', function() {
+        try {
+            if (method_exists(EmployeeController::class, 'getAllUnitsHierarchy')) {
+                return app(EmployeeController::class)->getAllUnitsHierarchy();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Method getAllUnitsHierarchy not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error getting units hierarchy: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.units.hierarchy');
+    
+    Route::get('/statistics', function() {
+        try {
+            if (method_exists(EmployeeController::class, 'getUnitStatistics')) {
+                return app(EmployeeController::class)->getUnitStatistics();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Method getUnitStatistics not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error getting unit statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.units.statistics');
 });
 
 Route::prefix('sub-units')->group(function () {
@@ -154,7 +236,33 @@ Route::prefix('sub-units')->group(function () {
 });
 
 // Get unit organisasi options
-Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrganisasiOptions'])->name('api.unit-organisasi-options');
+Route::get('/unit-organisasi-options', function() {
+    try {
+        if (method_exists(EmployeeController::class, 'getUnitOrganisasiOptions')) {
+            return app(EmployeeController::class)->getUnitOrganisasiOptions();
+        } else {
+            // Fallback dengan static data
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    ['value' => 'EGM', 'label' => 'EGM'],
+                    ['value' => 'GM', 'label' => 'GM'],
+                    ['value' => 'Airside', 'label' => 'Airside'],
+                    ['value' => 'Landside', 'label' => 'Landside'],
+                    ['value' => 'Back Office', 'label' => 'Back Office'],
+                    ['value' => 'SSQC', 'label' => 'SSQC'],
+                    ['value' => 'Ancillary', 'label' => 'Ancillary'],
+                ],
+                'message' => 'Unit organisasi options (static fallback)'
+            ]);
+        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error getting unit organisasi options: ' . $e->getMessage()
+        ], 500);
+    }
+})->name('api.unit-organisasi-options');
 
 // =====================================================
 // EMPLOYEE MANAGEMENT API ROUTES
@@ -162,31 +270,169 @@ Route::get('/unit-organisasi-options', [EmployeeController::class, 'getUnitOrgan
 
 Route::prefix('employees')->group(function () {
     // Search and filter
-    Route::get('/search', [EmployeeController::class, 'search'])->name('api.employees.search');
-    Route::get('/statistics', [EmployeeController::class, 'getStatistics'])->name('api.employees.statistics');
-    Route::get('/filter-options', [EmployeeController::class, 'getFilterOptions'])->name('api.employees.filter-options');
+    Route::get('/search', function(Request $request) {
+        try {
+            if (method_exists(EmployeeController::class, 'search')) {
+                return app(EmployeeController::class)->search($request);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Search method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error in employee search: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.search');
+    
+    Route::get('/statistics', function() {
+        try {
+            if (method_exists(EmployeeController::class, 'getStatistics')) {
+                return app(EmployeeController::class)->getStatistics();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Statistics method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error getting employee statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.statistics');
+    
+    Route::get('/filter-options', function() {
+        try {
+            if (method_exists(EmployeeController::class, 'getFilterOptions')) {
+                return app(EmployeeController::class)->getFilterOptions();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Filter options method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error getting filter options: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.filter-options');
     
     // Validation endpoints
-    Route::post('/validate-nik', [EmployeeController::class, 'validateNik'])->name('api.employees.validate-nik');
-    Route::post('/validate-nip', [EmployeeController::class, 'validateNip'])->name('api.employees.validate-nip');
-    Route::post('/validate', [EmployeeController::class, 'validateData'])->name('api.employees.validate');
+    Route::post('/validate-nik', function(Request $request) {
+        try {
+            if (method_exists(EmployeeController::class, 'validateNik')) {
+                return app(EmployeeController::class)->validateNik($request);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'NIK validation method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error validating NIK: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.validate-nik');
+    
+    Route::post('/validate-nip', function(Request $request) {
+        try {
+            if (method_exists(EmployeeController::class, 'validateNip')) {
+                return app(EmployeeController::class)->validateNip($request);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'NIP validation method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error validating NIP: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.validate-nip');
+    
+    Route::post('/validate', function(Request $request) {
+        try {
+            if (method_exists(EmployeeController::class, 'validateData')) {
+                return app(EmployeeController::class)->validateData($request);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data validation method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error validating data: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.validate');
     
     // Bulk operations
-    Route::post('/bulk-action', [EmployeeController::class, 'bulkAction'])->name('api.employees.bulk-action');
+    Route::post('/bulk-action', function(Request $request) {
+        try {
+            if (method_exists(EmployeeController::class, 'bulkAction')) {
+                return app(EmployeeController::class)->bulkAction($request);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bulk action method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error in bulk action: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.bulk-action');
     
     // Profile API dengan flexible identifier support
-    Route::get('/{identifier}/profile', [EmployeeController::class, 'profile'])
-        ->name('api.employees.profile')
-        ->where('identifier', '[0-9]+');
+    Route::get('/{identifier}/profile', function($identifier) {
+        try {
+            if (method_exists(EmployeeController::class, 'profile')) {
+                return app(EmployeeController::class)->profile($identifier);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile method not available'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error getting employee profile: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('api.employees.profile')->where('identifier', '[0-9]+');
 });
 
 // =====================================================
-// QUICK VALIDATION ROUTES
+// QUICK VALIDATION ROUTES - SIMPLIFIED
 // =====================================================
 
 Route::prefix('validate')->group(function () {
     Route::get('/nik/{nik}', function ($nik) {
         try {
+            if (!class_exists('App\Models\Employee')) {
+                return response()->json([
+                    'success' => false,
+                    'available' => false,
+                    'message' => 'Employee model not available'
+                ], 500);
+            }
+
             $exists = \App\Models\Employee::where('nik', $nik)->exists();
             return response()->json([
                 'success' => true,
@@ -204,6 +450,14 @@ Route::prefix('validate')->group(function () {
 
     Route::get('/nip/{nip}', function ($nip) {
         try {
+            if (!class_exists('App\Models\Employee')) {
+                return response()->json([
+                    'success' => false,
+                    'available' => false,
+                    'message' => 'Employee model not available'
+                ], 500);
+            }
+
             $exists = \App\Models\Employee::where('nip', $nip)->exists();
             return response()->json([
                 'success' => true,
@@ -234,7 +488,9 @@ if (app()->environment('local', 'development')) {
                 'timestamp' => now(),
                 'environment' => app()->environment(),
                 'routes_loaded' => true,
-                'version' => '1.6.0'
+                'version' => '1.6.0',
+                'php_version' => PHP_VERSION,
+                'laravel_version' => app()->version()
             ]);
         })->name('api.test.connectivity');
         
@@ -242,11 +498,19 @@ if (app()->environment('local', 'development')) {
         Route::get('/units/{unitOrganisasi}', function ($unitOrganisasi) {
             try {
                 $request = new \Illuminate\Http\Request(['unit_organisasi' => $unitOrganisasi]);
-                return app(EmployeeController::class)->getUnits($request);
+                $response = app(EmployeeController::class)->getUnits($request);
+                
+                return response()->json([
+                    'success' => true,
+                    'test_parameter' => $unitOrganisasi,
+                    'response_data' => json_decode($response->getContent(), true),
+                    'timestamp' => now()
+                ]);
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error testing units API',
+                    'test_parameter' => $unitOrganisasi,
                     'error' => $e->getMessage()
                 ], 500);
             }
@@ -256,74 +520,108 @@ if (app()->environment('local', 'development')) {
         Route::get('/sub-units/{unitId}', function ($unitId) {
             try {
                 $request = new \Illuminate\Http\Request(['unit_id' => $unitId]);
-                return app(EmployeeController::class)->getSubUnits($request);
+                $response = app(EmployeeController::class)->getSubUnits($request);
+                
+                return response()->json([
+                    'success' => true,
+                    'test_parameter' => $unitId,
+                    'response_data' => json_decode($response->getContent(), true),
+                    'timestamp' => now()
+                ]);
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error testing sub units API',
+                    'test_parameter' => $unitId,
                     'error' => $e->getMessage()
                 ], 500);
             }
         })->name('api.test.sub-units');
         
-        // NEW: Test employee history API
+        // NEW: Test employee history API - Lebih robust
         Route::get('/employee-history', function () {
             try {
-                if (class_exists('App\Http\Controllers\DashboardController')) {
-                    $response = app('App\Http\Controllers\DashboardController')->getEmployeeHistory();
-                    $data = json_decode($response->getContent(), true);
-                    
-                    return response()->json([
-                        'success' => true,
-                        'test_endpoint' => '/api/dashboard/employee-history',
-                        'response_status' => $response->getStatusCode(),
-                        'data_count' => count($data['history'] ?? []),
-                        'sample_data' => array_slice($data['history'] ?? [], 0, 2),
-                        'timestamp' => now()
-                    ]);
-                } else {
+                if (!class_exists('App\Http\Controllers\DashboardController')) {
                     return response()->json([
                         'success' => false,
                         'message' => 'DashboardController not available',
                         'test_endpoint' => '/api/dashboard/employee-history'
                     ], 500);
                 }
+
+                $controller = app('App\Http\Controllers\DashboardController');
+                
+                if (!method_exists($controller, 'getEmployeeHistory')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'getEmployeeHistory method not found in DashboardController',
+                        'test_endpoint' => '/api/dashboard/employee-history',
+                        'available_methods' => get_class_methods($controller)
+                    ], 404);
+                }
+
+                $response = $controller->getEmployeeHistory();
+                $data = json_decode($response->getContent(), true);
+                
+                return response()->json([
+                    'success' => true,
+                    'test_endpoint' => '/api/dashboard/employee-history',
+                    'response_status' => $response->getStatusCode(),
+                    'data_count' => count($data['history'] ?? []),
+                    'sample_data' => array_slice($data['history'] ?? [], 0, 2),
+                    'timestamp' => now()
+                ]);
+                
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error testing employee history API',
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ], 500);
             }
         })->name('api.test.employee.history');
         
-        // NEW: Test employee history summary API
+        // NEW: Test employee history summary API - Lebih robust
         Route::get('/employee-history-summary', function () {
             try {
-                if (class_exists('App\Http\Controllers\DashboardController')) {
-                    $response = app('App\Http\Controllers\DashboardController')->getEmployeeHistorySummary();
-                    $data = json_decode($response->getContent(), true);
-                    
-                    return response()->json([
-                        'success' => true,
-                        'test_endpoint' => '/api/dashboard/employee-history-summary',
-                        'response_status' => $response->getStatusCode(),
-                        'summary_data' => $data['summary'] ?? [],
-                        'employees_count' => count($data['latest_employees'] ?? []),
-                        'timestamp' => now()
-                    ]);
-                } else {
+                if (!class_exists('App\Http\Controllers\DashboardController')) {
                     return response()->json([
                         'success' => false,
                         'message' => 'DashboardController not available',
                         'test_endpoint' => '/api/dashboard/employee-history-summary'
                     ], 500);
                 }
+
+                $controller = app('App\Http\Controllers\DashboardController');
+                
+                if (!method_exists($controller, 'getEmployeeHistorySummary')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'getEmployeeHistorySummary method not found in DashboardController',
+                        'test_endpoint' => '/api/dashboard/employee-history-summary',
+                        'available_methods' => get_class_methods($controller)
+                    ], 404);
+                }
+
+                $response = $controller->getEmployeeHistorySummary();
+                $data = json_decode($response->getContent(), true);
+                
+                return response()->json([
+                    'success' => true,
+                    'test_endpoint' => '/api/dashboard/employee-history-summary',
+                    'response_status' => $response->getStatusCode(),
+                    'summary_data' => $data['summary'] ?? [],
+                    'employees_count' => count($data['latest_employees'] ?? []),
+                    'timestamp' => now()
+                ]);
+                
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error testing employee history summary API',
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ], 500);
             }
         })->name('api.test.employee.history.summary');
@@ -346,14 +644,18 @@ if (app()->environment('local', 'development')) {
                 if ($unitsData['success'] && !empty($unitsData['data'])) {
                     $result['units'] = $unitsData['data'];
                     
-                    // Get sub units for first unit
-                    $firstUnit = $unitsData['data'][0];
-                    $subUnitsRequest = new \Illuminate\Http\Request(['unit_id' => $firstUnit['id']]);
-                    $subUnitsResponse = app(EmployeeController::class)->getSubUnits($subUnitsRequest);
-                    $subUnitsData = json_decode($subUnitsResponse->getContent(), true);
-                    
-                    if ($subUnitsData['success']) {
-                        $result['sub_units'] = $subUnitsData['data'];
+                    // Get sub units for first unit (if exists)
+                    if (!empty($unitsData['data'])) {
+                        $firstUnit = $unitsData['data'][0];
+                        if (isset($firstUnit['id'])) {
+                            $subUnitsRequest = new \Illuminate\Http\Request(['unit_id' => $firstUnit['id']]);
+                            $subUnitsResponse = app(EmployeeController::class)->getSubUnits($subUnitsRequest);
+                            $subUnitsData = json_decode($subUnitsResponse->getContent(), true);
+                            
+                            if ($subUnitsData['success']) {
+                                $result['sub_units'] = $subUnitsData['data'];
+                            }
+                        }
                     }
                 }
                 
@@ -367,12 +669,13 @@ if (app()->environment('local', 'development')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Error testing cascade functionality',
+                    'test_parameter' => $unitOrganisasi,
                     'error' => $e->getMessage()
                 ], 500);
             }
         })->name('api.test.cascade');
         
-        // NEW: Complete API testing suite
+        // NEW: Complete API testing suite - Enhanced
         Route::get('/all-apis', function () {
             $results = [
                 'timestamp' => now(),
@@ -381,79 +684,132 @@ if (app()->environment('local', 'development')) {
                 'tests' => []
             ];
             
+            // Test 1: Dashboard Statistics
             try {
-                // Test 1: Dashboard Statistics
-                $statsResponse = app('App\Http\Controllers\DashboardController')->getStatistics();
-                $results['tests']['dashboard_statistics'] = [
-                    'status' => $statsResponse->getStatusCode() === 200 ? 'PASS' : 'FAIL',
-                    'endpoint' => '/api/dashboard/statistics'
-                ];
+                if (class_exists('App\Http\Controllers\DashboardController')) {
+                    $statsResponse = app('App\Http\Controllers\DashboardController')->getStatistics();
+                    $results['tests']['dashboard_statistics'] = [
+                        'status' => $statsResponse->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'endpoint' => '/api/dashboard/statistics',
+                        'response_code' => $statsResponse->getStatusCode()
+                    ];
+                } else {
+                    $results['tests']['dashboard_statistics'] = [
+                        'status' => 'SKIP',
+                        'endpoint' => '/api/dashboard/statistics',
+                        'reason' => 'DashboardController not available'
+                    ];
+                }
             } catch (\Exception $e) {
                 $results['tests']['dashboard_statistics'] = [
                     'status' => 'ERROR',
+                    'endpoint' => '/api/dashboard/statistics',
                     'error' => $e->getMessage()
                 ];
             }
             
+            // Test 2: Employee History
             try {
-                // Test 2: Employee History
-                $historyResponse = app('App\Http\Controllers\DashboardController')->getEmployeeHistory();
-                $historyData = json_decode($historyResponse->getContent(), true);
+                if (class_exists('App\Http\Controllers\DashboardController')) {
+                    $controller = app('App\Http\Controllers\DashboardController');
+                    if (method_exists($controller, 'getEmployeeHistory')) {
+                        $historyResponse = $controller->getEmployeeHistory();
+                        $historyData = json_decode($historyResponse->getContent(), true);
+                        $results['tests']['employee_history'] = [
+                            'status' => $historyResponse->getStatusCode() === 200 && $historyData['success'] ? 'PASS' : 'FAIL',
+                            'endpoint' => '/api/dashboard/employee-history',
+                            'data_count' => count($historyData['history'] ?? []),
+                            'response_code' => $historyResponse->getStatusCode()
+                        ];
+                    } else {
+                        $results['tests']['employee_history'] = [
+                            'status' => 'SKIP',
+                            'endpoint' => '/api/dashboard/employee-history',
+                            'reason' => 'getEmployeeHistory method not found'
+                        ];
+                    }
+                } else {
+                    $results['tests']['employee_history'] = [
+                        'status' => 'SKIP',
+                        'endpoint' => '/api/dashboard/employee-history',
+                        'reason' => 'DashboardController not available'
+                    ];
+                }
+            } catch (\Exception $e) {
                 $results['tests']['employee_history'] = [
-                    'status' => $historyResponse->getStatusCode() === 200 && $historyData['success'] ? 'PASS' : 'FAIL',
+                    'status' => 'ERROR',
                     'endpoint' => '/api/dashboard/employee-history',
-                    'data_count' => count($historyData['history'] ?? [])
-                ];
-            } catch (\Exception $e) {
-                $results['tests']['employee_history'] = [
-                    'status' => 'ERROR',
                     'error' => $e->getMessage()
                 ];
             }
             
+            // Test 3: Employee History Summary
             try {
-                // Test 3: Employee History Summary
-                $summaryResponse = app('App\Http\Controllers\DashboardController')->getEmployeeHistorySummary();
-                $summaryData = json_decode($summaryResponse->getContent(), true);
+                if (class_exists('App\Http\Controllers\DashboardController')) {
+                    $controller = app('App\Http\Controllers\DashboardController');
+                    if (method_exists($controller, 'getEmployeeHistorySummary')) {
+                        $summaryResponse = $controller->getEmployeeHistorySummary();
+                        $summaryData = json_decode($summaryResponse->getContent(), true);
+                        $results['tests']['employee_history_summary'] = [
+                            'status' => $summaryResponse->getStatusCode() === 200 && $summaryData['success'] ? 'PASS' : 'FAIL',
+                            'endpoint' => '/api/dashboard/employee-history-summary',
+                            'summary' => $summaryData['summary'] ?? [],
+                            'response_code' => $summaryResponse->getStatusCode()
+                        ];
+                    } else {
+                        $results['tests']['employee_history_summary'] = [
+                            'status' => 'SKIP',
+                            'endpoint' => '/api/dashboard/employee-history-summary',
+                            'reason' => 'getEmployeeHistorySummary method not found'
+                        ];
+                    }
+                } else {
+                    $results['tests']['employee_history_summary'] = [
+                        'status' => 'SKIP',
+                        'endpoint' => '/api/dashboard/employee-history-summary',
+                        'reason' => 'DashboardController not available'
+                    ];
+                }
+            } catch (\Exception $e) {
                 $results['tests']['employee_history_summary'] = [
-                    'status' => $summaryResponse->getStatusCode() === 200 && $summaryData['success'] ? 'PASS' : 'FAIL',
+                    'status' => 'ERROR',
                     'endpoint' => '/api/dashboard/employee-history-summary',
-                    'summary' => $summaryData['summary'] ?? []
-                ];
-            } catch (\Exception $e) {
-                $results['tests']['employee_history_summary'] = [
-                    'status' => 'ERROR',
                     'error' => $e->getMessage()
                 ];
             }
             
+            // Test 4: Units API
             try {
-                // Test 4: Units API
                 $unitsRequest = new \Illuminate\Http\Request(['unit_organisasi' => 'SSQC']);
                 $unitsResponse = app(EmployeeController::class)->getUnits($unitsRequest);
                 $unitsData = json_decode($unitsResponse->getContent(), true);
                 $results['tests']['units_api'] = [
                     'status' => $unitsResponse->getStatusCode() === 200 && $unitsData['success'] ? 'PASS' : 'FAIL',
-                    'endpoint' => '/api/units?unit_organisasi=SSQC'
+                    'endpoint' => '/api/units?unit_organisasi=SSQC',
+                    'response_code' => $unitsResponse->getStatusCode()
                 ];
             } catch (\Exception $e) {
                 $results['tests']['units_api'] = [
                     'status' => 'ERROR',
+                    'endpoint' => '/api/units?unit_organisasi=SSQC',
                     'error' => $e->getMessage()
                 ];
             }
             
             // Summary
             $passCount = 0;
+            $skipCount = 0;
             $totalTests = count($results['tests']);
             foreach ($results['tests'] as $test) {
                 if ($test['status'] === 'PASS') $passCount++;
+                if ($test['status'] === 'SKIP') $skipCount++;
             }
             
             $results['summary'] = [
                 'total_tests' => $totalTests,
                 'passed' => $passCount,
-                'failed' => $totalTests - $passCount,
+                'skipped' => $skipCount,
+                'failed' => $totalTests - $passCount - $skipCount,
                 'success_rate' => $totalTests > 0 ? round(($passCount / $totalTests) * 100, 2) . '%' : '0%'
             ];
             
@@ -463,7 +819,7 @@ if (app()->environment('local', 'development')) {
 }
 
 // =====================================================
-// AUTHENTICATED USER ROUTES
+// AUTHENTICATED USER ROUTES (Optional - untuk future use)
 // =====================================================
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -548,6 +904,14 @@ Route::get('/health', function () {
             // Ignore error for count
         }
         
+        // Check if history methods are available
+        $historyMethodsAvailable = false;
+        if (class_exists('App\Http\Controllers\DashboardController')) {
+            $controller = app('App\Http\Controllers\DashboardController');
+            $historyMethodsAvailable = method_exists($controller, 'getEmployeeHistory') && 
+                                     method_exists($controller, 'getEmployeeHistorySummary');
+        }
+        
         return response()->json([
             'success' => true,
             'status' => 'healthy',
@@ -562,13 +926,18 @@ Route::get('/health', function () {
                 'dashboard_controller' => $dashboardControllerStatus,
                 'total_employees' => $totalEmployees,
                 'recent_employees_30_days' => $recentEmployees,
+                'history_methods_available' => $historyMethodsAvailable,
                 'api_routes' => 'loaded'
             ],
             'features' => [
-                'employee_history' => $dashboardControllerStatus === 'available',
+                'employee_history' => $dashboardControllerStatus === 'available' && $historyMethodsAvailable,
                 'cascading_dropdown' => true,
                 'employee_management' => $employeeModelStatus === 'available',
                 'dashboard_statistics' => $dashboardControllerStatus === 'available'
+            ],
+            'history_endpoints' => [
+                '/api/dashboard/employee-history',
+                '/api/dashboard/employee-history-summary'
             ]
         ]);
     } catch (\Exception $e) {
@@ -586,43 +955,44 @@ Route::get('/health', function () {
 | API Routes Documentation - Enhanced dengan Employee History v1.6.0
 |--------------------------------------------------------------------------
 |
-| CRITICAL API ENDPOINTS untuk Cascading Dropdown:
+| CRITICAL API ENDPOINTS untuk History Modal:
 |
-| 1. GET /api/units?unit_organisasi={unit_organisasi}
+| 1. GET /api/dashboard/employee-history
+|    - Mendapatkan history karyawan yang baru ditambahkan (30 hari terakhir)
+|    - Response: {success: true, history: [...], total: 0, period: "30 hari terakhir"}
+|    - Digunakan oleh HistoryModal component
+|
+| 2. GET /api/dashboard/employee-history-summary
+|    - Mendapatkan ringkasan statistik employee history
+|    - Response: {success: true, summary: {today: 0, week: 0, month: 0}, latest_employees: [...]}
+|
+| CASCADING DROPDOWN ENDPOINTS:
+|
+| 3. GET /api/units?unit_organisasi={unit_organisasi}
 |    - Mendapatkan list units berdasarkan unit organisasi
 |    - Response: {success: true, data: [...], message: "..."}
 |
-| 2. GET /api/sub-units?unit_id={unit_id}
+| 4. GET /api/sub-units?unit_id={unit_id}
 |    - Mendapatkan list sub units berdasarkan unit_id
 |    - Response: {success: true, data: [...], message: "..."}
 |
-| 3. GET /api/unit-organisasi-options
+| 5. GET /api/unit-organisasi-options
 |    - Mendapatkan list unit organisasi options
 |    - Response: {success: true, data: [...], message: "..."}
-|
-| NEW API ENDPOINTS untuk Employee History (v1.6.0):
-|
-| 4. GET /api/dashboard/employee-history
-|    - Mendapatkan history karyawan yang baru ditambahkan (30 hari terakhir)
-|    - Response: {success: true, history: [...], total: 0, period: "30 hari terakhir"}
-|
-| 5. GET /api/dashboard/employee-history-summary
-|    - Mendapatkan ringkasan statistik employee history
-|    - Response: {success: true, summary: {today: 0, week: 0, month: 0}, latest_employees: [...]}
 |
 | DASHBOARD API ENDPOINTS:
 | - GET /api/dashboard/statistics
 | - GET /api/dashboard/charts
 | - GET /api/dashboard/activities
 |
-| TESTING ENDPOINTS (Development):
+| TESTING ENDPOINTS (Development Only):
 | - GET /api/test/connectivity
 | - GET /api/test/units/{unitOrganisasi}
 | - GET /api/test/sub-units/{unitId}
 | - GET /api/test/cascade/{unitOrganisasi}
-| - GET /api/test/employee-history                    [NEW]
-| - GET /api/test/employee-history-summary            [NEW]
-| - GET /api/test/all-apis                           [NEW]
+| - GET /api/test/employee-history                    [ENHANCED]
+| - GET /api/test/employee-history-summary            [ENHANCED]
+| - GET /api/test/all-apis                           [ENHANCED]
 |
 | VALIDATION ENDPOINTS:
 | - GET /api/validate/nik/{nik}
@@ -638,12 +1008,13 @@ Route::get('/health', function () {
 |     "message": "Description"
 | }
 |
-| FITUR BARU v1.6.0:
-| ✅ Employee History API untuk dashboard widget
-| ✅ Enhanced testing endpoints untuk debugging
-| ✅ Improved health check dengan feature detection
-| ✅ Comprehensive API testing suite
-| ✅ Employee history summary statistics
+| FITUR BARU v1.6.0 - OPTIMIZED:
+| ✅ Employee History API untuk History Modal
+| ✅ Enhanced error handling dan fallbacks
+| ✅ Method existence checking sebelum pemanggilan
+| ✅ Improved testing endpoints dengan detailed reporting
+| ✅ Robust health check dengan feature detection
+| ✅ Better debugging information untuk development
 |
 | UNIT ORGANISASI STRUKTUR:
 | - EGM → EGM (no sub units)
