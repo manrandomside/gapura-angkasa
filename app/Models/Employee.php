@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 
+// FIXED: Import Unit dan SubUnit model yang diperlukan untuk History Modal
+use App\Models\Unit;
+use App\Models\SubUnit;
+use App\Models\Organization;
+
 class Employee extends Model
 {
     use HasFactory;
@@ -111,6 +116,16 @@ class Employee extends Model
     ];
 
     /**
+     * FIXED: Appends untuk History Modal - CRITICAL
+     * Menambahkan accessor yang diperlukan untuk History Modal
+     */
+    protected $appends = [
+        'organizational_structure',
+        'unit_display',
+        'initials'
+    ];
+
+    /**
      * FIXED: Override toArray untuk memastikan no_telepon tidak muncul
      */
     public function toArray()
@@ -201,12 +216,6 @@ class Employee extends Model
     public function unit()
     {
         try {
-            // Pastikan Unit model exists sebelum membuat relationship
-            if (!class_exists('App\Models\Unit')) {
-                \Log::warning('Unit model does not exist for employee relationship');
-                return null;
-            }
-
             return $this->belongsTo(Unit::class, 'unit_id', 'id');
         } catch (\Exception $e) {
             \Log::warning('Employee unit relationship error: ' . $e->getMessage(), [
@@ -224,12 +233,6 @@ class Employee extends Model
     public function subUnit()
     {
         try {
-            // Pastikan SubUnit model exists sebelum membuat relationship
-            if (!class_exists('App\Models\SubUnit')) {
-                \Log::warning('SubUnit model does not exist for employee relationship');
-                return null;
-            }
-
             return $this->belongsTo(SubUnit::class, 'sub_unit_id', 'id');
         } catch (\Exception $e) {
             \Log::warning('Employee subUnit relationship error: ' . $e->getMessage(), [
@@ -419,8 +422,27 @@ class Employee extends Model
     }
 
     // =====================================================
-    // ENHANCED SCOPES UNTUK SEARCH DAN FILTER
+    // ENHANCED SCOPES UNTUK HISTORY MODAL - CRITICAL
     // =====================================================
+
+    /**
+     * FIXED: Scope untuk employees dalam periode tertentu - CRITICAL untuk history
+     */
+    public function scopeCreatedBetween(Builder $query, $startDate, $endDate)
+    {
+        return $query->whereBetween('created_at', [$startDate, $endDate]);
+    }
+
+    /**
+     * FIXED: Scope untuk employees yang baru ditambahkan (30 hari terakhir) - CRITICAL
+     */
+    public function scopeRecentlyAdded(Builder $query, $days = 30)
+    {
+        $startDate = Carbon::now()->subDays($days)->startOfDay();
+        $endDate = Carbon::now()->endOfDay();
+        
+        return $query->whereBetween('created_at', [$startDate, $endDate]);
+    }
 
     /**
      * Scope untuk filter berdasarkan status aktif
@@ -489,19 +511,15 @@ class Employee extends Model
               
             // FIXED: Search dalam unit dan sub unit dengan enhanced error handling
             try {
-                if (class_exists('App\Models\Unit')) {
-                    $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
-                        $unitQuery->where('name', 'like', $searchTerm)
-                                 ->orWhere('code', 'like', $searchTerm);
-                    });
-                }
+                $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
+                    $unitQuery->where('name', 'like', $searchTerm)
+                             ->orWhere('code', 'like', $searchTerm);
+                });
                 
-                if (class_exists('App\Models\SubUnit')) {
-                    $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
-                        $subUnitQuery->where('name', 'like', $searchTerm)
-                                    ->orWhere('code', 'like', $searchTerm);
-                    });
-                }
+                $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
+                    $subUnitQuery->where('name', 'like', $searchTerm)
+                                ->orWhere('code', 'like', $searchTerm);
+                });
             } catch (\Exception $e) {
                 // Jika relationship belum ada atau error, lanjutkan tanpa unit/subunit search
                 \Log::debug('Unit/SubUnit relationship search failed: ' . $e->getMessage());
@@ -537,12 +555,10 @@ class Employee extends Model
         
         // Jika bukan numeric, cari berdasarkan nama unit dalam relationship
         try {
-            if (class_exists('App\Models\Unit')) {
-                return $query->whereHas('unit', function ($unitQuery) use ($unitValue) {
-                    $unitQuery->where('name', $unitValue)
-                             ->orWhere('code', $unitValue);
-                });
-            }
+            return $query->whereHas('unit', function ($unitQuery) use ($unitValue) {
+                $unitQuery->where('name', $unitValue)
+                         ->orWhere('code', $unitValue);
+            });
         } catch (\Exception $e) {
             \Log::debug('Unit scope relationship error: ' . $e->getMessage());
         }
@@ -567,12 +583,10 @@ class Employee extends Model
         
         // Jika bukan numeric, cari berdasarkan nama sub unit dalam relationship
         try {
-            if (class_exists('App\Models\SubUnit')) {
-                return $query->whereHas('subUnit', function ($subUnitQuery) use ($subUnitValue) {
-                    $subUnitQuery->where('name', $subUnitValue)
-                                ->orWhere('code', $subUnitValue);
-                });
-            }
+            return $query->whereHas('subUnit', function ($subUnitQuery) use ($subUnitValue) {
+                $subUnitQuery->where('name', $subUnitValue)
+                            ->orWhere('code', $subUnitValue);
+            });
         } catch (\Exception $e) {
             \Log::debug('SubUnit scope relationship error: ' . $e->getMessage());
         }
