@@ -13,150 +13,243 @@ import {
     RefreshCw,
     Info,
     CheckCircle,
+    TrendingUp,
+    UserPlus,
+    Database,
+    Wifi,
+    WifiOff,
 } from "lucide-react";
 import axios from "axios";
 
 const HistoryModal = ({ isOpen, onClose }) => {
     const [historyData, setHistoryData] = useState([]);
+    const [summaryData, setSummaryData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
     const [debugInfo, setDebugInfo] = useState(null);
     const [showDebug, setShowDebug] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState("checking");
 
-    // Fetch history data when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            fetchHistoryData();
-        } else {
-            // Reset state when modal closes
-            resetModalState();
-        }
-    }, [isOpen]);
-
+    // Reset modal state
     const resetModalState = () => {
         setHistoryData([]);
+        setSummaryData(null);
         setError(null);
         setDebugInfo(null);
         setShowDebug(false);
         setRetryCount(0);
+        setConnectionStatus("checking");
     };
 
+    // Fetch history data when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            resetModalState();
+            fetchHistoryData();
+        }
+    }, [isOpen]);
+
+    // FIXED: Enhanced fetch function dengan parallel API calls dan better error handling
     const fetchHistoryData = async () => {
         setLoading(true);
         setError(null);
         setDebugInfo(null);
+        setConnectionStatus("connecting");
 
         try {
-            console.log("HISTORY MODAL: Fetching employee history...");
+            console.log("HISTORY MODAL: Starting to fetch employee history...");
 
-            const response = await axios.get(
-                "/api/dashboard/employee-history",
-                {
-                    timeout: 15000, // 15 second timeout
+            // Parallel fetch untuk history dan summary data
+            const [historyResponse, summaryResponse] = await Promise.all([
+                axios.get("/api/dashboard/employee-history", {
+                    timeout: 15000,
                     headers: {
                         Accept: "application/json",
                         "Content-Type": "application/json",
                     },
-                }
-            );
+                }),
+                axios
+                    .get("/api/dashboard/employee-history-summary", {
+                        timeout: 15000,
+                        headers: {
+                            Accept: "application/json",
+                            "Content-Type": "application/json",
+                        },
+                    })
+                    .catch((err) => {
+                        console.warn(
+                            "HISTORY MODAL: Summary API failed, continuing without summary:",
+                            err.message
+                        );
+                        return null; // Continue without summary if it fails
+                    }),
+            ]);
 
-            console.log("HISTORY MODAL: API Response received:", response.data);
+            console.log("HISTORY MODAL: API responses received", {
+                historyStatus: historyResponse.status,
+                historySuccess: historyResponse.data?.success,
+                historyDataCount: historyResponse.data?.history?.length || 0,
+                summaryStatus: summaryResponse?.status,
+                summarySuccess: summaryResponse?.data?.success,
+            });
 
-            // Enhanced response handling
-            if (response.data && response.data.success === true) {
-                const history = response.data.history || [];
+            setConnectionStatus("connected");
+
+            // Process history response
+            if (historyResponse.data && historyResponse.data.success === true) {
+                const history = historyResponse.data.history || [];
                 setHistoryData(history);
-                setDebugInfo(response.data.debug || null);
-                setError(null);
+                setDebugInfo(historyResponse.data.debug || null);
 
-                console.log("HISTORY MODAL: History data set successfully:", {
-                    total_employees: history.length,
-                    sample: history.slice(0, 1),
-                });
+                console.log(
+                    "HISTORY MODAL: History data processed successfully:",
+                    {
+                        total_employees: history.length,
+                        has_organizational_structure:
+                            history.length > 0
+                                ? !!history[0].organizational_structure
+                                : false,
+                        sample_employee:
+                            history.length > 0
+                                ? {
+                                      name: history[0].nama_lengkap,
+                                      structure:
+                                          history[0].organizational_structure
+                                              ?.full_structure,
+                                      initials: history[0].initials,
+                                  }
+                                : null,
+                    }
+                );
             } else {
-                // Handle API error response
-                const errorMessage =
-                    response.data?.error ||
-                    response.data?.message ||
-                    "Gagal mengambil data history karyawan";
-                setError(errorMessage);
-                setHistoryData([]);
-                setDebugInfo(response.data?.debug || null);
-                console.error(
-                    "HISTORY MODAL: API Error Response:",
-                    response.data
+                throw new Error(
+                    historyResponse.data?.error ||
+                        historyResponse.data?.message ||
+                        "History API returned unsuccessful response"
                 );
             }
+
+            // Process summary response if available
+            if (
+                summaryResponse &&
+                summaryResponse.data &&
+                summaryResponse.data.success === true
+            ) {
+                setSummaryData(summaryResponse.data);
+                console.log(
+                    "HISTORY MODAL: Summary data processed successfully:",
+                    summaryResponse.data.summary
+                );
+            } else {
+                console.warn(
+                    "HISTORY MODAL: Summary data not available, continuing without summary"
+                );
+                setSummaryData(null);
+            }
+
+            setError(null);
+            setRetryCount(0);
         } catch (error) {
             console.error("HISTORY MODAL: Error fetching history:", error);
+            setConnectionStatus("disconnected");
 
             let errorMessage = "Terjadi kesalahan saat mengambil data history";
-            let debugData = null;
+            let debugData = {
+                timestamp: new Date().toISOString(),
+                retry_count: retryCount,
+                error_type: "unknown",
+            };
 
             if (error.response) {
                 // Server responded with error status
-                console.error(
-                    "HISTORY MODAL: Response data:",
-                    error.response.data
-                );
-                console.error(
-                    "HISTORY MODAL: Response status:",
-                    error.response.status
-                );
-
                 debugData = {
+                    ...debugData,
+                    error_type: "server_error",
                     status: error.response.status,
                     statusText: error.response.statusText,
                     data: error.response.data,
                     url: error.config?.url,
+                    headers: error.response.headers,
                 };
 
-                if (error.response.status === 500) {
-                    errorMessage = "Terjadi kesalahan server internal";
-                } else if (error.response.status === 404) {
-                    errorMessage = "API endpoint tidak ditemukan";
-                } else if (error.response.status === 403) {
-                    errorMessage = "Tidak memiliki akses untuk melihat data";
-                } else if (error.response.data?.message) {
-                    errorMessage = error.response.data.message;
-                } else if (error.response.data?.error) {
-                    errorMessage = error.response.data.error;
+                console.error("HISTORY MODAL: Server error details:", {
+                    status: error.response.status,
+                    data: error.response.data,
+                    url: error.config?.url,
+                });
+
+                switch (error.response.status) {
+                    case 500:
+                        errorMessage =
+                            "Terjadi kesalahan server internal. Silakan coba lagi.";
+                        break;
+                    case 404:
+                        errorMessage =
+                            "API endpoint tidak ditemukan. Periksa konfigurasi route.";
+                        break;
+                    case 403:
+                        errorMessage =
+                            "Tidak memiliki akses untuk melihat data history.";
+                        break;
+                    case 422:
+                        errorMessage = "Data request tidak valid.";
+                        break;
+                    default:
+                        errorMessage =
+                            error.response.data?.message ||
+                            error.response.data?.error ||
+                            `Server error (${error.response.status})`;
                 }
             } else if (error.request) {
                 // Request made but no response received
-                console.error("HISTORY MODAL: Request error:", error.request);
-                errorMessage = "Tidak dapat terhubung ke server";
                 debugData = {
-                    type: "network_error",
-                    message: "No response received",
+                    ...debugData,
+                    error_type: "network_error",
+                    message: "No response received from server",
                     url: error.config?.url,
+                    timeout: error.code === "ECONNABORTED",
                 };
+
+                if (error.code === "ECONNABORTED") {
+                    errorMessage =
+                        "Timeout - Server membutuhkan waktu terlalu lama untuk merespons";
+                } else {
+                    errorMessage =
+                        "Tidak dapat terhubung ke server. Periksa koneksi internet.";
+                }
             } else {
                 // Error in setting up request
-                console.error("HISTORY MODAL: Setup error:", error.message);
-                errorMessage = "Terjadi kesalahan dalam permintaan data";
                 debugData = {
-                    type: "setup_error",
+                    ...debugData,
+                    error_type: "setup_error",
                     message: error.message,
                 };
+                errorMessage = "Terjadi kesalahan dalam permintaan data";
             }
 
             setError(errorMessage);
             setHistoryData([]);
+            setSummaryData(null);
             setDebugInfo(debugData);
         } finally {
             setLoading(false);
         }
     };
 
-    // Retry function
+    // ENHANCED: Retry function dengan exponential backoff
     const handleRetry = () => {
-        setRetryCount((prev) => prev + 1);
-        fetchHistoryData();
+        const newRetryCount = retryCount + 1;
+        setRetryCount(newRetryCount);
+
+        // Add slight delay for better UX
+        const delay = Math.min(1000 * newRetryCount, 3000); // Max 3 second delay
+        setTimeout(() => {
+            fetchHistoryData();
+        }, delay);
     };
 
-    // Format date untuk display dengan fallback yang lebih baik
+    // ENHANCED: Date formatting dengan comprehensive fallback
     const formatDate = (dateString) => {
         if (!dateString) return "Tanggal tidak tersedia";
 
@@ -176,135 +269,190 @@ const HistoryModal = ({ isOpen, onClose }) => {
             });
         } catch (e) {
             console.error("HISTORY MODAL: Date formatting error:", e);
-            return "Error format tanggal";
+            return dateString; // Return original if formatting fails
         }
     };
 
-    // Enhanced employee initials dengan fallback yang lebih baik
+    // ENHANCED: Employee initials dengan multiple fallback strategies
     const getEmployeeInitial = (employee) => {
-        if (!employee || !employee.nama_lengkap) {
-            return "N";
-        }
+        if (!employee) return "N";
 
         try {
-            // Gunakan initials dari API jika tersedia
-            if (employee.initials) {
-                return employee.initials;
+            // Priority 1: Use initials from API if available
+            if (employee.initials && typeof employee.initials === "string") {
+                return employee.initials.toUpperCase();
             }
 
-            // Generate initials dari nama
-            const name = employee.nama_lengkap.trim();
-            const words = name.split(" ");
+            // Priority 2: Generate from nama_lengkap
+            if (
+                employee.nama_lengkap &&
+                typeof employee.nama_lengkap === "string"
+            ) {
+                const name = employee.nama_lengkap.trim();
+                const words = name
+                    .split(/\s+/)
+                    .filter((word) => word.length > 0);
 
-            if (words.length === 1) {
-                return words[0].charAt(0).toUpperCase();
+                if (words.length === 0) return "N";
+                if (words.length === 1) return words[0].charAt(0).toUpperCase();
+
+                return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
             }
 
-            return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+            // Priority 3: Use NIP if available
+            if (employee.nip) {
+                return employee.nip.charAt(0).toUpperCase();
+            }
+
+            // Priority 4: Use NIK if available
+            if (employee.nik) {
+                return employee.nik.charAt(0);
+            }
+
+            return "N";
         } catch (e) {
             console.error("HISTORY MODAL: Initials generation error:", e);
             return "N";
         }
     };
 
-    // Enhanced organizational structure formatting dengan comprehensive fallback
+    // ENHANCED: Organizational structure formatting yang kompatibel dengan backend accessor
     const formatOrganizationalStructure = (structure) => {
         if (!structure) {
             return "Struktur organisasi tidak tersedia";
         }
 
         try {
-            // Jika structure adalah string, return as is
+            // Priority 1: Use full_structure dari backend accessor
+            if (typeof structure === "object" && structure.full_structure) {
+                return structure.full_structure;
+            }
+
+            // Priority 2: Handle string format
             if (typeof structure === "string") {
                 return structure;
             }
 
-            // Jika structure adalah object, build hierarchy
+            // Priority 3: Build from object components
             if (typeof structure === "object") {
-                // Gunakan full_structure jika tersedia dari API
-                if (structure.full_structure) {
-                    return structure.full_structure;
-                }
-
-                // Build structure dari components
                 const parts = [];
 
-                if (structure.unit_organisasi) {
+                // Add unit_organisasi
+                if (
+                    structure.unit_organisasi &&
+                    structure.unit_organisasi !== "Tidak tersedia"
+                ) {
                     parts.push(structure.unit_organisasi);
                 }
 
+                // Add unit name
                 if (structure.unit) {
                     if (
                         typeof structure.unit === "object" &&
                         structure.unit.name
                     ) {
                         parts.push(structure.unit.name);
-                    } else if (typeof structure.unit === "string") {
+                    } else if (
+                        typeof structure.unit === "string" &&
+                        structure.unit !== "Tidak tersedia"
+                    ) {
                         parts.push(structure.unit);
                     }
                 }
 
+                // Add sub_unit name
                 if (structure.sub_unit) {
                     if (
                         typeof structure.sub_unit === "object" &&
                         structure.sub_unit.name
                     ) {
                         parts.push(structure.sub_unit.name);
-                    } else if (typeof structure.sub_unit === "string") {
+                    } else if (
+                        typeof structure.sub_unit === "string" &&
+                        structure.sub_unit !== "Tidak tersedia"
+                    ) {
                         parts.push(structure.sub_unit);
                     }
                 }
 
-                return parts.length > 0
-                    ? parts.join(" > ")
-                    : "Struktur tidak lengkap";
+                if (parts.length > 0) {
+                    return parts.join(" > ");
+                }
             }
 
-            return "Format struktur tidak dikenali";
+            return "Struktur organisasi tidak lengkap";
         } catch (e) {
             console.error("HISTORY MODAL: Structure formatting error:", e);
             return "Error format struktur";
         }
     };
 
-    // Enhanced status badge color dengan lebih banyak status
+    // ENHANCED: Status badge colors dengan comprehensive mapping
     const getStatusBadgeColor = (status) => {
-        if (!status) {
+        if (!status || status === "Tidak tersedia") {
             return "bg-gray-100 text-gray-600 border-gray-300";
         }
 
-        const statusLower = status.toLowerCase();
+        const statusUpper = status.toUpperCase();
 
-        if (statusLower.includes("tetap")) {
+        if (
+            statusUpper.includes("PEGAWAI TETAP") ||
+            statusUpper.includes("TETAP")
+        ) {
             return "bg-green-100 text-green-700 border-green-300";
-        } else if (statusLower.includes("pkwt")) {
+        } else if (statusUpper.includes("PKWT")) {
             return "bg-blue-100 text-blue-700 border-blue-300";
-        } else if (statusLower.includes("tad")) {
+        } else if (statusUpper.includes("TAD PAKET SDM")) {
+            return "bg-orange-100 text-orange-700 border-orange-300";
+        } else if (statusUpper.includes("TAD PAKET PEKERJAAN")) {
+            return "bg-red-100 text-red-700 border-red-300";
+        } else if (statusUpper.includes("TAD")) {
             return "bg-yellow-100 text-yellow-700 border-yellow-300";
         }
 
         return "bg-gray-100 text-gray-600 border-gray-300";
     };
 
-    // Enhanced position badge color
+    // ENHANCED: Position badge colors dengan kelompok jabatan mapping
     const getPositionBadgeColor = (position) => {
-        if (!position) {
+        if (!position || position === "Tidak tersedia") {
             return "bg-gray-100 text-gray-600 border-gray-300";
         }
 
-        const positionLower = position.toLowerCase();
+        const positionUpper = position.toUpperCase();
 
-        if (positionLower.includes("supervisor")) {
+        if (positionUpper.includes("SUPERVISOR")) {
             return "bg-purple-100 text-purple-700 border-purple-300";
-        } else if (positionLower.includes("manager")) {
+        } else if (positionUpper.includes("MANAGER")) {
             return "bg-indigo-100 text-indigo-700 border-indigo-300";
-        } else if (positionLower.includes("staff")) {
+        } else if (positionUpper.includes("STAFF")) {
             return "bg-cyan-100 text-cyan-700 border-cyan-300";
-        } else if (positionLower.includes("executive")) {
+        } else if (positionUpper.includes("EXECUTIVE")) {
             return "bg-amber-100 text-amber-700 border-amber-300";
+        } else if (
+            positionUpper.includes("ACCOUNT EXECUTIVE") ||
+            positionUpper.includes("AE")
+        ) {
+            return "bg-pink-100 text-pink-700 border-pink-300";
         }
 
         return "bg-gray-100 text-gray-600 border-gray-300";
+    };
+
+    // Connection status icon
+    const getConnectionIcon = () => {
+        switch (connectionStatus) {
+            case "connected":
+                return <Wifi className="w-5 h-5 text-green-500" />;
+            case "disconnected":
+                return <WifiOff className="w-5 h-5 text-red-500" />;
+            case "connecting":
+                return (
+                    <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+                );
+            default:
+                return <Database className="w-5 h-5 text-gray-500" />;
+        }
     };
 
     // Close modal handler
@@ -323,7 +471,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
             <div className="relative w-full max-w-6xl max-h-[90vh] mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
-                {/* Header */}
+                {/* ENHANCED: Header dengan connection status */}
                 <div className="flex items-center justify-between p-6 bg-gradient-to-r from-[#439454] to-[#367a41] text-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-lg bg-opacity-20">
@@ -340,6 +488,14 @@ const HistoryModal = ({ isOpen, onClose }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Connection Status */}
+                        <div
+                            className="p-2 transition-all duration-200 bg-white rounded-lg bg-opacity-20"
+                            title={`Status: ${connectionStatus}`}
+                        >
+                            {getConnectionIcon()}
+                        </div>
+
                         {/* Debug Toggle Button */}
                         {(debugInfo || error) && (
                             <button
@@ -350,6 +506,19 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                 <Info className="w-5 h-5" />
                             </button>
                         )}
+
+                        {/* Retry Button */}
+                        {!loading && (
+                            <button
+                                onClick={handleRetry}
+                                className="p-2 transition-all duration-200 bg-white rounded-lg bg-opacity-20 hover:bg-opacity-30"
+                                title="Refresh Data"
+                            >
+                                <RefreshCw className="w-5 h-5" />
+                            </button>
+                        )}
+
+                        {/* Close Button */}
                         <button
                             onClick={handleClose}
                             className="p-2 transition-all duration-200 bg-white rounded-lg bg-opacity-20 hover:bg-white hover:bg-opacity-30"
@@ -359,8 +528,70 @@ const HistoryModal = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
+                {/* ENHANCED: Summary Header dengan statistik */}
+                {summaryData && summaryData.summary && !loading && !error && (
+                    <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-green-50">
+                        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                            <div className="text-center">
+                                <div className="text-2xl font-bold text-[#439454]">
+                                    {summaryData.summary.today || 0}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Hari Ini
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-bold text-blue-600">
+                                    {summaryData.summary.yesterday || 0}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Kemarin
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-bold text-purple-600">
+                                    {summaryData.summary.this_week || 0}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Minggu Ini
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-bold text-orange-600">
+                                    {summaryData.summary.this_month || 0}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Bulan Ini
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-bold text-red-600">
+                                    {summaryData.summary.total_period || 0}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    30 Hari
+                                </div>
+                                {summaryData.summary.growth_percentage !==
+                                    undefined && (
+                                    <div
+                                        className={`text-xs flex items-center justify-center gap-1 mt-1 ${
+                                            summaryData.summary
+                                                .growth_percentage >= 0
+                                                ? "text-green-600"
+                                                : "text-red-600"
+                                        }`}
+                                    >
+                                        <TrendingUp className="w-3 h-3" />
+                                        {summaryData.summary.growth_percentage}%
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Content */}
-                <div className="flex-1 overflow-auto max-h-[calc(90vh-80px)]">
+                <div className="flex-1 overflow-auto max-h-[calc(90vh-140px)]">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <RefreshCw className="w-12 h-12 text-[#439454] animate-spin mb-4" />
@@ -370,6 +601,11 @@ const HistoryModal = ({ isOpen, onClose }) => {
                             <p className="text-sm text-gray-500">
                                 Mohon tunggu sebentar
                             </p>
+                            {retryCount > 0 && (
+                                <div className="mt-2 text-xs text-gray-400">
+                                    Percobaan ke-{retryCount + 1}
+                                </div>
+                            )}
                         </div>
                     ) : error ? (
                         <div className="flex flex-col items-center justify-center py-16">
@@ -386,8 +622,13 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                 <button
                                     onClick={handleRetry}
                                     className="px-6 py-2 bg-[#439454] text-white rounded-lg hover:bg-[#367a41] transition-colors flex items-center gap-2"
+                                    disabled={loading}
                                 >
-                                    <RefreshCw className="w-4 h-4" />
+                                    <RefreshCw
+                                        className={`w-4 h-4 ${
+                                            loading ? "animate-spin" : ""
+                                        }`}
+                                    />
                                     Coba Lagi
                                 </button>
                                 <button
@@ -406,7 +647,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                     ) : historyData.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <div className="flex items-center justify-center w-16 h-16 mb-4 bg-blue-100 rounded-full">
-                                <Users className="w-8 h-8 text-blue-500" />
+                                <UserPlus className="w-8 h-8 text-blue-500" />
                             </div>
                             <h3 className="mb-2 text-xl font-bold text-gray-700">
                                 Tidak Ada Data Baru
@@ -415,10 +656,17 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                 Belum ada karyawan baru yang ditambahkan dalam
                                 30 hari terakhir.
                             </p>
+                            <button
+                                onClick={handleRetry}
+                                className="mt-4 px-4 py-2 bg-[#439454] text-white rounded-lg hover:bg-[#367a41] transition-colors flex items-center gap-2 text-sm"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Refresh Data
+                            </button>
                         </div>
                     ) : (
                         <div className="p-6">
-                            {/* Summary Header */}
+                            {/* Success Header */}
                             <div className="p-4 mb-6 border border-green-200 rounded-lg bg-green-50">
                                 <div className="flex items-center gap-2 mb-2">
                                     <CheckCircle className="w-5 h-5 text-green-600" />
@@ -440,9 +688,9 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                         className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#439454] transition-all duration-300"
                                     >
                                         <div className="flex items-start gap-4">
-                                            {/* Avatar */}
+                                            {/* ENHANCED: Avatar dengan gradient */}
                                             <div className="flex-shrink-0">
-                                                <div className="w-16 h-16 bg-gradient-to-r from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                                <div className="w-16 h-16 bg-gradient-to-r from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
                                                     {getEmployeeInitial(
                                                         employee
                                                     )}
@@ -452,47 +700,44 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                             {/* Employee Info */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between mb-3">
-                                                    <div>
-                                                        <h3 className="mb-1 text-xl font-bold text-gray-900">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="mb-1 text-xl font-bold text-gray-900 truncate">
                                                             {employee.nama_lengkap ||
                                                                 "Nama tidak tersedia"}
                                                         </h3>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            {employee.nip && (
-                                                                <span className="text-sm text-gray-600">
-                                                                    NIP:{" "}
-                                                                    {
-                                                                        employee.nip
-                                                                    }
-                                                                </span>
-                                                            )}
-                                                            {employee.nik && (
-                                                                <>
-                                                                    {employee.nip && (
-                                                                        <span className="text-gray-400">
-                                                                            •
-                                                                        </span>
-                                                                    )}
-                                                                    <span className="text-sm text-gray-600">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                            {employee.nip &&
+                                                                employee.nip !==
+                                                                    "Tidak tersedia" && (
+                                                                    <span className="px-2 py-1 text-sm text-gray-600 bg-gray-100 rounded">
+                                                                        NIP:{" "}
+                                                                        {
+                                                                            employee.nip
+                                                                        }
+                                                                    </span>
+                                                                )}
+                                                            {employee.nik &&
+                                                                employee.nik !==
+                                                                    "Tidak tersedia" && (
+                                                                    <span className="px-2 py-1 text-sm text-gray-600 bg-gray-100 rounded">
                                                                         NIK:{" "}
                                                                         {
                                                                             employee.nik
                                                                         }
                                                                     </span>
-                                                                </>
-                                                            )}
+                                                                )}
                                                         </div>
                                                     </div>
 
-                                                    {/* Date Badge */}
-                                                    <div className="flex flex-col items-end">
-                                                        <div className="px-3 py-1 bg-[#439454] bg-opacity-10 text-[#439454] rounded-full text-sm font-medium mb-1">
+                                                    {/* ENHANCED: Date Badge dengan relative time */}
+                                                    <div className="flex flex-col items-end ml-4">
+                                                        <div className="px-3 py-1 bg-[#439454] bg-opacity-10 text-[#439454] rounded-full text-sm font-medium mb-1 whitespace-nowrap">
                                                             {employee.relative_date ||
                                                                 formatDate(
                                                                     employee.created_at
                                                                 )}
                                                         </div>
-                                                        <div className="text-xs text-gray-500">
+                                                        <div className="text-xs text-gray-500 whitespace-nowrap">
                                                             {employee.formatted_date ||
                                                                 formatDate(
                                                                     employee.created_at
@@ -501,7 +746,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* Organizational Structure */}
+                                                {/* ENHANCED: Organizational Structure */}
                                                 <div className="mb-3">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <Building2 className="w-4 h-4 text-gray-400" />
@@ -510,7 +755,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                         </span>
                                                     </div>
                                                     <div className="pl-6">
-                                                        <p className="text-sm text-gray-600">
+                                                        <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded border-l-4 border-[#439454]">
                                                             {formatOrganizationalStructure(
                                                                 employee.organizational_structure
                                                             )}
@@ -518,7 +763,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* Job Information */}
+                                                {/* ENHANCED: Job Information */}
                                                 <div className="mb-3">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <Briefcase className="w-4 h-4 text-gray-400" />
@@ -527,25 +772,27 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                         </span>
                                                     </div>
                                                     <div className="pl-6">
-                                                        <p className="mb-1 text-sm font-medium text-gray-900">
+                                                        <p className="mb-2 text-sm font-medium text-gray-900">
                                                             {employee.jabatan ||
                                                                 "Jabatan tidak tersedia"}
                                                         </p>
-                                                        {employee.kelompok_jabatan && (
-                                                            <span
-                                                                className={`inline-block px-2 py-1 rounded-md text-xs border ${getPositionBadgeColor(
-                                                                    employee.kelompok_jabatan
-                                                                )}`}
-                                                            >
-                                                                {
-                                                                    employee.kelompok_jabatan
-                                                                }
-                                                            </span>
-                                                        )}
+                                                        {employee.kelompok_jabatan &&
+                                                            employee.kelompok_jabatan !==
+                                                                "Tidak tersedia" && (
+                                                                <span
+                                                                    className={`inline-block px-3 py-1 rounded-full text-xs border font-medium ${getPositionBadgeColor(
+                                                                        employee.kelompok_jabatan
+                                                                    )}`}
+                                                                >
+                                                                    {
+                                                                        employee.kelompok_jabatan
+                                                                    }
+                                                                </span>
+                                                            )}
                                                     </div>
                                                 </div>
 
-                                                {/* Status Information */}
+                                                {/* ENHANCED: Status Information */}
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex items-center gap-2">
                                                         <UserCheck className="w-4 h-4 text-gray-400" />
@@ -554,7 +801,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                         </span>
                                                     </div>
                                                     <span
-                                                        className={`px-2 py-1 rounded-md text-xs border ${getStatusBadgeColor(
+                                                        className={`px-3 py-1 rounded-full text-xs border font-medium ${getStatusBadgeColor(
                                                             employee.status_pegawai
                                                         )}`}
                                                     >
@@ -570,44 +817,59 @@ const HistoryModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    {/* Debug Information Panel */}
+                    {/* ENHANCED: Debug Information Panel */}
                     {showDebug && debugInfo && (
                         <div className="p-4 border-t border-gray-200 bg-gray-50">
                             <div className="max-w-full">
-                                <h4 className="mb-2 font-medium text-gray-700">
+                                <h4 className="flex items-center gap-2 mb-2 font-medium text-gray-700">
+                                    <Database className="w-4 h-4" />
                                     Debug Information:
                                 </h4>
-                                <div className="p-3 overflow-auto font-mono text-xs text-green-400 bg-gray-800 rounded-lg max-h-40">
-                                    <pre>
+                                <div className="p-3 overflow-auto font-mono text-xs text-green-400 bg-gray-900 rounded-lg max-h-48">
+                                    <pre className="whitespace-pre-wrap">
                                         {JSON.stringify(debugInfo, null, 2)}
                                     </pre>
                                 </div>
-                                {retryCount > 0 && (
-                                    <div className="mt-2 text-xs text-gray-600">
-                                        Retry attempts: {retryCount}
-                                    </div>
-                                )}
+                                <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
+                                    <span>Connection: {connectionStatus}</span>
+                                    <span>Retry attempts: {retryCount}</span>
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Footer */}
+                {/* ENHANCED: Footer dengan informasi tambahan */}
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                     <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500">
-                            Data history karyawan yang baru ditambahkan dalam 30
-                            hari terakhir
-                        </p>
-                        {debugInfo && !loading && !error && (
-                            <div className="text-xs text-gray-400">
-                                Last updated:{" "}
-                                {debugInfo.timestamp &&
-                                    new Date(
-                                        debugInfo.timestamp
-                                    ).toLocaleString("id-ID")}
-                            </div>
-                        )}
+                        <div className="flex items-center gap-4">
+                            <p className="text-xs text-gray-500">
+                                Data history karyawan yang baru ditambahkan
+                                dalam 30 hari terakhir
+                            </p>
+                            {historyData.length > 0 && (
+                                <span className="px-2 py-1 text-xs text-green-600 bg-green-100 rounded">
+                                    {historyData.length} data ditemukan
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                            {debugInfo &&
+                                !loading &&
+                                !error &&
+                                debugInfo.timestamp && (
+                                    <span>
+                                        Last updated:{" "}
+                                        {new Date(
+                                            debugInfo.timestamp
+                                        ).toLocaleTimeString("id-ID")}
+                                    </span>
+                                )}
+                            <span className="flex items-center gap-1">
+                                {getConnectionIcon()}
+                                {connectionStatus}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

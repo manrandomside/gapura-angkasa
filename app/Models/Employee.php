@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 
 // FIXED: Import Unit dan SubUnit model yang diperlukan untuk History Modal
 use App\Models\Unit;
@@ -204,7 +205,7 @@ class Employee extends Model
         try {
             return $this->belongsTo(Organization::class, 'organization_id', 'id');
         } catch (\Exception $e) {
-            \Log::warning('Employee organization relationship error: ' . $e->getMessage());
+            Log::warning('Employee organization relationship error: ' . $e->getMessage());
             return null;
         }
     }
@@ -218,7 +219,7 @@ class Employee extends Model
         try {
             return $this->belongsTo(Unit::class, 'unit_id', 'id');
         } catch (\Exception $e) {
-            \Log::warning('Employee unit relationship error: ' . $e->getMessage(), [
+            Log::warning('Employee unit relationship error: ' . $e->getMessage(), [
                 'employee_id' => $this->id ?? 'unknown',
                 'unit_id' => $this->unit_id ?? 'null'
             ]);
@@ -235,7 +236,7 @@ class Employee extends Model
         try {
             return $this->belongsTo(SubUnit::class, 'sub_unit_id', 'id');
         } catch (\Exception $e) {
-            \Log::warning('Employee subUnit relationship error: ' . $e->getMessage(), [
+            Log::warning('Employee subUnit relationship error: ' . $e->getMessage(), [
                 'employee_id' => $this->id ?? 'unknown',
                 'sub_unit_id' => $this->sub_unit_id ?? 'null'
             ]);
@@ -280,7 +281,7 @@ class Employee extends Model
                         ];
                     }
                 } catch (\Exception $unitError) {
-                    \Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
+                    Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
                 }
             }
 
@@ -303,7 +304,7 @@ class Employee extends Model
                         ];
                     }
                 } catch (\Exception $subUnitError) {
-                    \Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
+                    Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
                 }
             }
 
@@ -334,7 +335,7 @@ class Employee extends Model
                 $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
             }
 
-            \Log::debug('Organizational structure accessor called', [
+            Log::debug('Organizational structure accessor called', [
                 'employee_id' => $this->id,
                 'full_structure' => $structure['full_structure']
             ]);
@@ -342,7 +343,7 @@ class Employee extends Model
             return $structure;
 
         } catch (\Exception $e) {
-            \Log::warning('Organizational structure accessor error: ' . $e->getMessage(), [
+            Log::warning('Organizational structure accessor error: ' . $e->getMessage(), [
                 'employee_id' => $this->id ?? 'unknown',
                 'trace' => $e->getTraceAsString()
             ]);
@@ -373,7 +374,7 @@ class Employee extends Model
                         $display .= ' > ' . $unit->name;
                     }
                 } catch (\Exception $e) {
-                    \Log::debug('Unit display fallback error: ' . $e->getMessage());
+                    Log::debug('Unit display fallback error: ' . $e->getMessage());
                 }
             }
             
@@ -386,14 +387,14 @@ class Employee extends Model
                         $display .= ' > ' . $subUnit->name;
                     }
                 } catch (\Exception $e) {
-                    \Log::debug('SubUnit display fallback error: ' . $e->getMessage());
+                    Log::debug('SubUnit display fallback error: ' . $e->getMessage());
                 }
             }
             
             return $display;
             
         } catch (\Exception $e) {
-            \Log::warning('Unit display error: ' . $e->getMessage());
+            Log::warning('Unit display error: ' . $e->getMessage());
             return $this->unit_organisasi ?? 'Unit tidak tersedia';
         }
     }
@@ -416,9 +417,76 @@ class Employee extends Model
             
             return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
         } catch (\Exception $e) {
-            \Log::debug('Initials accessor error: ' . $e->getMessage());
+            Log::debug('Initials accessor error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown',
+                'nama_lengkap' => $this->nama_lengkap
+            ]);
             return 'N';
         }
+    }
+
+    /**
+     * FIXED: Get employee's full name safely
+     */
+    public function getFullNameAttribute()
+    {
+        return $this->nama_lengkap ?? 'Nama tidak tersedia';
+    }
+
+    /**
+     * FIXED: Get employee's job title safely
+     */
+    public function getJobTitleAttribute()
+    {
+        return $this->jabatan ?? $this->nama_jabatan ?? 'Jabatan tidak tersedia';
+    }
+
+    /**
+     * FIXED: Check if employee is recently added (within 30 days)
+     */
+    public function getIsRecentlyAddedAttribute()
+    {
+        if (!$this->created_at) {
+            return false;
+        }
+        
+        return $this->created_at->isAfter(now()->subDays(30));
+    }
+
+    /**
+     * FIXED: Get days since employee was added
+     */
+    public function getDaysSinceAddedAttribute()
+    {
+        if (!$this->created_at) {
+            return null;
+        }
+        
+        return $this->created_at->diffInDays(now());
+    }
+
+    /**
+     * FIXED: Get formatted creation date
+     */
+    public function getFormattedCreatedDateAttribute()
+    {
+        if (!$this->created_at) {
+            return 'Tanggal tidak tersedia';
+        }
+        
+        return $this->created_at->format('d/m/Y H:i');
+    }
+
+    /**
+     * FIXED: Get relative creation date (e.g., "2 days ago")
+     */
+    public function getRelativeCreatedDateAttribute()
+    {
+        if (!$this->created_at) {
+            return 'Tanggal tidak tersedia';
+        }
+        
+        return $this->created_at->diffForHumans();
     }
 
     // =====================================================
@@ -522,7 +590,7 @@ class Employee extends Model
                 });
             } catch (\Exception $e) {
                 // Jika relationship belum ada atau error, lanjutkan tanpa unit/subunit search
-                \Log::debug('Unit/SubUnit relationship search failed: ' . $e->getMessage());
+                Log::debug('Unit/SubUnit relationship search failed: ' . $e->getMessage());
             }
         });
     }
@@ -560,7 +628,7 @@ class Employee extends Model
                          ->orWhere('code', $unitValue);
             });
         } catch (\Exception $e) {
-            \Log::debug('Unit scope relationship error: ' . $e->getMessage());
+            Log::debug('Unit scope relationship error: ' . $e->getMessage());
         }
         
         // Fallback: cari berdasarkan unit_organisasi
@@ -588,7 +656,7 @@ class Employee extends Model
                             ->orWhere('code', $subUnitValue);
             });
         } catch (\Exception $e) {
-            \Log::debug('SubUnit scope relationship error: ' . $e->getMessage());
+            Log::debug('SubUnit scope relationship error: ' . $e->getMessage());
         }
         
         // Fallback: return empty query jika relationship belum ada
@@ -772,7 +840,7 @@ class Employee extends Model
             }
 
         } catch (\Exception $e) {
-            \Log::error('Error applying filters: ' . $e->getMessage());
+            Log::error('Error applying filters: ' . $e->getMessage());
             // Return query tanpa filter jika ada error
         }
 
@@ -1511,7 +1579,7 @@ class Employee extends Model
         // ENHANCED: Event ketika employee dibuat (untuk history tracking)
         static::created(function ($employee) {
             try {
-                \Log::info('EMPLOYEE CREATED: New employee added to system', [
+                Log::info('EMPLOYEE CREATED: New employee added to system', [
                     'employee_id' => $employee->id,
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
@@ -1521,7 +1589,7 @@ class Employee extends Model
                     'created_at' => $employee->created_at
                 ]);
             } catch (\Exception $e) {
-                \Log::warning('Employee creation logging failed: ' . $e->getMessage());
+                Log::warning('Employee creation logging failed: ' . $e->getMessage());
             }
         });
 
@@ -1551,14 +1619,14 @@ class Employee extends Model
         // ENHANCED: Event ketika employee di-update (untuk history tracking)
         static::updated(function ($employee) {
             try {
-                \Log::info('EMPLOYEE UPDATED: Employee data modified', [
+                Log::info('EMPLOYEE UPDATED: Employee data modified', [
                     'employee_id' => $employee->id,
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'updated_at' => $employee->updated_at
                 ]);
             } catch (\Exception $e) {
-                \Log::warning('Employee update logging failed: ' . $e->getMessage());
+                Log::warning('Employee update logging failed: ' . $e->getMessage());
             }
         });
     }

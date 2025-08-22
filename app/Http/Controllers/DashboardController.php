@@ -164,17 +164,17 @@ class DashboardController extends Controller
                 'period_days' => 30
             ]);
 
-            // FIXED: Enhanced data mapping dengan proper organizational structure menggunakan accessor
+            // FIXED: Enhanced data mapping dengan proper organizational structure
             $historyData = $employees->map(function ($employee) {
-                // FIXED: Gunakan accessor dari Employee model yang sudah diperbaiki
-                $organizationalStructure = $employee->organizational_structure;
+                // Build organizational structure manually to ensure consistency
+                $organizationalStructure = $this->buildOrganizationalStructure($employee);
                 
                 $data = [
                     'id' => $employee->id,
                     'nip' => $employee->nip ?? 'Tidak tersedia',
                     'nik' => $employee->nik ?? 'Tidak tersedia',
                     'nama_lengkap' => $employee->nama_lengkap ?? 'Nama tidak tersedia',
-                    'initials' => $employee->initials ?? $this->getEmployeeInitials($employee->nama_lengkap),
+                    'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
                     'organizational_structure' => $organizationalStructure,
                     'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
                     'unit_name' => $organizationalStructure['unit']['name'] ?? null,
@@ -218,7 +218,7 @@ class DashboardController extends Controller
                     'total_employees_found' => $historyData->count(),
                     'timestamp' => Carbon::now()->toISOString(),
                     'relationships_loaded' => true,
-                    'using_employee_accessor' => true
+                    'method_version' => 'fixed_v1.0'
                 ]
             ];
 
@@ -255,7 +255,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Get employee history summary - Enhanced dengan relationship loading
+     * FIXED: Get employee history summary
      * CRITICAL: Method untuk summary data History Modal
      */
     public function getEmployeeHistorySummary()
@@ -272,7 +272,7 @@ class DashboardController extends Controller
             // Calculate summary statistics
             $summary = $this->calculateHistorySummary($startDate, $endDate);
 
-            // FIXED: Get latest employees dengan relationship loading menggunakan accessor
+            // Get latest employees with relationship loading
             $latestEmployees = Employee::select([
                     'id', 'nip', 'nik', 'nama_lengkap', 'unit_organisasi', 
                     'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan', 
@@ -287,12 +287,13 @@ class DashboardController extends Controller
                 ->limit(5)
                 ->get()
                 ->map(function ($employee) {
-                    // FIXED: Gunakan accessor dari Employee model
+                    $organizationalStructure = $this->buildOrganizationalStructure($employee);
+                    
                     return [
                         'id' => $employee->id,
                         'nama_lengkap' => $employee->nama_lengkap,
-                        'initials' => $employee->initials,
-                        'organizational_structure' => $employee->organizational_structure,
+                        'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
+                        'organizational_structure' => $organizationalStructure,
                         'jabatan' => $employee->jabatan ?? $employee->nama_jabatan,
                         'status_pegawai' => $employee->status_pegawai,
                         'created_at' => $employee->created_at,
@@ -335,12 +336,15 @@ class DashboardController extends Controller
                     'yesterday' => 0,
                     'this_week' => 0,
                     'this_month' => 0,
-                    'total_period' => 0
+                    'total_period' => 0,
+                    'growth_percentage' => 0
                 ],
                 'latest_employees' => [],
                 'error' => 'Gagal mengambil summary data history',
                 'debug' => config('app.debug') ? [
                     'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine(),
                     'timestamp' => Carbon::now()->toISOString()
                 ] : null
             ], 500);
@@ -535,11 +539,138 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // PRIVATE HELPER METHODS - ENHANCED & FIXED
+    // FIXED HELPER METHODS - CRITICAL FOR HISTORY FUNCTIONALITY
     // =====================================================
 
     /**
-     * FIXED: Calculate history summary statistics dengan comprehensive error handling
+     * FIXED: Helper method - Get employee initials for display
+     */
+    private function getEmployeeInitials($namaLengkap)
+    {
+        if (empty($namaLengkap)) {
+            return 'N';
+        }
+
+        try {
+            $words = explode(' ', trim($namaLengkap));
+            
+            if (count($words) === 1) {
+                return strtoupper(substr($words[0], 0, 1));
+            }
+            
+            return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+        } catch (\Exception $e) {
+            Log::debug('HELPER: Initials generation error', [
+                'message' => $e->getMessage(),
+                'employee_name' => $namaLengkap
+            ]);
+            return 'N';
+        }
+    }
+
+    /**
+     * FIXED: Build organizational structure for employee
+     * CRITICAL: Ensures consistent structure building across methods
+     */
+    private function buildOrganizationalStructure($employee)
+    {
+        try {
+            $structure = [
+                'unit_organisasi' => $employee->unit_organisasi,
+                'unit' => null,
+                'sub_unit' => null,
+                'full_structure' => null
+            ];
+
+            // Build unit info
+            if ($employee->relationLoaded('unit') && $employee->unit) {
+                $structure['unit'] = [
+                    'id' => $employee->unit->id,
+                    'name' => $employee->unit->name,
+                    'code' => $employee->unit->code ?? null
+                ];
+            } else if ($employee->unit_id) {
+                try {
+                    $unit = Unit::find($employee->unit_id);
+                    if ($unit) {
+                        $structure['unit'] = [
+                            'id' => $unit->id,
+                            'name' => $unit->name,
+                            'code' => $unit->code ?? null
+                        ];
+                    }
+                } catch (\Exception $unitError) {
+                    Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
+                }
+            }
+
+            // Build sub unit info
+            if ($employee->relationLoaded('subUnit') && $employee->subUnit) {
+                $structure['sub_unit'] = [
+                    'id' => $employee->subUnit->id,
+                    'name' => $employee->subUnit->name,
+                    'code' => $employee->subUnit->code ?? null
+                ];
+            } else if ($employee->sub_unit_id) {
+                try {
+                    $subUnit = SubUnit::find($employee->sub_unit_id);
+                    if ($subUnit) {
+                        $structure['sub_unit'] = [
+                            'id' => $subUnit->id,
+                            'name' => $subUnit->name,
+                            'code' => $subUnit->code ?? null
+                        ];
+                    }
+                } catch (\Exception $subUnitError) {
+                    Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
+                }
+            }
+
+            // Build full structure string
+            $fullStructureParts = [];
+            
+            if ($structure['unit_organisasi']) {
+                $fullStructureParts[] = $structure['unit_organisasi'];
+            }
+            
+            if ($structure['unit'] && !empty($structure['unit']['name'])) {
+                $fullStructureParts[] = $structure['unit']['name'];
+            }
+            
+            if ($structure['sub_unit'] && !empty($structure['sub_unit']['name'])) {
+                $fullStructureParts[] = $structure['sub_unit']['name'];
+            }
+            
+            $structure['full_structure'] = implode(' > ', $fullStructureParts);
+            
+            // Ensure we always have at least unit_organisasi
+            if (empty($structure['full_structure']) && $structure['unit_organisasi']) {
+                $structure['full_structure'] = $structure['unit_organisasi'];
+            }
+            
+            // Final fallback
+            if (empty($structure['full_structure'])) {
+                $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
+            }
+
+            return $structure;
+
+        } catch (\Exception $e) {
+            Log::warning('Build organizational structure error: ' . $e->getMessage(), [
+                'employee_id' => $employee->id ?? 'unknown'
+            ]);
+            
+            return [
+                'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
+                'unit' => null,
+                'sub_unit' => null,
+                'full_structure' => $employee->unit_organisasi ?? 'Struktur organisasi tidak tersedia'
+            ];
+        }
+    }
+
+    /**
+     * FIXED: Calculate history summary statistics
      */
     private function calculateHistorySummary($startDate, $endDate)
     {
@@ -583,32 +714,6 @@ class DashboardController extends Controller
                 'total_period' => 0,
                 'growth_percentage' => 0
             ];
-        }
-    }
-
-    /**
-     * FIXED: Helper method - Get employee initials for display
-     */
-    private function getEmployeeInitials($namaLengkap)
-    {
-        if (empty($namaLengkap)) {
-            return 'N';
-        }
-
-        try {
-            $words = explode(' ', trim($namaLengkap));
-            
-            if (count($words) === 1) {
-                return strtoupper(substr($words[0], 0, 1));
-            }
-            
-            return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
-        } catch (\Exception $e) {
-            Log::debug('HELPER: Initials generation error', [
-                'message' => $e->getMessage(),
-                'employee_name' => $namaLengkap
-            ]);
-            return 'N';
         }
     }
 

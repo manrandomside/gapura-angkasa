@@ -80,9 +80,16 @@ Route::prefix('units')->group(function () {
                 'message' => 'Units hierarchy method not available'
             ], 404);
         } catch (\Exception $e) {
+            \Log::error('API: Units hierarchy error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Error getting units hierarchy: ' . $e->getMessage()
+                'message' => 'Error getting units hierarchy',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     })->name('api.units.hierarchy');
@@ -98,9 +105,16 @@ Route::prefix('units')->group(function () {
                 'message' => 'Unit statistics method not available'
             ], 404);
         } catch (\Exception $e) {
+            \Log::error('API: Unit statistics error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Error getting unit statistics: ' . $e->getMessage()
+                'message' => 'Error getting unit statistics',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     })->name('api.units.statistics');
@@ -115,54 +129,66 @@ Route::prefix('employees')->group(function () {
     // Core employee operations dengan enhanced error handling
     Route::get('/search', function(Request $request) {
         try {
-            if (method_exists(EmployeeController::class, 'search')) {
-                return app(EmployeeController::class)->search($request);
+            if (!method_exists(EmployeeController::class, 'search')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Search method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->search($request);
+        } catch (\Exception $e) {
+            \Log::error('API: Employee search error', [
+                'error' => $e->getMessage(),
+                'request_params' => $request->all()
+            ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Search method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error in employee search: ' . $e->getMessage()
+                'message' => 'Error in employee search',
+                'error' => config('app.debug') ? $e->getMessage() : 'Search failed'
             ], 500);
         }
     })->name('api.employees.search');
     
     Route::get('/statistics', function() {
         try {
-            if (method_exists(EmployeeController::class, 'getStatistics')) {
-                return app(EmployeeController::class)->getStatistics();
+            if (!method_exists(EmployeeController::class, 'getStatistics')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Statistics method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->getStatistics();
+        } catch (\Exception $e) {
+            \Log::error('API: Employee statistics error', ['error' => $e->getMessage()]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Statistics method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error getting employee statistics: ' . $e->getMessage()
+                'message' => 'Error getting employee statistics',
+                'error' => config('app.debug') ? $e->getMessage() : 'Statistics unavailable'
             ], 500);
         }
     })->name('api.employees.statistics');
     
     Route::get('/filter-options', function() {
         try {
-            if (method_exists(EmployeeController::class, 'getFilterOptions')) {
-                return app(EmployeeController::class)->getFilterOptions();
+            if (!method_exists(EmployeeController::class, 'getFilterOptions')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Filter options method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->getFilterOptions();
+        } catch (\Exception $e) {
+            \Log::error('API: Filter options error', ['error' => $e->getMessage()]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Filter options method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error getting filter options: ' . $e->getMessage()
+                'message' => 'Error getting filter options',
+                'error' => config('app.debug') ? $e->getMessage() : 'Filter options unavailable'
             ], 500);
         }
     })->name('api.employees.filter-options');
@@ -170,36 +196,48 @@ Route::prefix('employees')->group(function () {
     // Validation endpoints
     Route::post('/validate-nik', function(Request $request) {
         try {
-            if (method_exists(EmployeeController::class, 'validateNik')) {
-                return app(EmployeeController::class)->validateNik($request);
+            if (!method_exists(EmployeeController::class, 'validateNik')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'NIK validation method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->validateNik($request);
+        } catch (\Exception $e) {
+            \Log::error('API: NIK validation error', [
+                'error' => $e->getMessage(),
+                'nik' => $request->input('nik', 'not_provided')
+            ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'NIK validation method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error validating NIK: ' . $e->getMessage()
+                'message' => 'Error validating NIK',
+                'error' => config('app.debug') ? $e->getMessage() : 'Validation failed'
             ], 500);
         }
     })->name('api.employees.validate-nik');
     
     Route::post('/validate-nip', function(Request $request) {
         try {
-            if (method_exists(EmployeeController::class, 'validateNip')) {
-                return app(EmployeeController::class)->validateNip($request);
+            if (!method_exists(EmployeeController::class, 'validateNip')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'NIP validation method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->validateNip($request);
+        } catch (\Exception $e) {
+            \Log::error('API: NIP validation error', [
+                'error' => $e->getMessage(),
+                'nip' => $request->input('nip', 'not_provided')
+            ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'NIP validation method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error validating NIP: ' . $e->getMessage()
+                'message' => 'Error validating NIP',
+                'error' => config('app.debug') ? $e->getMessage() : 'Validation failed'
             ], 500);
         }
     })->name('api.employees.validate-nip');
@@ -207,18 +245,24 @@ Route::prefix('employees')->group(function () {
     // Bulk operations
     Route::post('/bulk-action', function(Request $request) {
         try {
-            if (method_exists(EmployeeController::class, 'bulkAction')) {
-                return app(EmployeeController::class)->bulkAction($request);
+            if (!method_exists(EmployeeController::class, 'bulkAction')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bulk action method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->bulkAction($request);
+        } catch (\Exception $e) {
+            \Log::error('API: Bulk action error', [
+                'error' => $e->getMessage(),
+                'action' => $request->input('action', 'not_provided')
+            ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Bulk action method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error in bulk action: ' . $e->getMessage()
+                'message' => 'Error in bulk action',
+                'error' => config('app.debug') ? $e->getMessage() : 'Bulk action failed'
             ], 500);
         }
     })->name('api.employees.bulk-action');
@@ -226,18 +270,24 @@ Route::prefix('employees')->group(function () {
     // Profile API dengan flexible identifier support
     Route::get('/{identifier}/profile', function($identifier) {
         try {
-            if (method_exists(EmployeeController::class, 'profile')) {
-                return app(EmployeeController::class)->profile($identifier);
+            if (!method_exists(EmployeeController::class, 'profile')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile method not available'
+                ], 404);
             }
+            
+            return app(EmployeeController::class)->profile($identifier);
+        } catch (\Exception $e) {
+            \Log::error('API: Employee profile error', [
+                'error' => $e->getMessage(),
+                'identifier' => $identifier
+            ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Profile method not available'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error getting employee profile: ' . $e->getMessage()
+                'message' => 'Error getting employee profile',
+                'error' => config('app.debug') ? $e->getMessage() : 'Profile unavailable'
             ], 500);
         }
     })->name('api.employees.profile')->where('identifier', '[0-9]+');
@@ -265,10 +315,16 @@ Route::prefix('validate')->group(function () {
                 'message' => $exists ? 'NIK sudah terdaftar' : 'NIK tersedia'
             ]);
         } catch (\Exception $e) {
+            \Log::error('API: NIK validation error', [
+                'error' => $e->getMessage(),
+                'nik' => $nik
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'available' => false,
-                'message' => 'Error validating NIK: ' . $e->getMessage()
+                'message' => 'Error validating NIK',
+                'error' => config('app.debug') ? $e->getMessage() : 'Validation failed'
             ], 500);
         }
     })->name('api.validate.nik');
@@ -290,10 +346,16 @@ Route::prefix('validate')->group(function () {
                 'message' => $exists ? 'NIP sudah terdaftar' : 'NIP tersedia'
             ]);
         } catch (\Exception $e) {
+            \Log::error('API: NIP validation error', [
+                'error' => $e->getMessage(),
+                'nip' => $nip
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'available' => false,
-                'message' => 'Error validating NIP: ' . $e->getMessage()
+                'message' => 'Error validating NIP',
+                'error' => config('app.debug') ? $e->getMessage() : 'Validation failed'
             ], 500);
         }
     })->name('api.validate.nip');
@@ -307,51 +369,76 @@ Route::get('/health', function () {
     try {
         // Database connection check
         $dbStatus = 'unknown';
+        $dbError = null;
         try {
             \Illuminate\Support\Facades\DB::connection()->getPdo();
             $dbStatus = 'connected';
         } catch (\Exception $e) {
-            $dbStatus = 'disconnected: ' . $e->getMessage();
+            $dbStatus = 'disconnected';
+            $dbError = $e->getMessage();
         }
         
         // Model availability checks
-        $employeeModelStatus = class_exists('App\Models\Employee') ? 'available' : 'missing';
-        $unitModelStatus = class_exists('App\Models\Unit') ? 'available' : 'missing';
-        $subUnitModelStatus = class_exists('App\Models\SubUnit') ? 'available' : 'missing';
+        $modelStatus = [
+            'employee' => class_exists('App\Models\Employee') ? 'available' : 'missing',
+            'unit' => class_exists('App\Models\Unit') ? 'available' : 'missing',
+            'sub_unit' => class_exists('App\Models\SubUnit') ? 'available' : 'missing'
+        ];
         
         // Controller availability checks
-        $dashboardControllerStatus = class_exists('App\Http\Controllers\DashboardController') ? 'available' : 'missing';
-        $employeeControllerStatus = class_exists('App\Http\Controllers\EmployeeController') ? 'available' : 'missing';
+        $controllerStatus = [
+            'dashboard' => class_exists('App\Http\Controllers\DashboardController') ? 'available' : 'missing',
+            'employee' => class_exists('App\Http\Controllers\EmployeeController') ? 'available' : 'missing'
+        ];
         
         // Employee statistics
-        $totalEmployees = 0;
-        $recentEmployees = 0;
-        try {
-            if (class_exists('App\Models\Employee')) {
-                $totalEmployees = \App\Models\Employee::count();
-                $recentEmployees = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
+        $employeeStats = [
+            'total' => 0,
+            'recent_30_days' => 0,
+            'today' => 0,
+            'has_data' => false
+        ];
+        
+        if ($modelStatus['employee'] === 'available' && $dbStatus === 'connected') {
+            try {
+                $employeeStats['total'] = \App\Models\Employee::count();
+                $employeeStats['recent_30_days'] = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
+                $employeeStats['today'] = \App\Models\Employee::whereDate('created_at', \Carbon\Carbon::today())->count();
+                $employeeStats['has_data'] = $employeeStats['total'] > 0;
+            } catch (\Exception $e) {
+                \Log::warning('Health check: Employee stats failed', ['error' => $e->getMessage()]);
             }
-        } catch (\Exception $e) {
-            // Continue with 0 values
         }
         
         // Critical history methods check
-        $historyMethodsAvailable = false;
-        $historyMethods = [];
-        if (class_exists('App\Http\Controllers\DashboardController')) {
-            $controller = app('App\Http\Controllers\DashboardController');
-            $historyMethods = [
-                'getEmployeeHistory' => method_exists($controller, 'getEmployeeHistory'),
-                'getEmployeeHistorySummary' => method_exists($controller, 'getEmployeeHistorySummary'),
-                'getEmployeeGrowthChart' => method_exists($controller, 'getEmployeeGrowthChart'),
-                'getOrganizationalStructure' => method_exists($controller, 'getOrganizationalStructure')
-            ];
-            $historyMethodsAvailable = $historyMethods['getEmployeeHistory'] && $historyMethods['getEmployeeHistorySummary'];
+        $historyStatus = [
+            'available' => false,
+            'methods' => []
+        ];
+        
+        if ($controllerStatus['dashboard'] === 'available') {
+            try {
+                $controller = app('App\Http\Controllers\DashboardController');
+                $historyStatus['methods'] = [
+                    'getEmployeeHistory' => method_exists($controller, 'getEmployeeHistory'),
+                    'getEmployeeHistorySummary' => method_exists($controller, 'getEmployeeHistorySummary'),
+                    'getEmployeeGrowthChart' => method_exists($controller, 'getEmployeeGrowthChart')
+                ];
+                $historyStatus['available'] = $historyStatus['methods']['getEmployeeHistory'] && 
+                                             $historyStatus['methods']['getEmployeeHistorySummary'];
+            } catch (\Exception $e) {
+                \Log::warning('Health check: History methods check failed', ['error' => $e->getMessage()]);
+            }
         }
+        
+        // Overall system health
+        $overallHealth = $dbStatus === 'connected' && 
+                        $modelStatus['employee'] === 'available' && 
+                        $controllerStatus['dashboard'] === 'available';
         
         return response()->json([
             'success' => true,
-            'status' => 'healthy',
+            'status' => $overallHealth ? 'healthy' : 'degraded',
             'timestamp' => now(),
             'environment' => app()->environment(),
             'versions' => [
@@ -361,44 +448,37 @@ Route::get('/health', function () {
             ],
             'database' => [
                 'status' => $dbStatus,
-                'connection' => $dbStatus === 'connected'
+                'connected' => $dbStatus === 'connected',
+                'error' => $dbError
             ],
-            'models' => [
-                'employee' => $employeeModelStatus,
-                'unit' => $unitModelStatus,
-                'sub_unit' => $subUnitModelStatus
-            ],
-            'controllers' => [
-                'dashboard' => $dashboardControllerStatus,
-                'employee' => $employeeControllerStatus
-            ],
-            'employee_data' => [
-                'total_employees' => $totalEmployees,
-                'recent_30_days' => $recentEmployees,
-                'has_data' => $totalEmployees > 0
-            ],
-            'history_functionality' => [
-                'available' => $historyMethodsAvailable,
-                'methods' => $historyMethods
-            ],
+            'models' => $modelStatus,
+            'controllers' => $controllerStatus,
+            'employee_data' => $employeeStats,
+            'history_functionality' => $historyStatus,
             'critical_endpoints' => [
-                '/api/dashboard/employee-history',
-                '/api/dashboard/employee-history-summary',
-                '/api/units',
-                '/api/sub-units'
+                '/api/dashboard/employee-history' => $historyStatus['available'],
+                '/api/dashboard/employee-history-summary' => $historyStatus['available'],
+                '/api/units' => $controllerStatus['employee'] === 'available',
+                '/api/sub-units' => $controllerStatus['employee'] === 'available'
             ],
             'features_status' => [
-                'employee_history' => $dashboardControllerStatus === 'available' && $historyMethodsAvailable,
-                'cascading_dropdown' => $employeeControllerStatus === 'available',
-                'employee_management' => $employeeModelStatus === 'available',
-                'dashboard_statistics' => $dashboardControllerStatus === 'available'
+                'employee_history' => $historyStatus['available'],
+                'cascading_dropdown' => $controllerStatus['employee'] === 'available',
+                'employee_management' => $modelStatus['employee'] === 'available',
+                'dashboard_statistics' => $controllerStatus['dashboard'] === 'available'
             ]
-        ]);
+        ], $overallHealth ? 200 : 503);
     } catch (\Exception $e) {
+        \Log::error('Health check failed', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        
         return response()->json([
             'success' => false,
             'status' => 'unhealthy',
-            'error' => $e->getMessage(),
+            'error' => config('app.debug') ? $e->getMessage() : 'Health check failed',
             'timestamp' => now()
         ], 500);
     }
@@ -443,7 +523,7 @@ Route::prefix('test')->group(function () {
                     'success' => false,
                     'message' => 'getEmployeeHistory method not found',
                     'test_endpoint' => '/api/dashboard/employee-history',
-                    'available_methods' => array_slice(get_class_methods($controller), 0, 15)
+                    'available_methods' => array_slice(get_class_methods($controller), 0, 10)
                 ], 404);
             }
 
@@ -460,18 +540,22 @@ Route::prefix('test')->group(function () {
                     'period' => $data['period'] ?? null,
                     'has_debug_info' => isset($data['debug'])
                 ],
-                'sample_data' => array_slice($data['history'] ?? [], 0, 1),
+                'sample_data' => !empty($data['history']) ? array_slice($data['history'], 0, 1) : [],
                 'debug_info' => $data['debug'] ?? null,
                 'timestamp' => now()
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Test: Employee history API failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error testing employee history API',
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
+                'error' => config('app.debug') ? $e->getMessage() : 'Test failed',
                 'test_endpoint' => '/api/dashboard/employee-history'
             ], 500);
         }
@@ -480,13 +564,6 @@ Route::prefix('test')->group(function () {
     // CRITICAL: Test employee history summary API
     Route::get('/employee-history-summary', function () {
         try {
-            if (!class_exists('App\Http\Controllers\DashboardController')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'DashboardController not available'
-                ], 500);
-            }
-
             $controller = app('App\Http\Controllers\DashboardController');
             
             if (!method_exists($controller, 'getEmployeeHistorySummary')) {
@@ -505,285 +582,82 @@ Route::prefix('test')->group(function () {
                 'api_response' => [
                     'status_code' => $response->getStatusCode(),
                     'success' => $data['success'] ?? false,
-                    'summary' => $data['summary'] ?? [],
+                    'has_summary' => isset($data['summary']),
                     'latest_count' => count($data['latest_employees'] ?? [])
                 ],
+                'summary_data' => $data['summary'] ?? null,
                 'timestamp' => now()
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Test: Employee history summary API failed', ['error' => $e->getMessage()]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error testing employee history summary API',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Test failed'
             ], 500);
         }
     })->name('api.test.employee.history.summary');
     
-    // Test database dan employee data
+    // Database and model check
     Route::get('/database-check', function () {
         try {
-            // Database connection test
-            $dbConnected = false;
-            $dbError = null;
+            $result = [
+                'success' => true,
+                'database' => ['connected' => false, 'error' => null],
+                'employee_model' => ['available' => false, 'data' => []]
+            ];
+            
+            // Database test
             try {
                 \Illuminate\Support\Facades\DB::connection()->getPdo();
-                $dbConnected = true;
+                $result['database']['connected'] = true;
             } catch (\Exception $e) {
-                $dbError = $e->getMessage();
+                $result['database']['error'] = $e->getMessage();
             }
             
             // Employee model test
-            $employeeData = [
-                'model_exists' => class_exists('App\Models\Employee'),
-                'total_count' => 0,
-                'recent_count' => 0,
-                'sample_employee' => null
-            ];
-            
-            if ($employeeData['model_exists']) {
+            if (class_exists('App\Models\Employee')) {
+                $result['employee_model']['available'] = true;
+                
                 try {
-                    $employeeData['total_count'] = \App\Models\Employee::count();
-                    $employeeData['recent_count'] = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
+                    $result['employee_model']['data'] = [
+                        'total_count' => \App\Models\Employee::count(),
+                        'recent_count' => \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count(),
+                        'today_count' => \App\Models\Employee::whereDate('created_at', \Carbon\Carbon::today())->count()
+                    ];
                     
-                    $sampleEmployee = \App\Models\Employee::with(['unit', 'subUnit'])
+                    $latestEmployee = \App\Models\Employee::with(['unit', 'subUnit'])
                         ->latest('created_at')
                         ->first();
                     
-                    if ($sampleEmployee) {
-                        $employeeData['sample_employee'] = [
-                            'id' => $sampleEmployee->id,
-                            'nama_lengkap' => $sampleEmployee->nama_lengkap,
-                            'unit_organisasi' => $sampleEmployee->unit_organisasi,
-                            'has_unit_relation' => $sampleEmployee->unit ? true : false,
-                            'has_sub_unit_relation' => $sampleEmployee->subUnit ? true : false,
-                            'organizational_structure' => $sampleEmployee->organizational_structure ?? 'accessor_not_available',
-                            'created_at' => $sampleEmployee->created_at
+                    if ($latestEmployee) {
+                        $result['employee_model']['latest_employee'] = [
+                            'id' => $latestEmployee->id,
+                            'nama_lengkap' => $latestEmployee->nama_lengkap,
+                            'unit_organisasi' => $latestEmployee->unit_organisasi,
+                            'created_at' => $latestEmployee->created_at,
+                            'days_ago' => $latestEmployee->created_at->diffInDays(\Carbon\Carbon::now()),
+                            'has_organizational_structure' => isset($latestEmployee->organizational_structure)
                         ];
                     }
                 } catch (\Exception $e) {
-                    $employeeData['error'] = $e->getMessage();
+                    $result['employee_model']['error'] = $e->getMessage();
                 }
             }
             
-            return response()->json([
-                'success' => true,
-                'database' => [
-                    'connected' => $dbConnected,
-                    'error' => $dbError
-                ],
-                'employee_data' => $employeeData,
-                'timestamp' => now()
-            ]);
+            return response()->json($result);
             
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
-                'timestamp' => now()
+                'error' => $e->getMessage()
             ], 500);
         }
     })->name('api.test.database');
     
-    // Test cascading dropdown functionality
-    Route::get('/cascading-dropdown', function () {
-        try {
-            $testResults = [];
-            
-            // Test unit organisasi options
-            try {
-                if (method_exists(EmployeeController::class, 'getUnitOrganisasiOptions')) {
-                    $response = app(EmployeeController::class)->getUnitOrganisasiOptions();
-                    $data = json_decode($response->getContent(), true);
-                    $testResults['unit_organisasi_options'] = [
-                        'status' => 'PASS',
-                        'data_count' => count($data['data'] ?? [])
-                    ];
-                } else {
-                    $testResults['unit_organisasi_options'] = [
-                        'status' => 'SKIP',
-                        'reason' => 'Method not available'
-                    ];
-                }
-            } catch (\Exception $e) {
-                $testResults['unit_organisasi_options'] = [
-                    'status' => 'FAIL',
-                    'error' => $e->getMessage()
-                ];
-            }
-            
-            // Test units for SSQC
-            try {
-                $request = new \Illuminate\Http\Request(['unit_organisasi' => 'SSQC']);
-                $response = app(EmployeeController::class)->getUnits($request);
-                $data = json_decode($response->getContent(), true);
-                $testResults['units_api'] = [
-                    'status' => ($data['success'] ?? false) ? 'PASS' : 'FAIL',
-                    'test_param' => 'SSQC',
-                    'data_count' => count($data['data'] ?? [])
-                ];
-            } catch (\Exception $e) {
-                $testResults['units_api'] = [
-                    'status' => 'FAIL',
-                    'error' => $e->getMessage()
-                ];
-            }
-            
-            // Test sub units (if units data available)
-            try {
-                $request = new \Illuminate\Http\Request(['unit_id' => 'MQ']);
-                $response = app(EmployeeController::class)->getSubUnits($request);
-                $data = json_decode($response->getContent(), true);
-                $testResults['sub_units_api'] = [
-                    'status' => ($data['success'] ?? false) ? 'PASS' : 'FAIL',
-                    'test_param' => 'MQ',
-                    'data_count' => count($data['data'] ?? [])
-                ];
-            } catch (\Exception $e) {
-                $testResults['sub_units_api'] = [
-                    'status' => 'FAIL',
-                    'error' => $e->getMessage()
-                ];
-            }
-            
-            return response()->json([
-                'success' => true,
-                'test_results' => $testResults,
-                'timestamp' => now()
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'timestamp' => now()
-            ], 500);
-        }
-    })->name('api.test.cascading');
-    
-    // Comprehensive API test suite
-    Route::get('/all-apis', function () {
-        $results = [
-            'timestamp' => now(),
-            'environment' => app()->environment(),
-            'version' => '1.8.0',
-            'summary' => [
-                'total_tests' => 0,
-                'passed' => 0,
-                'failed' => 0,
-                'skipped' => 0
-            ],
-            'tests' => []
-        ];
-        
-        $tests = [
-            'employee_history' => [
-                'endpoint' => '/api/dashboard/employee-history',
-                'method' => 'getEmployeeHistory',
-                'controller' => 'DashboardController'
-            ],
-            'employee_history_summary' => [
-                'endpoint' => '/api/dashboard/employee-history-summary',
-                'method' => 'getEmployeeHistorySummary',
-                'controller' => 'DashboardController'
-            ],
-            'dashboard_statistics' => [
-                'endpoint' => '/api/dashboard/statistics',
-                'method' => 'getStatistics',
-                'controller' => 'DashboardController'
-            ],
-            'units_api' => [
-                'endpoint' => '/api/units',
-                'method' => 'getUnits',
-                'controller' => 'EmployeeController'
-            ],
-            'dashboard_health' => [
-                'endpoint' => '/api/dashboard/health',
-                'method' => 'healthCheck',
-                'controller' => 'DashboardController'
-            ]
-        ];
-        
-        foreach ($tests as $testName => $testConfig) {
-            $results['summary']['total_tests']++;
-            
-            try {
-                $controllerClass = 'App\Http\Controllers\\' . $testConfig['controller'];
-                
-                if (!class_exists($controllerClass)) {
-                    $results['tests'][$testName] = [
-                        'status' => 'SKIP',
-                        'endpoint' => $testConfig['endpoint'],
-                        'reason' => $testConfig['controller'] . ' not available'
-                    ];
-                    $results['summary']['skipped']++;
-                    continue;
-                }
-                
-                $controller = app($controllerClass);
-                
-                if (!method_exists($controller, $testConfig['method'])) {
-                    $results['tests'][$testName] = [
-                        'status' => 'SKIP',
-                        'endpoint' => $testConfig['endpoint'],
-                        'reason' => $testConfig['method'] . ' method not found'
-                    ];
-                    $results['summary']['skipped']++;
-                    continue;
-                }
-                
-                // Execute test based on method
-                if ($testName === 'units_api') {
-                    $request = new \Illuminate\Http\Request(['unit_organisasi' => 'SSQC']);
-                    $response = $controller->{$testConfig['method']}($request);
-                } else {
-                    $response = $controller->{$testConfig['method']}();
-                }
-                
-                $data = json_decode($response->getContent(), true);
-                $success = $response->getStatusCode() === 200 && ($data['success'] ?? false);
-                
-                $results['tests'][$testName] = [
-                    'status' => $success ? 'PASS' : 'FAIL',
-                    'endpoint' => $testConfig['endpoint'],
-                    'response_code' => $response->getStatusCode(),
-                    'api_success' => $data['success'] ?? false
-                ];
-                
-                if ($testName === 'employee_history') {
-                    $results['tests'][$testName]['data_count'] = count($data['history'] ?? []);
-                    $results['tests'][$testName]['period'] = $data['period'] ?? null;
-                }
-                
-                if ($success) {
-                    $results['summary']['passed']++;
-                } else {
-                    $results['summary']['failed']++;
-                }
-                
-            } catch (\Exception $e) {
-                $results['tests'][$testName] = [
-                    'status' => 'FAIL',
-                    'endpoint' => $testConfig['endpoint'],
-                    'error' => $e->getMessage()
-                ];
-                $results['summary']['failed']++;
-            }
-        }
-        
-        $results['summary']['success_rate'] = $results['summary']['total_tests'] > 0 
-            ? round(($results['summary']['passed'] / $results['summary']['total_tests']) * 100, 2) . '%'
-            : '0%';
-        
-        $results['critical_status'] = [
-            'employee_history' => $results['tests']['employee_history']['status'] ?? 'UNKNOWN',
-            'cascading_dropdown' => $results['tests']['units_api']['status'] ?? 'UNKNOWN'
-        ];
-        
-        return response()->json($results);
-    })->name('api.test.all');
-    
-    // Quick employee data check
+    // Quick recent employees check
     Route::get('/recent-employees', function () {
         try {
             if (!class_exists('App\Models\Employee')) {
@@ -793,38 +667,36 @@ Route::prefix('test')->group(function () {
                 ], 500);
             }
             
-            $totalEmployees = \App\Models\Employee::count();
-            $recentEmployees = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
-            $todayEmployees = \App\Models\Employee::whereDate('created_at', \Carbon\Carbon::today())->count();
-            
-            $latestEmployee = \App\Models\Employee::with(['unit', 'subUnit'])
-                ->latest('created_at')
-                ->first();
+            $recentEmployees = \App\Models\Employee::with(['unit', 'subUnit'])
+                ->where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get();
             
             return response()->json([
                 'success' => true,
-                'statistics' => [
-                    'total_employees' => $totalEmployees,
-                    'recent_30_days' => $recentEmployees,
-                    'added_today' => $todayEmployees,
-                    'has_data' => $totalEmployees > 0
-                ],
-                'latest_employee' => $latestEmployee ? [
-                    'id' => $latestEmployee->id,
-                    'nama_lengkap' => $latestEmployee->nama_lengkap,
-                    'unit_organisasi' => $latestEmployee->unit_organisasi,
-                    'organizational_structure' => $latestEmployee->organizational_structure ?? null,
-                    'created_at' => $latestEmployee->created_at,
-                    'days_ago' => $latestEmployee->created_at->diffInDays(\Carbon\Carbon::now())
-                ] : null,
-                'message' => 'Recent employees data retrieved successfully',
+                'recent_employees_30_days' => $recentEmployees->count(),
+                'total_employees' => \App\Models\Employee::count(),
+                'employees' => $recentEmployees->map(function($emp) {
+                    return [
+                        'id' => $emp->id,
+                        'nama_lengkap' => $emp->nama_lengkap,
+                        'unit_organisasi' => $emp->unit_organisasi,
+                        'organizational_structure' => $emp->organizational_structure ?? null,
+                        'created_at' => $emp->created_at,
+                        'days_ago' => $emp->created_at->diffInDays(\Carbon\Carbon::now())
+                    ];
+                }),
                 'timestamp' => now()
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Test: Recent employees check failed', ['error' => $e->getMessage()]);
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Error getting recent employees data: ' . $e->getMessage()
+                'message' => 'Error getting recent employees data',
+                'error' => config('app.debug') ? $e->getMessage() : 'Test failed'
             ], 500);
         }
     })->name('api.test.recent.employees');
@@ -859,8 +731,6 @@ Route::prefix('test')->group(function () {
 | - GET /api/test/employee-history -> Direct history API test
 | - GET /api/test/employee-history-summary -> Direct summary API test
 | - GET /api/test/database-check -> Database and model verification
-| - GET /api/test/cascading-dropdown -> Dropdown functionality test
-| - GET /api/test/all-apis -> Comprehensive API test suite
 | - GET /api/test/recent-employees -> Employee data verification
 |
 | SYSTEM ENDPOINTS:
@@ -868,7 +738,7 @@ Route::prefix('test')->group(function () {
 |
 | FEATURES v1.8.0:
 | ✅ Enhanced error handling dengan consistent JSON responses
-| ✅ Comprehensive testing suite untuk debugging
+| ✅ Comprehensive logging untuk debugging
 | ✅ Better health checks dengan detailed feature detection
 | ✅ Simplified route structure untuk maintainability
 | ✅ Enhanced debugging information untuk development
