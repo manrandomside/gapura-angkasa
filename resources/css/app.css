@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Force consistent font rendering across all browsers */
+@layer base {
+    * {
+        font-feature-settings: "kern" 1;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    html,
+    body {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    }
+
+    /* Override any existing font-family declarations */
+    .font-sans {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    }
+}
+
+/* Specific overrides for table elements */
+@layer components {
+    table,
+    th,
+    td,
+    .table-font {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    }
+
+    /* Override Figtree font if it still exists */
+    [style*="Figtree"],
+    .figtree {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    }
+}
