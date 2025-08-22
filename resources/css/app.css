@@ -1,43 +1,129 @@
+@import url("https://fonts.bunny.net/css?family=figtree:300,400,500,600,700,800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Force consistent font rendering across all browsers */
+/* Force Figtree font untuk seluruh aplikasi */
 @layer base {
+    :root {
+        --font-family-figtree: "Figtree", ui-sans-serif, system-ui,
+            -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+            "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    }
+
     * {
-        font-feature-settings: "kern" 1;
-        text-rendering: optimizeLegibility;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+        font-family: var(--font-family-figtree) !important;
     }
 
-    html,
+    html {
+        font-family: var(--font-family-figtree) !important;
+    }
+
     body {
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
-    }
-
-    /* Override any existing font-family declarations */
-    .font-sans {
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+        font-family: var(--font-family-figtree) !important;
     }
 }
 
-/* Specific overrides for table elements */
+/* Khusus untuk Management Karyawan dan semua halaman employees */
 @layer components {
-    table,
-    th,
-    td,
-    .table-font {
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    /* Header area */
+    .employee-header,
+    .employee-title,
+    .employee-subtitle,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: var(--font-family-figtree) !important;
     }
 
-    /* Override Figtree font if it still exists */
-    [style*="Figtree"],
-    .figtree {
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+    /* Table dan content area */
+    .employee-table,
+    .employee-table th,
+    .employee-table td,
+    table,
+    thead,
+    tbody,
+    tr,
+    th,
+    td {
+        font-family: var(--font-family-figtree) !important;
     }
+
+    /* Button, input, dan form elements */
+    button,
+    input,
+    select,
+    textarea,
+    .btn,
+    .form-control,
+    .form-input,
+    .form-select {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    /* Navigation dan sidebar sudah benar, tapi pastikan konsisten */
+    .sidebar,
+    .nav-item,
+    .menu-item,
+    .dashboard-layout {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    /* Semua text content */
+    p,
+    span,
+    div,
+    label,
+    a {
+        font-family: var(--font-family-figtree) !important;
+    }
+}
+
+/* Override untuk Tailwind CSS classes */
+@layer utilities {
+    .font-sans {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    .font-mono {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    .font-serif {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    /* Khusus untuk text sizing yang ada di Management Karyawan */
+    .text-3xl,
+    .text-2xl,
+    .text-xl,
+    .text-lg,
+    .text-base,
+    .text-sm,
+    .text-xs {
+        font-family: var(--font-family-figtree) !important;
+    }
+
+    /* Font weight classes */
+    .font-bold,
+    .font-semibold,
+    .font-medium,
+    .font-light,
+    .font-thin {
+        font-family: var(--font-family-figtree) !important;
+    }
+}
+
+/* Khusus styling untuk memastikan tidak ada override dari library lain */
+.inertia-app * {
+    font-family: var(--font-family-figtree) !important;
+}
+
+/* Untuk React components */
+[data-reactroot] * {
+    font-family: var(--font-family-figtree) !important;
 }

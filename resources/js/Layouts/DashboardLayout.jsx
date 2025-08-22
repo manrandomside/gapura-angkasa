@@ -162,10 +162,65 @@ export default function DashboardLayout({ title, children }) {
                 title={title ? `${title} - GAPURA ANGKASA` : "GAPURA ANGKASA"}
             />
             <div className="flex h-screen bg-gray-50">
-                {/* Custom CSS Styles */}
+                {/* Custom CSS Styles dengan Font Fix */}
                 <style
                     dangerouslySetInnerHTML={{
                         __html: `
+                        /* FONT FIGTREE FORCE APPLY - Prioritas tertinggi */
+                        @import url('https://fonts.bunny.net/css?family=figtree:300,400,500,600,700,800&display=swap');
+                        
+                        /* Memaksa semua elemen menggunakan Figtree */
+                        *, *::before, *::after {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        html {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        body {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Force apply untuk semua heading */
+                        h1, h2, h3, h4, h5, h6 {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Force apply untuk semua text elements */
+                        p, span, div, label, a, button, input, select, textarea {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Force apply untuk table elements */
+                        table, thead, tbody, tfoot, tr, th, td {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Khusus untuk React components dan Inertia */
+                        [data-page] *, 
+                        .inertia-app *,
+                        #app *,
+                        [data-reactroot] * {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Override untuk Tailwind CSS classes */
+                        .font-sans, .font-serif, .font-mono {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Khusus untuk text sizing classes */
+                        .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl, .text-4xl, .text-5xl, .text-6xl {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* Khusus untuk font weight classes */
+                        .font-thin, .font-extralight, .font-light, .font-normal, .font-medium, .font-semibold, .font-bold, .font-extrabold, .font-black {
+                            font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+                        }
+                        
+                        /* === CSS ORIGINAL UNTUK STYLING === */
                         .custom-scrollbar {
                             scrollbar-width: thin;
                             scrollbar-color: #439454 #f1f5f9;
