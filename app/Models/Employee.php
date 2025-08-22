@@ -152,26 +152,6 @@ class Employee extends Model
         return $query->where('nip', $identifier);
     }
 
-    /**
-     * Database indexing recommendations for optimal pagination performance
-     * UPDATED: Include NIK indexing
-     * Run these SQL commands for better performance with large datasets:
-     * 
-     * ALTER TABLE employees ADD INDEX idx_nik (nik);
-     * ALTER TABLE employees ADD INDEX idx_status (status);
-     * ALTER TABLE employees ADD INDEX idx_nama_lengkap (nama_lengkap);
-     * ALTER TABLE employees ADD INDEX idx_nip (nip);
-     * ALTER TABLE employees ADD INDEX idx_unit_organisasi (unit_organisasi);
-     * ALTER TABLE employees ADD INDEX idx_status_pegawai (status_pegawai);
-     * ALTER TABLE employees ADD INDEX idx_jenis_kelamin (jenis_kelamin);
-     * ALTER TABLE employees ADD INDEX idx_jenis_sepatu (jenis_sepatu);
-     * ALTER TABLE employees ADD INDEX idx_ukuran_sepatu (ukuran_sepatu);
-     * ALTER TABLE employees ADD INDEX idx_kelompok_jabatan (kelompok_jabatan);
-     * ALTER TABLE employees ADD INDEX idx_search_composite (nama_lengkap, nip, nik, unit_organisasi);
-     * ALTER TABLE employees ADD INDEX idx_unit_id (unit_id);
-     * ALTER TABLE employees ADD INDEX idx_sub_unit_id (sub_unit_id);
-     */
-
     // =====================================================
     // CONSTANTS - FITUR BARU
     // =====================================================
@@ -198,31 +178,244 @@ class Employee extends Model
     ];
 
     // =====================================================
-    // RELATIONSHIPS
+    // ENHANCED RELATIONSHIPS - FIXED FOR HISTORY FUNCTIONALITY
     // =====================================================
 
     /**
-     * Relationship dengan Organization
+     * FIXED: Relationship dengan Organization dengan better error handling
      */
     public function organization()
     {
-        return $this->belongsTo(Organization::class);
+        try {
+            return $this->belongsTo(Organization::class, 'organization_id', 'id');
+        } catch (\Exception $e) {
+            \Log::warning('Employee organization relationship error: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
-     * Get unit yang belongs to this employee
+     * FIXED: Enhanced Unit relationship dengan comprehensive error handling
+     * Employee belongs to Unit - CRITICAL untuk history functionality
      */
     public function unit()
     {
-        return $this->belongsTo(Unit::class);
+        try {
+            // Pastikan Unit model exists sebelum membuat relationship
+            if (!class_exists('App\Models\Unit')) {
+                \Log::warning('Unit model does not exist for employee relationship');
+                return null;
+            }
+
+            return $this->belongsTo(Unit::class, 'unit_id', 'id');
+        } catch (\Exception $e) {
+            \Log::warning('Employee unit relationship error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown',
+                'unit_id' => $this->unit_id ?? 'null'
+            ]);
+            return null;
+        }
     }
 
     /**
-     * Get sub unit yang belongs to this employee
+     * FIXED: Enhanced SubUnit relationship dengan comprehensive error handling  
+     * Employee belongs to SubUnit - CRITICAL untuk history functionality
      */
     public function subUnit()
     {
-        return $this->belongsTo(SubUnit::class);
+        try {
+            // Pastikan SubUnit model exists sebelum membuat relationship
+            if (!class_exists('App\Models\SubUnit')) {
+                \Log::warning('SubUnit model does not exist for employee relationship');
+                return null;
+            }
+
+            return $this->belongsTo(SubUnit::class, 'sub_unit_id', 'id');
+        } catch (\Exception $e) {
+            \Log::warning('Employee subUnit relationship error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown',
+                'sub_unit_id' => $this->sub_unit_id ?? 'null'
+            ]);
+            return null;
+        }
+    }
+
+    // =====================================================
+    // ENHANCED ACCESSORS - CRITICAL FOR HISTORY MODAL
+    // =====================================================
+
+    /**
+     * FIXED: Enhanced organizational structure accessor 
+     * CRITICAL: Digunakan oleh DashboardController untuk history modal
+     */
+    public function getOrganizationalStructureAttribute()
+    {
+        try {
+            $structure = [
+                'unit_organisasi' => $this->unit_organisasi,
+                'unit' => null,
+                'sub_unit' => null,
+                'full_structure' => null
+            ];
+
+            // Try to get unit from relationship
+            if ($this->relationLoaded('unit') && $this->unit) {
+                $structure['unit'] = [
+                    'id' => $this->unit->id,
+                    'name' => $this->unit->name,
+                    'code' => $this->unit->code ?? null
+                ];
+            } else if ($this->unit_id) {
+                // Fallback: load unit if not already loaded
+                try {
+                    $unit = Unit::find($this->unit_id);
+                    if ($unit) {
+                        $structure['unit'] = [
+                            'id' => $unit->id,
+                            'name' => $unit->name,
+                            'code' => $unit->code ?? null
+                        ];
+                    }
+                } catch (\Exception $unitError) {
+                    \Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
+                }
+            }
+
+            // Try to get sub unit from relationship
+            if ($this->relationLoaded('subUnit') && $this->subUnit) {
+                $structure['sub_unit'] = [
+                    'id' => $this->subUnit->id,
+                    'name' => $this->subUnit->name,
+                    'code' => $this->subUnit->code ?? null
+                ];
+            } else if ($this->sub_unit_id) {
+                // Fallback: load sub unit if not already loaded
+                try {
+                    $subUnit = SubUnit::find($this->sub_unit_id);
+                    if ($subUnit) {
+                        $structure['sub_unit'] = [
+                            'id' => $subUnit->id,
+                            'name' => $subUnit->name,
+                            'code' => $subUnit->code ?? null
+                        ];
+                    }
+                } catch (\Exception $subUnitError) {
+                    \Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
+                }
+            }
+
+            // Build full structure string for display
+            $fullStructureParts = [];
+            
+            if ($structure['unit_organisasi']) {
+                $fullStructureParts[] = $structure['unit_organisasi'];
+            }
+            
+            if ($structure['unit'] && !empty($structure['unit']['name'])) {
+                $fullStructureParts[] = $structure['unit']['name'];
+            }
+            
+            if ($structure['sub_unit'] && !empty($structure['sub_unit']['name'])) {
+                $fullStructureParts[] = $structure['sub_unit']['name'];
+            }
+            
+            $structure['full_structure'] = implode(' > ', $fullStructureParts);
+            
+            // Ensure we always have at least unit_organisasi
+            if (empty($structure['full_structure']) && $structure['unit_organisasi']) {
+                $structure['full_structure'] = $structure['unit_organisasi'];
+            }
+            
+            // Final fallback
+            if (empty($structure['full_structure'])) {
+                $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
+            }
+
+            \Log::debug('Organizational structure accessor called', [
+                'employee_id' => $this->id,
+                'full_structure' => $structure['full_structure']
+            ]);
+
+            return $structure;
+
+        } catch (\Exception $e) {
+            \Log::warning('Organizational structure accessor error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown',
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return [
+                'unit_organisasi' => $this->unit_organisasi ?? 'Tidak tersedia',
+                'unit' => null,
+                'sub_unit' => null,
+                'full_structure' => $this->unit_organisasi ?? 'Struktur organisasi tidak tersedia'
+            ];
+        }
+    }
+
+    /**
+     * FIXED: Enhanced unit display attribute dengan better fallback
+     */
+    public function getUnitDisplayAttribute()
+    {
+        try {
+            $display = $this->unit_organisasi ?? 'Unit tidak tersedia';
+            
+            if ($this->relationLoaded('unit') && $this->unit) {
+                $display .= ' > ' . $this->unit->name;
+            } else if ($this->unit_id) {
+                try {
+                    $unit = Unit::find($this->unit_id);
+                    if ($unit) {
+                        $display .= ' > ' . $unit->name;
+                    }
+                } catch (\Exception $e) {
+                    \Log::debug('Unit display fallback error: ' . $e->getMessage());
+                }
+            }
+            
+            if ($this->relationLoaded('subUnit') && $this->subUnit) {
+                $display .= ' > ' . $this->subUnit->name;
+            } else if ($this->sub_unit_id) {
+                try {
+                    $subUnit = SubUnit::find($this->sub_unit_id);
+                    if ($subUnit) {
+                        $display .= ' > ' . $subUnit->name;
+                    }
+                } catch (\Exception $e) {
+                    \Log::debug('SubUnit display fallback error: ' . $e->getMessage());
+                }
+            }
+            
+            return $display;
+            
+        } catch (\Exception $e) {
+            \Log::warning('Unit display error: ' . $e->getMessage());
+            return $this->unit_organisasi ?? 'Unit tidak tersedia';
+        }
+    }
+
+    /**
+     * FIXED: Enhanced initials accessor untuk history modal
+     */
+    public function getInitialsAttribute()
+    {
+        if (empty($this->nama_lengkap)) {
+            return 'N';
+        }
+
+        try {
+            $words = explode(' ', trim($this->nama_lengkap));
+            
+            if (count($words) === 1) {
+                return strtoupper(substr($words[0], 0, 1));
+            }
+            
+            return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+        } catch (\Exception $e) {
+            \Log::debug('Initials accessor error: ' . $e->getMessage());
+            return 'N';
+        }
     }
 
     // =====================================================
@@ -294,20 +487,24 @@ class Employee extends Model
               ->orWhere('tempat_lahir', 'like', $searchTerm)
               ->orWhere('alamat', 'like', $searchTerm);
               
-            // FIXED: Search dalam unit dan sub unit dengan error handling
+            // FIXED: Search dalam unit dan sub unit dengan enhanced error handling
             try {
-                $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
-                    $unitQuery->where('name', 'like', $searchTerm)
-                             ->orWhere('code', 'like', $searchTerm);
-                });
+                if (class_exists('App\Models\Unit')) {
+                    $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
+                        $unitQuery->where('name', 'like', $searchTerm)
+                                 ->orWhere('code', 'like', $searchTerm);
+                    });
+                }
                 
-                $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
-                    $subUnitQuery->where('name', 'like', $searchTerm)
-                                ->orWhere('code', 'like', $searchTerm);
-                });
+                if (class_exists('App\Models\SubUnit')) {
+                    $q->orWhereHas('subUnit', function ($subUnitQuery) use ($searchTerm) {
+                        $subUnitQuery->where('name', 'like', $searchTerm)
+                                    ->orWhere('code', 'like', $searchTerm);
+                    });
+                }
             } catch (\Exception $e) {
                 // Jika relationship belum ada atau error, lanjutkan tanpa unit/subunit search
-                \Log::warning('Unit/SubUnit relationship search failed: ' . $e->getMessage());
+                \Log::debug('Unit/SubUnit relationship search failed: ' . $e->getMessage());
             }
         });
     }
@@ -325,7 +522,7 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Filter berdasarkan unit dengan nama atau ID
+     * FIXED: Filter berdasarkan unit dengan nama atau ID - Enhanced untuk history
      */
     public function scopeByUnit(Builder $query, $unitValue)
     {
@@ -340,18 +537,22 @@ class Employee extends Model
         
         // Jika bukan numeric, cari berdasarkan nama unit dalam relationship
         try {
-            return $query->whereHas('unit', function ($unitQuery) use ($unitValue) {
-                $unitQuery->where('name', $unitValue)
-                         ->orWhere('code', $unitValue);
-            });
+            if (class_exists('App\Models\Unit')) {
+                return $query->whereHas('unit', function ($unitQuery) use ($unitValue) {
+                    $unitQuery->where('name', $unitValue)
+                             ->orWhere('code', $unitValue);
+                });
+            }
         } catch (\Exception $e) {
-            // Fallback: cari berdasarkan unit_organisasi jika relationship belum ada
-            return $query->where('unit_organisasi', 'like', '%' . $unitValue . '%');
+            \Log::debug('Unit scope relationship error: ' . $e->getMessage());
         }
+        
+        // Fallback: cari berdasarkan unit_organisasi
+        return $query->where('unit_organisasi', 'like', '%' . $unitValue . '%');
     }
 
     /**
-     * FIXED: Filter berdasarkan sub unit dengan nama atau ID
+     * FIXED: Filter berdasarkan sub unit dengan nama atau ID - Enhanced untuk history
      */
     public function scopeBySubUnit(Builder $query, $subUnitValue)
     {
@@ -366,15 +567,18 @@ class Employee extends Model
         
         // Jika bukan numeric, cari berdasarkan nama sub unit dalam relationship
         try {
-            return $query->whereHas('subUnit', function ($subUnitQuery) use ($subUnitValue) {
-                $subUnitQuery->where('name', $subUnitValue)
-                            ->orWhere('code', $subUnitValue);
-            });
+            if (class_exists('App\Models\SubUnit')) {
+                return $query->whereHas('subUnit', function ($subUnitQuery) use ($subUnitValue) {
+                    $subUnitQuery->where('name', $subUnitValue)
+                                ->orWhere('code', $subUnitValue);
+                });
+            }
         } catch (\Exception $e) {
-            // Fallback: return empty query jika relationship belum ada
-            \Log::warning('SubUnit relationship search failed: ' . $e->getMessage());
-            return $query->whereRaw('1 = 0'); // Return no results
+            \Log::debug('SubUnit scope relationship error: ' . $e->getMessage());
         }
+        
+        // Fallback: return empty query jika relationship belum ada
+        return $query->whereRaw('1 = 0'); // Return no results
     }
 
     /**
@@ -562,7 +766,7 @@ class Employee extends Model
     }
 
     // =====================================================
-    // ACCESSORS & MUTATORS
+    // OTHER ACCESSORS & MUTATORS (unchanged from original)
     // =====================================================
 
     /**
@@ -605,58 +809,6 @@ class Employee extends Model
         // Clean NIK: hapus karakter non-digit dan pastikan 16 digit
         $cleanNik = preg_replace('/[^0-9]/', '', $value);
         $this->attributes['nik'] = $cleanNik;
-    }
-
-    /**
-     * Get unit organisasi display name dengan unit dan sub unit
-     */
-    public function getUnitDisplayAttribute()
-    {
-        $display = $this->unit_organisasi;
-        
-        try {
-            if ($this->unit) {
-                $display .= ' - ' . $this->unit->name;
-            }
-            
-            if ($this->subUnit) {
-                $display .= ' - ' . $this->subUnit->name;
-            }
-        } catch (\Exception $e) {
-            // Jika relationship error, return unit_organisasi saja
-            \Log::warning('Unit display relationship error: ' . $e->getMessage());
-        }
-        
-        return $display;
-    }
-
-    /**
-     * Get full organizational structure
-     */
-    public function getOrganizationalStructureAttribute()
-    {
-        try {
-            return [
-                'unit_organisasi' => $this->unit_organisasi,
-                'unit' => $this->unit ? [
-                    'id' => $this->unit->id,
-                    'name' => $this->unit->name,
-                    'code' => $this->unit->code,
-                ] : null,
-                'sub_unit' => $this->subUnit ? [
-                    'id' => $this->subUnit->id,
-                    'name' => $this->subUnit->name,
-                    'code' => $this->subUnit->code,
-                ] : null,
-            ];
-        } catch (\Exception $e) {
-            \Log::warning('Organizational structure error: ' . $e->getMessage());
-            return [
-                'unit_organisasi' => $this->unit_organisasi,
-                'unit' => null,
-                'sub_unit' => null,
-            ];
-        }
     }
 
     /**
@@ -703,28 +855,6 @@ class Employee extends Model
         return $this->masa_kerja_tahun && $this->masa_kerja_bulan 
             ? $this->masa_kerja_tahun . ', ' . $this->masa_kerja_bulan
             : null;
-    }
-
-    /**
-     * Accessor untuk mendapatkan inisial nama
-     */
-    public function getInitialsAttribute()
-    {
-        if (empty($this->nama_lengkap)) {
-            return '??';
-        }
-
-        $names = explode(' ', $this->nama_lengkap);
-        $initials = '';
-        
-        foreach ($names as $name) {
-            if (!empty($name)) {
-                $initials .= strtoupper($name[0]);
-                if (strlen($initials) >= 2) break;
-            }
-        }
-        
-        return $initials ?: '??';
     }
 
     /**
@@ -847,7 +977,7 @@ class Employee extends Model
     }
 
     // =====================================================
-    // STATIC METHODS - TAD STATISTICS (FITUR BARU)
+    // STATIC METHODS - TAD STATISTICS (FITUR BARU) 
     // =====================================================
 
     /**
@@ -1083,8 +1213,8 @@ class Employee extends Model
     }
 
     /**
-     * Pagination dengan filter dan search - method utama untuk controller
-     * UPDATED: Load unit dan sub unit relationships
+     * ENHANCED: Pagination dengan filter dan search - method utama untuk controller
+     * UPDATED: Load unit dan sub unit relationships untuk history functionality
      */
     public static function paginateWithFilters(array $filters = [], int $perPage = 20)
     {
@@ -1182,8 +1312,8 @@ class Employee extends Model
     }
 
     /**
-     * Get export data dengan filter
-     * UPDATED: Load unit dan sub unit untuk export
+     * ENHANCED: Get export data dengan filter dan proper relationship loading
+     * UPDATED: Load unit dan sub unit untuk export dengan history support
      */
     public static function getExportData(array $filters = [])
     {
@@ -1314,6 +1444,7 @@ class Employee extends Model
 
     /**
      * REVISI: Boot method dengan logika TMT Pensiun yang diperbaiki
+     * ENHANCED: Include logging untuk history tracking
      */
     protected static function boot()
     {
@@ -1363,6 +1494,23 @@ class Employee extends Model
             }
         });
 
+        // ENHANCED: Event ketika employee dibuat (untuk history tracking)
+        static::created(function ($employee) {
+            try {
+                \Log::info('EMPLOYEE CREATED: New employee added to system', [
+                    'employee_id' => $employee->id,
+                    'nik' => $employee->nik,
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'unit_id' => $employee->unit_id,
+                    'sub_unit_id' => $employee->sub_unit_id,
+                    'created_at' => $employee->created_at
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Employee creation logging failed: ' . $e->getMessage());
+            }
+        });
+
         // Event ketika mengupdate employee
         static::updating(function ($employee) {
             // Update usia jika tanggal lahir berubah
@@ -1383,6 +1531,20 @@ class Employee extends Model
                 }
                 
                 $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
+            }
+        });
+
+        // ENHANCED: Event ketika employee di-update (untuk history tracking)
+        static::updated(function ($employee) {
+            try {
+                \Log::info('EMPLOYEE UPDATED: Employee data modified', [
+                    'employee_id' => $employee->id,
+                    'nik' => $employee->nik,
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'updated_at' => $employee->updated_at
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Employee update logging failed: ' . $e->getMessage());
             }
         });
     }
