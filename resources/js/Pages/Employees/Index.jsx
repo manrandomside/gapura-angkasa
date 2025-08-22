@@ -45,8 +45,9 @@ export default function Index({
     subtitle = "Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai",
     auth,
 }) {
-    // State untuk history modal
+    // State untuk history modal - UPDATED dengan key untuk force refresh
     const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [historyModalKey, setHistoryModalKey] = useState(0);
 
     // FIXED: Helper functions untuk notification management dengan pergantian hari
     const isCreatedToday = (employee) => {
@@ -486,6 +487,28 @@ export default function Index({
             // Handle error message
         }
     }, [notification, success, error, message]);
+
+    // NEW: Force refresh history modal saat ada employee baru atau perubahan data
+    useEffect(() => {
+        if (success || newEmployee || notification?.type === "employee_added") {
+            // Force refresh history modal jika sedang terbuka
+            if (showHistoryModal) {
+                setHistoryModalKey((prev) => prev + 1);
+            }
+        }
+    }, [success, newEmployee, notification, showHistoryModal]);
+
+    // NEW: Handler untuk membuka history modal dengan force refresh
+    const handleOpenHistoryModal = () => {
+        setShowHistoryModal(true);
+        // Force refresh setiap kali modal dibuka
+        setHistoryModalKey((prev) => prev + 1);
+    };
+
+    // NEW: Handler untuk menutup history modal
+    const handleCloseHistoryModal = () => {
+        setShowHistoryModal(false);
+    };
 
     // FIXED: Improved isNewEmployee function dengan pergantian hari logic
     const isNewEmployee = (employee) => {
@@ -1108,9 +1131,9 @@ export default function Index({
                                 </p>
                             </div>
                             <div className="flex gap-3 mt-3 md:mt-0">
-                                {/* History Button - NEW */}
+                                {/* History Button - UPDATED dengan handler baru */}
                                 <button
-                                    onClick={() => setShowHistoryModal(true)}
+                                    onClick={handleOpenHistoryModal}
                                     className="group inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                                 >
                                     <Clock className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
@@ -2444,10 +2467,11 @@ export default function Index({
                 </div>
             </div>
 
-            {/* History Modal - Using Component */}
+            {/* History Modal - UPDATED dengan key prop dan handler baru */}
             <HistoryModal
+                key={historyModalKey}
                 isOpen={showHistoryModal}
-                onClose={() => setShowHistoryModal(false)}
+                onClose={handleCloseHistoryModal}
             />
 
             {/* Employee Detail Modal */}

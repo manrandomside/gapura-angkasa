@@ -114,12 +114,12 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // NEW: EMPLOYEE HISTORY METHODS untuk History Modal
+    // FIXED: EMPLOYEE HISTORY METHODS untuk History Modal
     // =====================================================
 
     /**
      * Get employee history - Karyawan yang baru ditambahkan (30 hari terakhir)
-     * Method utama untuk History Modal
+     * FIXED: Enhanced method dengan better error handling dan debugging
      */
     public function getEmployeeHistory()
     {
@@ -127,12 +127,14 @@ class DashboardController extends Controller
             $startDate = Carbon::now()->subDays(30)->startOfDay();
             $endDate = Carbon::now()->endOfDay();
 
-            Log::info('Fetching employee history', [
+            Log::info('HISTORY API: Fetching employee history', [
                 'start_date' => $startDate->format('Y-m-d H:i:s'),
-                'end_date' => $endDate->format('Y-m-d H:i:s')
+                'end_date' => $endDate->format('Y-m-d H:i:s'),
+                'method' => 'getEmployeeHistory'
             ]);
 
-            $query = Employee::select([
+            // FIXED: Improved query dengan explicit field selection
+            $employees = Employee::select([
                     'id',
                     'nip',
                     'nik', 
@@ -146,59 +148,76 @@ class DashboardController extends Controller
                     'created_at',
                     'updated_at'
                 ])
-                ->whereBetween('created_at', [$startDate, $endDate]);
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->orderBy('created_at', 'desc')
+                ->get();
 
-            // Add relationships if they exist
-            if (Schema::hasColumn('employees', 'unit_id') && class_exists('App\Models\Unit')) {
-                $query->with(['unit:id,name,code']);
-            }
-            
-            if (Schema::hasColumn('employees', 'sub_unit_id') && class_exists('App\Models\SubUnit')) {
-                $query->with(['subUnit:id,name,code']);
-            }
+            Log::info('HISTORY API: Raw query results', [
+                'total_found' => $employees->count(),
+                'sql_executed' => true
+            ]);
 
-            $employees = $query->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function ($employee) {
-                    return [
-                        'id' => $employee->id,
-                        'nip' => $employee->nip,
-                        'nik' => $employee->nik,
-                        'nama_lengkap' => $employee->nama_lengkap,
-                        'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
-                        'organizational_structure' => $this->getOrganizationalStructure($employee),
-                        'jabatan' => $employee->jabatan,
-                        'kelompok_jabatan' => $employee->kelompok_jabatan,
-                        'status_pegawai' => $employee->status_pegawai,
-                        'created_at' => $employee->created_at,
-                        'formatted_date' => $employee->created_at ? $employee->created_at->format('d/m/Y H:i') : null,
-                        'relative_date' => $employee->created_at ? $employee->created_at->diffForHumans() : null,
-                        'days_ago' => $employee->created_at ? $employee->created_at->diffInDays(Carbon::now()) : null
-                    ];
-                });
+            // FIXED: Enhanced data mapping dengan better structure
+            $historyData = $employees->map(function ($employee) {
+                $data = [
+                    'id' => $employee->id,
+                    'nip' => $employee->nip,
+                    'nik' => $employee->nik,
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
+                    'organizational_structure' => $this->getOrganizationalStructure($employee),
+                    'jabatan' => $employee->jabatan,
+                    'kelompok_jabatan' => $employee->kelompok_jabatan,
+                    'status_pegawai' => $employee->status_pegawai,
+                    'created_at' => $employee->created_at,
+                    'formatted_date' => $employee->created_at ? $employee->created_at->format('d/m/Y H:i') : null,
+                    'relative_date' => $employee->created_at ? $employee->created_at->diffForHumans() : null,
+                    'days_ago' => $employee->created_at ? $employee->created_at->diffInDays(Carbon::now()) : null
+                ];
+
+                Log::debug('HISTORY API: Processing employee', [
+                    'employee_id' => $employee->id,
+                    'name' => $employee->nama_lengkap,
+                    'created_at' => $employee->created_at
+                ]);
+
+                return $data;
+            });
 
             // Calculate summary statistics
             $summary = $this->calculateHistorySummary($startDate, $endDate);
 
-            Log::info('Employee history fetched successfully', [
-                'total_employees' => $employees->count(),
-                'summary' => $summary
-            ]);
-
-            return response()->json([
+            $response = [
                 'success' => true,
-                'history' => $employees,
-                'total' => $employees->count(),
+                'history' => $historyData->values()->toArray(),
+                'total' => $historyData->count(),
                 'period' => '30 hari terakhir',
                 'date_range' => [
                     'start' => $startDate->format('d/m/Y'),
                     'end' => $endDate->format('d/m/Y')
                 ],
+                'summary' => $summary,
+                'debug' => [
+                    'query_start_date' => $startDate->toISOString(),
+                    'query_end_date' => $endDate->toISOString(),
+                    'total_employees_found' => $historyData->count(),
+                    'timestamp' => Carbon::now()->toISOString()
+                ]
+            ];
+
+            Log::info('HISTORY API: Successfully fetched employee history', [
+                'total_employees' => $historyData->count(),
+                'period' => '30 days',
                 'summary' => $summary
             ]);
 
+            return response()->json($response);
+
         } catch (\Exception $e) {
-            Log::error('Employee History Error: ' . $e->getMessage(), [
+            Log::error('HISTORY API: Employee History Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
 
@@ -208,13 +227,18 @@ class DashboardController extends Controller
                 'total' => 0,
                 'error' => 'Gagal mengambil data history karyawan',
                 'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
-                'debug' => config('app.debug') ? $e->getMessage() : null
+                'debug' => config('app.debug') ? [
+                    'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine()
+                ] : null
             ], 500);
         }
     }
 
     /**
      * Get employee history summary - Ringkasan statistik employee history
+     * FIXED: Enhanced dengan better error handling
      */
     public function getEmployeeHistorySummary()
     {
@@ -223,14 +247,16 @@ class DashboardController extends Controller
             $weekStart = Carbon::now()->startOfWeek();
             $monthStart = Carbon::now()->startOfMonth();
 
+            Log::info('HISTORY SUMMARY: Calculating summary statistics');
+
             $summary = [
                 'today' => $this->getEmployeesCountByDate($today),
                 'week' => $this->getEmployeesCountByDate($weekStart),
                 'month' => $this->getEmployeesCountByDate($monthStart)
             ];
 
-            // Get latest 5 employees untuk preview
-            $latestEmployeesQuery = Employee::select([
+            // FIXED: Get latest 5 employees dengan better query
+            $latestEmployees = Employee::select([
                     'id',
                     'nip',
                     'nama_lengkap',
@@ -239,18 +265,7 @@ class DashboardController extends Controller
                     'sub_unit_id',
                     'jabatan',
                     'created_at'
-                ]);
-
-            // Add relationships if they exist
-            if (Schema::hasColumn('employees', 'unit_id') && class_exists('App\Models\Unit')) {
-                $latestEmployeesQuery->with(['unit:id,name,code']);
-            }
-            
-            if (Schema::hasColumn('employees', 'sub_unit_id') && class_exists('App\Models\SubUnit')) {
-                $latestEmployeesQuery->with(['subUnit:id,name,code']);
-            }
-
-            $latestEmployees = $latestEmployeesQuery
+                ])
                 ->orderBy('created_at', 'desc')
                 ->limit(5)
                 ->get()
@@ -268,6 +283,11 @@ class DashboardController extends Controller
                     ];
                 });
 
+            Log::info('HISTORY SUMMARY: Summary calculated successfully', [
+                'summary' => $summary,
+                'latest_count' => $latestEmployees->count()
+            ]);
+
             return response()->json([
                 'success' => true,
                 'summary' => $summary,
@@ -276,7 +296,10 @@ class DashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Employee History Summary Error: ' . $e->getMessage());
+            Log::error('HISTORY SUMMARY: Employee History Summary Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
 
             return response()->json([
                 'success' => false,
@@ -293,7 +316,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get chart data untuk employee growth trend (30 hari terakhir)
+     * FIXED: Get chart data untuk employee growth trend (30 hari terakhir)
      */
     public function getEmployeeGrowthChart()
     {
@@ -313,6 +336,11 @@ class DashboardController extends Controller
                 ];
             }
             
+            Log::info('GROWTH CHART: Generated 30-day growth chart', [
+                'total_days' => count($last30Days),
+                'total_hires' => array_sum(array_column($last30Days, 'count'))
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'chart_data' => $last30Days,
@@ -321,7 +349,9 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            Log::error('Employee Growth Chart Error: ' . $e->getMessage());
+            Log::error('GROWTH CHART: Employee Growth Chart Error', [
+                'message' => $e->getMessage()
+            ]);
             
             return response()->json([
                 'success' => false,
@@ -401,6 +431,10 @@ class DashboardController extends Controller
                     'employee_statistics' => true,
                     'chart_data' => true,
                     'recent_activities' => true
+                ],
+                'history_methods' => [
+                    'getEmployeeHistory' => method_exists($this, 'getEmployeeHistory'),
+                    'getEmployeeHistorySummary' => method_exists($this, 'getEmployeeHistorySummary')
                 ],
                 'timestamp' => now()->toISOString(),
                 'version' => '1.7.0',
@@ -541,20 +575,30 @@ class DashboardController extends Controller
     }
 
     /**
-     * Helper method - Get employees count by date
+     * FIXED: Helper method - Get employees count by date dengan better error handling
      */
     private function getEmployeesCountByDate($startDate)
     {
         try {
-            return Employee::where('created_at', '>=', $startDate)->count();
+            $count = Employee::where('created_at', '>=', $startDate)->count();
+            
+            Log::debug('HELPER: Employee count by date', [
+                'start_date' => $startDate->format('Y-m-d H:i:s'),
+                'count' => $count
+            ]);
+            
+            return $count;
         } catch (\Exception $e) {
-            Log::error('Employee Count Error: ' . $e->getMessage());
+            Log::error('HELPER: Employee Count Error', [
+                'message' => $e->getMessage(),
+                'start_date' => $startDate ? $startDate->format('Y-m-d H:i:s') : 'null'
+            ]);
             return 0;
         }
     }
 
     /**
-     * Helper method - Get employee initials for display
+     * FIXED: Helper method - Get employee initials for display
      */
     private function getEmployeeInitials($namaLengkap)
     {
@@ -572,7 +616,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Helper method - Get organizational structure for employee
+     * FIXED: Helper method - Get organizational structure for employee
      */
     private function getOrganizationalStructure($employee)
     {
@@ -583,27 +627,18 @@ class DashboardController extends Controller
                 'sub_unit' => null
             ];
 
-            // Add unit information if relationship exists
-            if ($employee->relationLoaded('unit') && $employee->unit) {
-                $structure['unit'] = [
-                    'id' => $employee->unit->id,
-                    'name' => $employee->unit->name,
-                    'code' => $employee->unit->code ?? null
-                ];
-            }
-
-            // Add sub unit information if relationship exists
-            if ($employee->relationLoaded('subUnit') && $employee->subUnit) {
-                $structure['sub_unit'] = [
-                    'id' => $employee->subUnit->id,
-                    'name' => $employee->subUnit->name,
-                    'code' => $employee->subUnit->code ?? null
-                ];
+            // Untuk sementara, kita buat struktur sederhana berdasarkan unit_organisasi
+            // Nanti bisa dikembangkan dengan relasi ke tabel units dan sub_units
+            if ($employee->unit_organisasi) {
+                $structure['unit_organisasi'] = $employee->unit_organisasi;
             }
 
             return $structure;
         } catch (\Exception $e) {
-            Log::warning('Organizational structure error: ' . $e->getMessage());
+            Log::warning('HELPER: Organizational structure error', [
+                'message' => $e->getMessage(),
+                'employee_id' => $employee->id ?? 'unknown'
+            ]);
             return [
                 'unit_organisasi' => $employee->unit_organisasi ?? null,
                 'unit' => null,
@@ -613,7 +648,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Calculate history summary statistics
+     * FIXED: Calculate history summary statistics dengan better error handling
      */
     private function calculateHistorySummary($startDate, $endDate)
     {
@@ -623,15 +658,21 @@ class DashboardController extends Controller
             $weekStart = Carbon::now()->startOfWeek();
             $monthStart = Carbon::now()->startOfMonth();
 
-            return [
+            $summary = [
                 'today' => Employee::whereDate('created_at', $today)->count(),
                 'yesterday' => Employee::whereDate('created_at', $yesterday)->count(),
                 'this_week' => Employee::where('created_at', '>=', $weekStart)->count(),
                 'this_month' => Employee::where('created_at', '>=', $monthStart)->count(),
                 'total_period' => Employee::whereBetween('created_at', [$startDate, $endDate])->count()
             ];
+
+            Log::debug('HELPER: History summary calculated', $summary);
+
+            return $summary;
         } catch (\Exception $e) {
-            Log::error('Calculate History Summary Error: ' . $e->getMessage());
+            Log::error('HELPER: Calculate History Summary Error', [
+                'message' => $e->getMessage()
+            ]);
             return [
                 'today' => 0,
                 'yesterday' => 0,

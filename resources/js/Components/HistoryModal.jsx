@@ -9,8 +9,6 @@ import {
     Briefcase,
     ChevronRight,
     Star,
-    Search,
-    Filter,
 } from "lucide-react";
 import axios from "axios";
 
@@ -18,9 +16,6 @@ const HistoryModal = ({ isOpen, onClose }) => {
     const [historyData, setHistoryData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [filterUnit, setFilterUnit] = useState("all");
-    const [filterStatus, setFilterStatus] = useState("all");
 
     // Fetch history data when modal opens
     useEffect(() => {
@@ -34,14 +29,22 @@ const HistoryModal = ({ isOpen, onClose }) => {
         setError(null);
 
         try {
+            console.log("Fetching employee history...");
             const response = await axios.get("/api/dashboard/employee-history");
+            console.log("API Response:", response.data);
+
             if (response.data.success) {
                 setHistoryData(response.data.history || []);
             } else {
                 setError("Gagal mengambil data history");
+                console.error("API Error:", response.data);
             }
         } catch (error) {
             console.error("Error fetching history:", error);
+            if (error.response) {
+                console.error("Response data:", error.response.data);
+                console.error("Response status:", error.response.status);
+            }
             setError("Terjadi kesalahan saat mengambil data history");
         } finally {
             setLoading(false);
@@ -71,25 +74,17 @@ const HistoryModal = ({ isOpen, onClose }) => {
     const getEmployeeInitial = (employee) => {
         if (!employee || !employee.nama_lengkap) return "N";
 
-        if (employee.initials) {
-            return employee.initials;
-        }
-
-        const name = employee.nama_lengkap;
-        const words = name.split(" ");
+        const words = employee.nama_lengkap.split(" ");
         if (words.length === 1) {
-            return name.charAt(0).toUpperCase();
+            return words[0].charAt(0).toUpperCase();
         }
         return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
     };
 
-    // Get organizational structure display
-    const getOrganizationalDisplay = (employee) => {
-        if (!employee || !employee.organizational_structure) {
-            return "Struktur organisasi tidak tersedia";
-        }
+    // Format organizational structure
+    const formatOrganizationalStructure = (structure) => {
+        if (!structure) return "Struktur tidak tersedia";
 
-        const structure = employee.organizational_structure;
         const parts = [];
 
         if (structure.unit_organisasi) {
@@ -104,58 +99,37 @@ const HistoryModal = ({ isOpen, onClose }) => {
             parts.push(structure.sub_unit.name);
         }
 
-        return parts.length > 0 ? parts.join(" → ") : "Struktur tidak lengkap";
+        return parts.length > 0 ? parts.join(" > ") : "Struktur tidak tersedia";
     };
 
     // Get status badge color
     const getStatusBadgeColor = (status) => {
-        switch (status) {
-            case "PEGAWAI TETAP":
+        switch (status?.toLowerCase()) {
+            case "pegawai tetap":
                 return "bg-green-100 text-green-800 border-green-200";
-            case "PKWT":
+            case "pkwt":
                 return "bg-blue-100 text-blue-800 border-blue-200";
-            case "TAD PAKET SDM":
-                return "bg-yellow-100 text-yellow-800 border-yellow-200";
-            case "TAD PAKET PEKERJAAN":
+            case "tad":
+            case "tad paket sdm":
                 return "bg-orange-100 text-orange-800 border-orange-200";
             default:
                 return "bg-gray-100 text-gray-800 border-gray-200";
         }
     };
 
-    // Filter data based on search and filters
-    const filteredData = historyData.filter((employee) => {
-        const matchSearch =
-            !searchTerm ||
-            employee.nama_lengkap
-                ?.toLowerCase()
-                .includes(searchTerm.toLowerCase()) ||
-            employee.nip?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            employee.nik?.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchUnit =
-            filterUnit === "all" ||
-            employee.organizational_structure?.unit_organisasi === filterUnit;
-
-        const matchStatus =
-            filterStatus === "all" || employee.status_pegawai === filterStatus;
-
-        return matchSearch && matchUnit && matchStatus;
-    });
-
-    // Get unique unit organisasi for filter
-    const uniqueUnits = [
-        ...new Set(
-            historyData
-                .map((emp) => emp.organizational_structure?.unit_organisasi)
-                .filter(Boolean)
-        ),
-    ];
-    const uniqueStatuses = [
-        ...new Set(
-            historyData.map((emp) => emp.status_pegawai).filter(Boolean)
-        ),
-    ];
+    // Get job position badge color
+    const getPositionBadgeColor = (position) => {
+        switch (position?.toLowerCase()) {
+            case "supervisor":
+                return "bg-purple-100 text-purple-800 border-purple-200";
+            case "manager":
+                return "bg-indigo-100 text-indigo-800 border-indigo-200";
+            case "staff":
+                return "bg-cyan-100 text-cyan-800 border-cyan-200";
+            default:
+                return "bg-gray-100 text-gray-800 border-gray-200";
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -186,107 +160,53 @@ const HistoryModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
 
-                {/* Search and Filter Bar */}
-                <div className="p-6 border-b border-gray-200 bg-gray-50">
-                    <div className="flex flex-col gap-4 md:flex-row">
-                        {/* Search */}
-                        <div className="relative flex-1">
-                            <Search className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari berdasarkan nama, NIP, atau NIK..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-all duration-200"
-                            />
-                        </div>
-
-                        {/* Filter Unit */}
-                        <select
-                            value={filterUnit}
-                            onChange={(e) => setFilterUnit(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-all duration-200"
-                        >
-                            <option value="all">Semua Unit Organisasi</option>
-                            {uniqueUnits.map((unit) => (
-                                <option key={unit} value={unit}>
-                                    {unit}
-                                </option>
-                            ))}
-                        </select>
-
-                        {/* Filter Status */}
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#439454] focus:border-[#439454] transition-all duration-200"
-                        >
-                            <option value="all">Semua Status</option>
-                            {uniqueStatuses.map((status) => (
-                                <option key={status} value={status}>
-                                    {status}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto max-h-[60vh]">
+                <div className="flex-1 overflow-auto max-h-[calc(90vh-80px)]">
                     {loading ? (
-                        <div className="flex items-center justify-center p-12">
-                            <div className="flex items-center gap-3">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#439454]"></div>
-                                <span className="font-medium text-gray-600">
-                                    Memuat data history...
-                                </span>
-                            </div>
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div className="w-12 h-12 border-4 border-[#439454] border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-gray-600">
+                                Mengambil data history...
+                            </p>
                         </div>
                     ) : error ? (
-                        <div className="flex items-center justify-center p-12">
-                            <div className="text-center">
-                                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full">
-                                    <X className="w-8 h-8 text-red-500" />
-                                </div>
-                                <h3 className="mb-2 text-lg font-semibold text-gray-900">
-                                    Terjadi Kesalahan
-                                </h3>
-                                <p className="mb-4 text-gray-600">{error}</p>
-                                <button
-                                    onClick={fetchHistoryData}
-                                    className="px-4 py-2 bg-[#439454] text-white rounded-lg hover:bg-[#367a41] transition-colors duration-200"
-                                >
-                                    Coba Lagi
-                                </button>
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div className="p-4 mb-4 bg-red-100 rounded-full">
+                                <X className="w-8 h-8 text-red-600" />
                             </div>
+                            <h3 className="mb-2 text-lg font-semibold text-red-800">
+                                Terjadi Kesalahan
+                            </h3>
+                            <p className="mb-4 text-sm text-red-600">{error}</p>
+                            <button
+                                onClick={fetchHistoryData}
+                                className="px-6 py-2 bg-[#439454] text-white rounded-lg hover:bg-[#367a41] transition-colors"
+                            >
+                                Coba Lagi
+                            </button>
                         </div>
-                    ) : filteredData.length === 0 ? (
-                        <div className="flex items-center justify-center p-12">
-                            <div className="text-center">
-                                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full">
-                                    <Users className="w-8 h-8 text-gray-400" />
-                                </div>
-                                <h3 className="mb-2 text-lg font-semibold text-gray-900">
-                                    Tidak Ada Data History
-                                </h3>
-                                <p className="text-gray-600">
-                                    {searchTerm ||
-                                    filterUnit !== "all" ||
-                                    filterStatus !== "all"
-                                        ? "Tidak ada data yang sesuai dengan filter yang dipilih."
-                                        : "Belum ada karyawan baru yang ditambahkan dalam 30 hari terakhir."}
-                                </p>
+                    ) : historyData.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div className="p-4 mb-4 bg-gray-100 rounded-full">
+                                <Users className="w-8 h-8 text-gray-400" />
                             </div>
+                            <h3 className="mb-2 text-lg font-semibold text-gray-700">
+                                Belum Ada Data History
+                            </h3>
+                            <p className="max-w-md text-sm text-center text-gray-500">
+                                Belum ada karyawan baru yang ditambahkan dalam
+                                30 hari terakhir.
+                            </p>
                         </div>
                     ) : (
                         <div className="p-6">
                             <div className="mb-4 text-sm text-gray-600">
-                                Menampilkan {filteredData.length} dari{" "}
-                                {historyData.length} data karyawan
+                                Menampilkan {historyData.length} karyawan baru
+                                dalam 30 hari terakhir
                             </div>
 
                             <div className="grid gap-4">
-                                {filteredData.map((employee, index) => (
+                                {historyData.map((employee, index) => (
                                     <div
                                         key={employee.id || index}
                                         className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#439454] transition-all duration-300"
@@ -306,92 +226,108 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                 <div className="flex items-start justify-between mb-3">
                                                     <div>
                                                         <h3 className="mb-1 text-xl font-bold text-gray-900">
-                                                            {employee.nama_lengkap ||
-                                                                "Nama tidak tersedia"}
+                                                            {
+                                                                employee.nama_lengkap
+                                                            }
                                                         </h3>
-                                                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                                                            <span className="font-medium">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="text-sm text-gray-600">
                                                                 NIP:{" "}
                                                                 {employee.nip ||
-                                                                    "Tidak ada"}
+                                                                    "Tidak tersedia"}
                                                             </span>
-                                                            <span className="font-medium">
-                                                                NIK:{" "}
-                                                                {employee.nik ||
-                                                                    "Tidak ada"}
-                                                            </span>
+                                                            {employee.nik && (
+                                                                <>
+                                                                    <span className="text-gray-400">
+                                                                        •
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-600">
+                                                                        NIK:{" "}
+                                                                        {
+                                                                            employee.nik
+                                                                        }
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
+
+                                                    {/* Date Badge */}
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="px-3 py-1 bg-[#439454] bg-opacity-10 text-[#439454] rounded-full text-sm font-medium mb-1">
+                                                            {employee.relative_date ||
+                                                                formatDate(
+                                                                    employee.created_at
+                                                                )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {employee.formatted_date ||
+                                                                formatDate(
+                                                                    employee.created_at
+                                                                )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Organizational Structure */}
+                                                <div className="mb-3">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Building2 className="w-4 h-4 text-gray-400" />
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                            Struktur Organisasi
+                                                        </span>
+                                                    </div>
+                                                    <div className="pl-6">
+                                                        <p className="text-sm text-gray-600">
+                                                            {formatOrganizationalStructure(
+                                                                employee.organizational_structure
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Job Information */}
+                                                <div className="mb-3">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Briefcase className="w-4 h-4 text-gray-400" />
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                            Informasi Jabatan
+                                                        </span>
+                                                    </div>
+                                                    <div className="pl-6">
+                                                        <p className="mb-1 text-sm font-medium text-gray-900">
+                                                            {employee.jabatan ||
+                                                                "Jabatan tidak tersedia"}
+                                                        </p>
+                                                        {employee.kelompok_jabatan && (
+                                                            <span
+                                                                className={`inline-block px-2 py-1 rounded-md text-xs border ${getPositionBadgeColor(
+                                                                    employee.kelompok_jabatan
+                                                                )}`}
+                                                            >
+                                                                {
+                                                                    employee.kelompok_jabatan
+                                                                }
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Status Information */}
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <UserCheck className="w-4 h-4 text-gray-400" />
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                            Status:
+                                                        </span>
+                                                    </div>
                                                     <span
-                                                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeColor(
+                                                        className={`px-2 py-1 rounded-md text-xs border ${getStatusBadgeColor(
                                                             employee.status_pegawai
                                                         )}`}
                                                     >
                                                         {employee.status_pegawai ||
                                                             "Status tidak tersedia"}
-                                                    </span>
-                                                </div>
-
-                                                {/* Organizational Structure */}
-                                                <div className="p-4 mb-4 rounded-lg bg-gray-50">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Building2 className="w-4 h-4 text-[#439454]" />
-                                                        <span className="font-semibold text-gray-700">
-                                                            Struktur Organisasi
-                                                        </span>
-                                                    </div>
-                                                    <p className="font-medium text-gray-800">
-                                                        {getOrganizationalDisplay(
-                                                            employee
-                                                        )}
-                                                    </p>
-                                                </div>
-
-                                                {/* Job Information */}
-                                                {(employee.jabatan ||
-                                                    employee.kelompok_jabatan) && (
-                                                    <div className="flex items-center gap-4 mb-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <Briefcase className="w-4 h-4 text-[#439454]" />
-                                                            <span className="font-medium text-gray-700">
-                                                                Jabatan:
-                                                            </span>
-                                                            <span className="text-gray-900">
-                                                                {employee.jabatan ||
-                                                                    "Tidak tersedia"}
-                                                            </span>
-                                                        </div>
-                                                        {employee.kelompok_jabatan && (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-medium text-gray-700">
-                                                                    Kelompok:
-                                                                </span>
-                                                                <span className="text-gray-900">
-                                                                    {
-                                                                        employee.kelompok_jabatan
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* Date Added */}
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Calendar className="w-4 h-4 text-[#439454]" />
-                                                    <span className="font-medium text-gray-700">
-                                                        Ditambahkan pada:
-                                                    </span>
-                                                    <span className="font-medium text-gray-900">
-                                                        {formatDate(
-                                                            employee.created_at
-                                                        )}
-                                                    </span>
-                                                    <span className="text-gray-500">
-                                                        (
-                                                        {employee.relative_date ||
-                                                            "Baru saja"}
-                                                        )
                                                     </span>
                                                 </div>
                                             </div>
@@ -405,18 +341,10 @@ const HistoryModal = ({ isOpen, onClose }) => {
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-600">
-                            Data history karyawan yang baru ditambahkan dalam 30
-                            hari terakhir
-                        </p>
-                        <button
-                            onClick={onClose}
-                            className="px-6 py-2 font-medium text-white transition-colors duration-200 bg-gray-600 rounded-lg hover:bg-gray-700"
-                        >
-                            Tutup
-                        </button>
-                    </div>
+                    <p className="text-xs text-center text-gray-500">
+                        Data history karyawan yang baru ditambahkan dalam 30
+                        hari terakhir
+                    </p>
                 </div>
             </div>
         </div>
