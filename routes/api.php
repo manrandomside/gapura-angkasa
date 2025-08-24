@@ -7,16 +7,167 @@ use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes - GAPURA ANGKASA SDM System v1.8.0 - ENHANCED
+| API Routes - GAPURA ANGKASA SDM System v1.8.0 - FIXED
 |--------------------------------------------------------------------------
 |
 | FIXED: API routes untuk employee history dan management data  
 | PRIORITY: Employee History API untuk History Modal
 | Base color: putih dengan hover hijau (#439454)
 | 
-| ENHANCED: Simplified structure, better error handling, enhanced debugging
+| ENHANCED: Debugging routes added untuk troubleshooting History Modal
 |
 */
+
+// =====================================================
+// DEBUGGING ROUTES - TEMPORARY (untuk troubleshooting)
+// =====================================================
+
+Route::prefix('debug')->group(function () {
+    
+    // Test 1: Database connection dan employee count
+    Route::get('/database-test', function () {
+        try {
+            $total = \App\Models\Employee::count();
+            $recent = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
+            
+            $sampleEmployees = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))
+                ->orderBy('created_at', 'desc')
+                ->limit(3)
+                ->get(['id', 'nama_lengkap', 'unit_organisasi', 'created_at']);
+            
+            return response()->json([
+                'test_name' => 'Database Connection Test',
+                'success' => true,
+                'database_connection' => 'OK',
+                'total_employees' => $total,
+                'recent_30_days' => $recent,
+                'sample_recent_employees' => $sampleEmployees->toArray(),
+                'test_timestamp' => now()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'test_name' => 'Database Connection Test',
+                'success' => false,
+                'database_connection' => 'FAILED',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
+    });
+    
+    // Test 2: Direct API call ke DashboardController
+    Route::get('/history-api-test', function () {
+        try {
+            $controller = app('App\Http\Controllers\DashboardController');
+            
+            if (!method_exists($controller, 'getEmployeeHistory')) {
+                return response()->json([
+                    'test_name' => 'History API Direct Test',
+                    'success' => false,
+                    'error' => 'Method getEmployeeHistory tidak ditemukan di DashboardController',
+                    'available_methods' => array_slice(get_class_methods($controller), 0, 15)
+                ], 404);
+            }
+            
+            $response = $controller->getEmployeeHistory();
+            $statusCode = $response->getStatusCode();
+            $data = json_decode($response->getContent(), true);
+            
+            return response()->json([
+                'test_name' => 'History API Direct Test',
+                'test_success' => true,
+                'api_status_code' => $statusCode,
+                'api_response_keys' => array_keys($data ?? []),
+                'api_has_success_field' => isset($data['success']),
+                'api_success_value' => $data['success'] ?? 'NOT_SET',
+                'api_has_history_field' => isset($data['history']),
+                'history_count' => count($data['history'] ?? []),
+                'api_error' => $data['error'] ?? null,
+                'api_debug' => $data['debug'] ?? null,
+                'first_history_record' => !empty($data['history']) ? $data['history'][0] : null,
+                'raw_response_sample' => array_slice($data ?? [], 0, 5)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'test_name' => 'History API Direct Test',
+                'test_success' => false,
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : 'Hidden in production'
+            ], 500);
+        }
+    });
+    
+    // Test 3: Model dan Controller availability
+    Route::get('/system-check', function () {
+        $models = [
+            'Employee' => class_exists('App\Models\Employee'),
+            'Unit' => class_exists('App\Models\Unit'),
+            'SubUnit' => class_exists('App\Models\SubUnit'),
+            'Organization' => class_exists('App\Models\Organization'),
+        ];
+        
+        $controllers = [
+            'DashboardController' => class_exists('App\Http\Controllers\DashboardController'),
+            'EmployeeController' => class_exists('App\Http\Controllers\EmployeeController'),
+        ];
+        
+        $methods = [];
+        if (class_exists('App\Http\Controllers\DashboardController')) {
+            $controller = app('App\Http\Controllers\DashboardController');
+            $methods = [
+                'getEmployeeHistory' => method_exists($controller, 'getEmployeeHistory'),
+                'getEmployeeHistorySummary' => method_exists($controller, 'getEmployeeHistorySummary'),
+                'buildOrganizationalStructureSafe' => method_exists($controller, 'buildOrganizationalStructureSafe'),
+                'calculateHistorySummarySafe' => method_exists($controller, 'calculateHistorySummarySafe'),
+            ];
+        }
+        
+        return response()->json([
+            'test_name' => 'System Check',
+            'success' => true,
+            'models_available' => $models,
+            'controllers_available' => $controllers,
+            'critical_methods' => $methods,
+            'php_version' => PHP_VERSION,
+            'laravel_version' => app()->version(),
+            'environment' => app()->environment()
+        ]);
+    });
+    
+    // Test 4: Test route yang sebenarnya
+    Route::get('/route-test', function () {
+        try {
+            // Test apakah route bisa diakses
+            $url = url('/api/dashboard/employee-history');
+            
+            // Test dengan HTTP client
+            $response = \Illuminate\Support\Facades\Http::get($url);
+            
+            return response()->json([
+                'test_name' => 'Route Accessibility Test',
+                'success' => true,
+                'test_url' => $url,
+                'http_status' => $response->status(),
+                'response_size' => strlen($response->body()),
+                'response_is_json' => $response->json() !== null,
+                'response_sample' => $response->json() ?: substr($response->body(), 0, 500)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'test_name' => 'Route Accessibility Test',
+                'success' => false,
+                'error' => $e->getMessage(),
+                'test_url' => url('/api/dashboard/employee-history')
+            ]);
+        }
+    });
+});
 
 // =====================================================
 // CRITICAL DASHBOARD API ROUTES - EMPLOYEE HISTORY
@@ -24,7 +175,7 @@ use App\Http\Controllers\DashboardController;
 
 Route::prefix('dashboard')->group(function () {
     
-    // CRITICAL: Employee History API - Direct controller calls (NO middleware)
+    // CRITICAL: Employee History API - MUST BE FIRST AND WORKING
     Route::get('/employee-history', [DashboardController::class, 'getEmployeeHistory'])
         ->name('api.dashboard.employee.history');
     
@@ -484,233 +635,21 @@ Route::get('/health', function () {
     }
 })->name('api.health');
 
-// =====================================================
-// ENHANCED DEBUGGING & TESTING ROUTES
-// =====================================================
-
-Route::prefix('test')->group(function () {
-    
-    // Basic connectivity test
-    Route::get('/connectivity', function () {
-        return response()->json([
-            'success' => true,
-            'message' => 'API connectivity successful',
-            'timestamp' => now(),
-            'environment' => app()->environment(),
-            'versions' => [
-                'php' => PHP_VERSION,
-                'laravel' => app()->version(),
-                'system' => '1.8.0'
-            ]
-        ]);
-    })->name('api.test.connectivity');
-    
-    // CRITICAL: Test employee history API directly
-    Route::get('/employee-history', function () {
-        try {
-            if (!class_exists('App\Http\Controllers\DashboardController')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'DashboardController not available',
-                    'test_endpoint' => '/api/dashboard/employee-history'
-                ], 500);
-            }
-
-            $controller = app('App\Http\Controllers\DashboardController');
-            
-            if (!method_exists($controller, 'getEmployeeHistory')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'getEmployeeHistory method not found',
-                    'test_endpoint' => '/api/dashboard/employee-history',
-                    'available_methods' => array_slice(get_class_methods($controller), 0, 10)
-                ], 404);
-            }
-
-            $response = $controller->getEmployeeHistory();
-            $data = json_decode($response->getContent(), true);
-            
-            return response()->json([
-                'success' => true,
-                'test_endpoint' => '/api/dashboard/employee-history',
-                'api_response' => [
-                    'status_code' => $response->getStatusCode(),
-                    'success' => $data['success'] ?? false,
-                    'data_count' => count($data['history'] ?? []),
-                    'period' => $data['period'] ?? null,
-                    'has_debug_info' => isset($data['debug'])
-                ],
-                'sample_data' => !empty($data['history']) ? array_slice($data['history'], 0, 1) : [],
-                'debug_info' => $data['debug'] ?? null,
-                'timestamp' => now()
-            ]);
-            
-        } catch (\Exception $e) {
-            \Log::error('Test: Employee history API failed', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error testing employee history API',
-                'error' => config('app.debug') ? $e->getMessage() : 'Test failed',
-                'test_endpoint' => '/api/dashboard/employee-history'
-            ], 500);
-        }
-    })->name('api.test.employee.history');
-    
-    // CRITICAL: Test employee history summary API
-    Route::get('/employee-history-summary', function () {
-        try {
-            $controller = app('App\Http\Controllers\DashboardController');
-            
-            if (!method_exists($controller, 'getEmployeeHistorySummary')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'getEmployeeHistorySummary method not found'
-                ], 404);
-            }
-
-            $response = $controller->getEmployeeHistorySummary();
-            $data = json_decode($response->getContent(), true);
-            
-            return response()->json([
-                'success' => true,
-                'test_endpoint' => '/api/dashboard/employee-history-summary',
-                'api_response' => [
-                    'status_code' => $response->getStatusCode(),
-                    'success' => $data['success'] ?? false,
-                    'has_summary' => isset($data['summary']),
-                    'latest_count' => count($data['latest_employees'] ?? [])
-                ],
-                'summary_data' => $data['summary'] ?? null,
-                'timestamp' => now()
-            ]);
-            
-        } catch (\Exception $e) {
-            \Log::error('Test: Employee history summary API failed', ['error' => $e->getMessage()]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error testing employee history summary API',
-                'error' => config('app.debug') ? $e->getMessage() : 'Test failed'
-            ], 500);
-        }
-    })->name('api.test.employee.history.summary');
-    
-    // Database and model check
-    Route::get('/database-check', function () {
-        try {
-            $result = [
-                'success' => true,
-                'database' => ['connected' => false, 'error' => null],
-                'employee_model' => ['available' => false, 'data' => []]
-            ];
-            
-            // Database test
-            try {
-                \Illuminate\Support\Facades\DB::connection()->getPdo();
-                $result['database']['connected'] = true;
-            } catch (\Exception $e) {
-                $result['database']['error'] = $e->getMessage();
-            }
-            
-            // Employee model test
-            if (class_exists('App\Models\Employee')) {
-                $result['employee_model']['available'] = true;
-                
-                try {
-                    $result['employee_model']['data'] = [
-                        'total_count' => \App\Models\Employee::count(),
-                        'recent_count' => \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count(),
-                        'today_count' => \App\Models\Employee::whereDate('created_at', \Carbon\Carbon::today())->count()
-                    ];
-                    
-                    $latestEmployee = \App\Models\Employee::with(['unit', 'subUnit'])
-                        ->latest('created_at')
-                        ->first();
-                    
-                    if ($latestEmployee) {
-                        $result['employee_model']['latest_employee'] = [
-                            'id' => $latestEmployee->id,
-                            'nama_lengkap' => $latestEmployee->nama_lengkap,
-                            'unit_organisasi' => $latestEmployee->unit_organisasi,
-                            'created_at' => $latestEmployee->created_at,
-                            'days_ago' => $latestEmployee->created_at->diffInDays(\Carbon\Carbon::now()),
-                            'has_organizational_structure' => isset($latestEmployee->organizational_structure)
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    $result['employee_model']['error'] = $e->getMessage();
-                }
-            }
-            
-            return response()->json($result);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    })->name('api.test.database');
-    
-    // Quick recent employees check
-    Route::get('/recent-employees', function () {
-        try {
-            if (!class_exists('App\Models\Employee')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Employee model not available'
-                ], 500);
-            }
-            
-            $recentEmployees = \App\Models\Employee::with(['unit', 'subUnit'])
-                ->where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))
-                ->orderBy('created_at', 'desc')
-                ->limit(5)
-                ->get();
-            
-            return response()->json([
-                'success' => true,
-                'recent_employees_30_days' => $recentEmployees->count(),
-                'total_employees' => \App\Models\Employee::count(),
-                'employees' => $recentEmployees->map(function($emp) {
-                    return [
-                        'id' => $emp->id,
-                        'nama_lengkap' => $emp->nama_lengkap,
-                        'unit_organisasi' => $emp->unit_organisasi,
-                        'organizational_structure' => $emp->organizational_structure ?? null,
-                        'created_at' => $emp->created_at,
-                        'days_ago' => $emp->created_at->diffInDays(\Carbon\Carbon::now())
-                    ];
-                }),
-                'timestamp' => now()
-            ]);
-            
-        } catch (\Exception $e) {
-            \Log::error('Test: Recent employees check failed', ['error' => $e->getMessage()]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error getting recent employees data',
-                'error' => config('app.debug') ? $e->getMessage() : 'Test failed'
-            ], 500);
-        }
-    })->name('api.test.recent.employees');
-});
-
 /*
 |--------------------------------------------------------------------------
-| API Routes Documentation - v1.8.0 ENHANCED
+| API Routes Documentation - v1.8.0 FIXED
 |--------------------------------------------------------------------------
 |
 | CRITICAL ENDPOINTS untuk History Modal:
-| 1. GET /api/dashboard/employee-history -> Enhanced dengan relationship loading
-| 2. GET /api/dashboard/employee-history-summary -> Enhanced dengan proper structure
+| 1. GET /api/dashboard/employee-history -> Fixed dengan safe implementation
+| 2. GET /api/dashboard/employee-history-summary -> Fixed dengan proper structure
 | 3. GET /api/dashboard/employee-growth-chart -> Growth chart data
+|
+| DEBUGGING ENDPOINTS (TEMPORARY):
+| - GET /api/debug/database-test -> Test database connection dan employee count
+| - GET /api/debug/history-api-test -> Direct test ke DashboardController method
+| - GET /api/debug/system-check -> Check model dan controller availability  
+| - GET /api/debug/route-test -> Test route accessibility
 |
 | DASHBOARD ENDPOINTS:
 | - GET /api/dashboard/statistics -> Employee statistics
@@ -727,22 +666,14 @@ Route::prefix('test')->group(function () {
 | - GET /api/validate/nik/{nik} -> NIK availability check
 | - GET /api/validate/nip/{nip} -> NIP availability check
 |
-| TESTING ENDPOINTS (Enhanced Debugging):
-| - GET /api/test/employee-history -> Direct history API test
-| - GET /api/test/employee-history-summary -> Direct summary API test
-| - GET /api/test/database-check -> Database and model verification
-| - GET /api/test/recent-employees -> Employee data verification
-|
 | SYSTEM ENDPOINTS:
 | - GET /api/health -> Enhanced system health with feature detection
 |
-| FEATURES v1.8.0:
-| ✅ Enhanced error handling dengan consistent JSON responses
-| ✅ Comprehensive logging untuk debugging
-| ✅ Better health checks dengan detailed feature detection
-| ✅ Simplified route structure untuk maintainability
-| ✅ Enhanced debugging information untuk development
-| ✅ Compatible dengan DashboardController dan Employee model yang diperbaiki
-| ✅ NO middleware usage sesuai requirement
+| TROUBLESHOOTING STEPS:
+| 1. Test /api/debug/database-test dulu
+| 2. Kemudian /api/debug/history-api-test
+| 3. Lalu /api/debug/system-check
+| 4. Terakhir /api/debug/route-test
+| 5. Jika semua OK, test /api/dashboard/employee-history
 |
 */

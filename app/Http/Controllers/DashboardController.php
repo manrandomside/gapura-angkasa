@@ -119,8 +119,7 @@ class DashboardController extends Controller
 
     /**
      * FIXED: Get employee history - Karyawan yang baru ditambahkan (30 hari terakhir)
-     * Enhanced dengan proper relationship loading dan organizational structure
-     * CRITICAL: Method utama untuk History Modal functionality
+     * SAFE VERSION: Tidak menggunakan eager loading untuk menghindari error
      */
     public function getEmployeeHistory()
     {
@@ -134,7 +133,7 @@ class DashboardController extends Controller
                 'method' => 'getEmployeeHistory'
             ]);
 
-            // FIXED: Enhanced query dengan comprehensive relationship loading
+            // FIXED: Query tanpa eager loading untuk menghindari relationship error
             $employees = Employee::select([
                     'id',
                     'nip',
@@ -150,24 +149,19 @@ class DashboardController extends Controller
                     'created_at',
                     'updated_at'
                 ])
-                ->with([
-                    'unit:id,name,code,unit_organisasi',
-                    'subUnit:id,name,code,unit_id'
-                ])
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
             Log::info('HISTORY API: Raw query results', [
                 'total_found' => $employees->count(),
-                'with_relationships' => true,
-                'period_days' => 30
+                'period_days' => 30,
+                'safe_mode' => true
             ]);
 
-            // FIXED: Enhanced data mapping dengan proper organizational structure
+            // FIXED: Safe data mapping tanpa dependency pada relationship
             $historyData = $employees->map(function ($employee) {
-                // Build organizational structure manually to ensure consistency
-                $organizationalStructure = $this->buildOrganizationalStructure($employee);
+                $organizationalStructure = $this->buildOrganizationalStructureSafe($employee);
                 
                 $data = [
                     'id' => $employee->id,
@@ -199,8 +193,8 @@ class DashboardController extends Controller
                 return $data;
             });
 
-            // Calculate summary statistics
-            $summary = $this->calculateHistorySummary($startDate, $endDate);
+            // Calculate summary statistics safely
+            $summary = $this->calculateHistorySummarySafe($startDate, $endDate);
 
             $response = [
                 'success' => true,
@@ -217,8 +211,8 @@ class DashboardController extends Controller
                     'query_end_date' => $endDate->toISOString(),
                     'total_employees_found' => $historyData->count(),
                     'timestamp' => Carbon::now()->toISOString(),
-                    'relationships_loaded' => true,
-                    'method_version' => 'fixed_v1.0'
+                    'safe_mode' => true,
+                    'method_version' => 'fixed_safe_v2.0'
                 ]
             ];
 
@@ -255,8 +249,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Get employee history summary
-     * CRITICAL: Method untuk summary data History Modal
+     * FIXED: Get employee history summary - SAFE VERSION
      */
     public function getEmployeeHistorySummary()
     {
@@ -269,25 +262,21 @@ class DashboardController extends Controller
                 'end_date' => $endDate->format('Y-m-d H:i:s')
             ]);
 
-            // Calculate summary statistics
-            $summary = $this->calculateHistorySummary($startDate, $endDate);
+            // Calculate summary statistics safely
+            $summary = $this->calculateHistorySummarySafe($startDate, $endDate);
 
-            // Get latest employees with relationship loading
+            // Get latest employees tanpa relationship loading
             $latestEmployees = Employee::select([
                     'id', 'nip', 'nik', 'nama_lengkap', 'unit_organisasi', 
                     'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan', 
                     'status_pegawai', 'created_at'
-                ])
-                ->with([
-                    'unit:id,name,code,unit_organisasi',
-                    'subUnit:id,name,code,unit_id'
                 ])
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->orderBy('created_at', 'desc')
                 ->limit(5)
                 ->get()
                 ->map(function ($employee) {
-                    $organizationalStructure = $this->buildOrganizationalStructure($employee);
+                    $organizationalStructure = $this->buildOrganizationalStructureSafe($employee);
                     
                     return [
                         'id' => $employee->id,
@@ -539,7 +528,7 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // FIXED HELPER METHODS - CRITICAL FOR HISTORY FUNCTIONALITY
+    // FIXED HELPER METHODS - SAFE IMPLEMENTATIONS
     // =====================================================
 
     /**
@@ -569,27 +558,21 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Build organizational structure for employee
-     * CRITICAL: Ensures consistent structure building across methods
+     * FIXED: Build organizational structure for employee - SAFE VERSION
+     * CRITICAL: Method ini menggantikan buildOrganizationalStructure yang lama
      */
-    private function buildOrganizationalStructure($employee)
+    private function buildOrganizationalStructureSafe($employee)
     {
         try {
             $structure = [
-                'unit_organisasi' => $employee->unit_organisasi,
+                'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
                 'unit' => null,
                 'sub_unit' => null,
                 'full_structure' => null
             ];
 
-            // Build unit info
-            if ($employee->relationLoaded('unit') && $employee->unit) {
-                $structure['unit'] = [
-                    'id' => $employee->unit->id,
-                    'name' => $employee->unit->name,
-                    'code' => $employee->unit->code ?? null
-                ];
-            } else if ($employee->unit_id) {
+            // Try to get unit info if model is available and unit_id exists
+            if (class_exists('App\Models\Unit') && $employee->unit_id) {
                 try {
                     $unit = Unit::find($employee->unit_id);
                     if ($unit) {
@@ -600,18 +583,15 @@ class DashboardController extends Controller
                         ];
                     }
                 } catch (\Exception $unitError) {
-                    Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
+                    Log::debug('SAFE: Unit loading failed', [
+                        'unit_id' => $employee->unit_id,
+                        'error' => $unitError->getMessage()
+                    ]);
                 }
             }
 
-            // Build sub unit info
-            if ($employee->relationLoaded('subUnit') && $employee->subUnit) {
-                $structure['sub_unit'] = [
-                    'id' => $employee->subUnit->id,
-                    'name' => $employee->subUnit->name,
-                    'code' => $employee->subUnit->code ?? null
-                ];
-            } else if ($employee->sub_unit_id) {
+            // Try to get sub unit info if model is available and sub_unit_id exists
+            if (class_exists('App\Models\SubUnit') && $employee->sub_unit_id) {
                 try {
                     $subUnit = SubUnit::find($employee->sub_unit_id);
                     if ($subUnit) {
@@ -622,14 +602,17 @@ class DashboardController extends Controller
                         ];
                     }
                 } catch (\Exception $subUnitError) {
-                    Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
+                    Log::debug('SAFE: SubUnit loading failed', [
+                        'sub_unit_id' => $employee->sub_unit_id,
+                        'error' => $subUnitError->getMessage()
+                    ]);
                 }
             }
 
-            // Build full structure string
+            // Build full structure string for display
             $fullStructureParts = [];
             
-            if ($structure['unit_organisasi']) {
+            if ($structure['unit_organisasi'] && $structure['unit_organisasi'] !== 'Tidak tersedia') {
                 $fullStructureParts[] = $structure['unit_organisasi'];
             }
             
@@ -641,10 +624,11 @@ class DashboardController extends Controller
                 $fullStructureParts[] = $structure['sub_unit']['name'];
             }
             
+            // Create full structure string
             $structure['full_structure'] = implode(' > ', $fullStructureParts);
             
             // Ensure we always have at least unit_organisasi
-            if (empty($structure['full_structure']) && $structure['unit_organisasi']) {
+            if (empty($structure['full_structure']) && $structure['unit_organisasi'] !== 'Tidak tersedia') {
                 $structure['full_structure'] = $structure['unit_organisasi'];
             }
             
@@ -653,11 +637,19 @@ class DashboardController extends Controller
                 $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
             }
 
+            Log::debug('SAFE: Organizational structure built', [
+                'employee_id' => $employee->id,
+                'full_structure' => $structure['full_structure'],
+                'has_unit' => !is_null($structure['unit']),
+                'has_sub_unit' => !is_null($structure['sub_unit'])
+            ]);
+
             return $structure;
 
         } catch (\Exception $e) {
-            Log::warning('Build organizational structure error: ' . $e->getMessage(), [
-                'employee_id' => $employee->id ?? 'unknown'
+            Log::warning('SAFE: Organizational structure building error', [
+                'employee_id' => $employee->id ?? 'unknown',
+                'error' => $e->getMessage()
             ]);
             
             return [
@@ -670,9 +662,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Calculate history summary statistics
+     * FIXED: Calculate history summary statistics - SAFE VERSION
      */
-    private function calculateHistorySummary($startDate, $endDate)
+    private function calculateHistorySummarySafe($startDate, $endDate)
     {
         try {
             $today = Carbon::today();
@@ -698,14 +690,19 @@ class DashboardController extends Controller
                 $summary['growth_percentage'] = $summary['total_period'] > 0 ? 100 : 0;
             }
 
-            Log::debug('HELPER: History summary calculated', $summary);
+            Log::debug('SAFE: History summary calculated', [
+                'today' => $summary['today'],
+                'total_period' => $summary['total_period'],
+                'growth_percentage' => $summary['growth_percentage']
+            ]);
 
             return $summary;
+
         } catch (\Exception $e) {
-            Log::error('HELPER: Calculate History Summary Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+            Log::error('SAFE: Summary calculation error', [
+                'error' => $e->getMessage()
             ]);
+            
             return [
                 'today' => 0,
                 'yesterday' => 0,
@@ -716,6 +713,28 @@ class DashboardController extends Controller
             ];
         }
     }
+
+    /**
+     * DEPRECATED: buildOrganizationalStructure - Replaced by buildOrganizationalStructureSafe
+     * Kept for backward compatibility but will use safe version internally
+     */
+    private function buildOrganizationalStructure($employee)
+    {
+        return $this->buildOrganizationalStructureSafe($employee);
+    }
+
+    /**
+     * DEPRECATED: calculateHistorySummary - Replaced by calculateHistorySummarySafe
+     * Kept for backward compatibility but will use safe version internally
+     */
+    private function calculateHistorySummary($startDate, $endDate)
+    {
+        return $this->calculateHistorySummarySafe($startDate, $endDate);
+    }
+
+    // =====================================================
+    // EXISTING HELPER METHODS (PRESERVED)
+    // =====================================================
 
     /**
      * Get chart data array - SAFE VERSION dengan enhanced error handling
