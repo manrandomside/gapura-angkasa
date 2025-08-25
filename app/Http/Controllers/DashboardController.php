@@ -522,7 +522,7 @@ class DashboardController extends Controller
                     'periods_supported' => ['today', 'this_week', 'total_period']  // Only 3 periods
                 ],
                 'timestamp' => now()->toISOString(),
-                'version' => '1.9.0',
+                'version' => '1.10.0',
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -670,18 +670,72 @@ class DashboardController extends Controller
 
     /**
      * FIXED: Calculate history summary statistics - Only 3 periods (Today, This Week, 30 Days)
+     * Fixed timezone and date calculation issues
      */
     private function calculateHistorySummarySafe($startDate, $endDate)
     {
         try {
-            $today = Carbon::today();
-            $weekStart = Carbon::now()->startOfWeek();
+            // Set timezone to Indonesia (WITA)
+            $timezone = 'Asia/Makassar';
+            
+            // Get current time in Indonesia timezone
+            $now = Carbon::now($timezone);
+            $today = $now->copy()->startOfDay();
+            $weekStart = $now->copy()->startOfWeek(); // Monday
+            
+            Log::debug('SUMMARY CALCULATION: Date ranges', [
+                'timezone' => $timezone,
+                'now' => $now->toISOString(),
+                'today_start' => $today->toISOString(),
+                'week_start' => $weekStart->toISOString(),
+                'period_start' => $startDate->toISOString(),
+                'period_end' => $endDate->toISOString()
+            ]);
 
-            // Only calculate the 3 required statistics
+            // Calculate statistics with proper timezone handling
+            $todayCount = Employee::where('created_at', '>=', $today)
+                                 ->where('created_at', '<', $today->copy()->addDay())
+                                 ->count();
+            
+            $thisWeekCount = Employee::where('created_at', '>=', $weekStart)
+                                    ->where('created_at', '<=', $now->copy()->endOfDay())
+                                    ->count();
+            
+            $totalPeriodCount = Employee::whereBetween('created_at', [$startDate, $endDate])
+                                       ->count();
+
+            Log::debug('SUMMARY CALCULATION: Raw counts', [
+                'today_count' => $todayCount,
+                'this_week_count' => $thisWeekCount,
+                'total_period_count' => $totalPeriodCount
+            ]);
+
+            // Debug: Let's also check what dates are in the database for recent records
+            $recentRecords = Employee::where('created_at', '>=', $today->copy()->subDays(7))
+                                    ->select(['id', 'nama_lengkap', 'created_at'])
+                                    ->orderBy('created_at', 'desc')
+                                    ->limit(5)
+                                    ->get()
+                                    ->map(function($emp) use ($timezone) {
+                                        return [
+                                            'id' => $emp->id,
+                                            'name' => $emp->nama_lengkap,
+                                            'created_at' => $emp->created_at,
+                                            'created_at_indonesia' => $emp->created_at->setTimezone($timezone)->format('Y-m-d H:i:s T'),
+                                            'days_ago' => $emp->created_at->diffInDays(Carbon::now($timezone)),
+                                            'is_today' => $emp->created_at->setTimezone($timezone)->isToday(),
+                                            'is_this_week' => $emp->created_at->setTimezone($timezone)->isCurrentWeek()
+                                        ];
+                                    });
+
+            Log::debug('SUMMARY CALCULATION: Recent records analysis', [
+                'recent_records' => $recentRecords->toArray()
+            ]);
+
             $summary = [
-                'today' => Employee::whereDate('created_at', $today)->count(),
-                'this_week' => Employee::where('created_at', '>=', $weekStart)->count(), 
-                'total_period' => Employee::whereBetween('created_at', [$startDate, $endDate])->count()
+                'today' => $todayCount,
+                'this_week' => $thisWeekCount, 
+                'total_period' => $totalPeriodCount
             ];
 
             // Add growth calculation for 30 days period
@@ -694,18 +748,21 @@ class DashboardController extends Controller
                 $summary['growth_percentage'] = $summary['total_period'] > 0 ? 100 : 0;
             }
 
-            Log::debug('FIXED: History summary calculated (3 periods only)', [
+            Log::info('SUMMARY CALCULATION: Final summary (3 periods only)', [
                 'today' => $summary['today'],
                 'this_week' => $summary['this_week'], 
                 'total_period' => $summary['total_period'],
-                'growth_percentage' => $summary['growth_percentage']
+                'growth_percentage' => $summary['growth_percentage'],
+                'timezone_used' => $timezone
             ]);
 
             return $summary;
 
         } catch (\Exception $e) {
-            Log::error('SAFE: Summary calculation error', [
-                'error' => $e->getMessage()
+            Log::error('SUMMARY CALCULATION: Error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             
             return [

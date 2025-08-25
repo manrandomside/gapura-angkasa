@@ -60,10 +60,10 @@ const HistoryModal = ({ isOpen, onClose }) => {
         try {
             console.log("HISTORY MODAL: Starting to fetch employee history...");
 
-            // Parallel fetch untuk history dan summary data
+            // Parallel fetch untuk history dan summary data dengan timeout yang lebih panjang untuk device lambat
             const [historyResponse, summaryResponse] = await Promise.all([
                 axios.get("/api/dashboard/employee-history", {
-                    timeout: 15000,
+                    timeout: 60000, // 60 detik untuk device lambat
                     headers: {
                         Accept: "application/json",
                         "Content-Type": "application/json",
@@ -71,7 +71,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                 }),
                 axios
                     .get("/api/dashboard/employee-history-summary", {
-                        timeout: 15000,
+                        timeout: 60000, // 60 detik untuk device lambat
                         headers: {
                             Accept: "application/json",
                             "Content-Type": "application/json",
@@ -237,13 +237,13 @@ const HistoryModal = ({ isOpen, onClose }) => {
         }
     };
 
-    // ENHANCED: Retry function dengan exponential backoff
+    // ENHANCED: Retry function with longer delays for slow devices
     const handleRetry = () => {
         const newRetryCount = retryCount + 1;
         setRetryCount(newRetryCount);
 
-        // Add slight delay for better UX
-        const delay = Math.min(1000 * newRetryCount, 3000); // Max 3 second delay
+        // Longer delay for slow devices - be more patient
+        const delay = Math.min(2000 * newRetryCount, 8000); // Max 8 second delay, increased for patience
         setTimeout(() => {
             fetchHistoryData();
         }, delay);
@@ -439,31 +439,10 @@ const HistoryModal = ({ isOpen, onClose }) => {
         return "bg-gray-100 text-gray-600 border-gray-300";
     };
 
-    // Connection status icon
-    const getConnectionIcon = () => {
-        switch (connectionStatus) {
-            case "connected":
-                return <Wifi className="w-5 h-5 text-green-500" />;
-            case "disconnected":
-                return <WifiOff className="w-5 h-5 text-red-500" />;
-            case "connecting":
-                return (
-                    <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
-                );
-            default:
-                return <Database className="w-5 h-5 text-gray-500" />;
-        }
-    };
-
     // Close modal handler
     const handleClose = () => {
         resetModalState();
         onClose();
-    };
-
-    // Toggle debug info
-    const toggleDebugInfo = () => {
-        setShowDebug(!showDebug);
     };
 
     if (!isOpen) return null;
@@ -471,7 +450,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
             <div className="relative w-full max-w-6xl max-h-[90vh] mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
-                {/* ENHANCED: Header dengan connection status */}
+                {/* Header */}
                 <div className="flex items-center justify-between p-6 bg-gradient-to-r from-[#439454] to-[#367a41] text-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-lg bg-opacity-20">
@@ -488,25 +467,6 @@ const HistoryModal = ({ isOpen, onClose }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* Connection Status */}
-                        <div
-                            className="p-2 transition-all duration-200 bg-white rounded-lg bg-opacity-20"
-                            title={`Status: ${connectionStatus}`}
-                        >
-                            {getConnectionIcon()}
-                        </div>
-
-                        {/* Debug Toggle Button */}
-                        {(debugInfo || error) && (
-                            <button
-                                onClick={toggleDebugInfo}
-                                className="p-2 transition-all duration-200 bg-white rounded-lg bg-opacity-20 hover:bg-opacity-30"
-                                title="Toggle Debug Info"
-                            >
-                                <Info className="w-5 h-5" />
-                            </button>
-                        )}
-
                         {/* Retry Button */}
                         {!loading && (
                             <button
@@ -528,10 +488,10 @@ const HistoryModal = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                {/* ENHANCED: Summary Header dengan statistik */}
+                {/* Summary Header - 3 Columns Only */}
                 {summaryData && summaryData.summary && !loading && !error && (
                     <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-green-50">
-                        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div className="text-center">
                                 <div className="text-2xl font-bold text-[#439454]">
                                     {summaryData.summary.today || 0}
@@ -541,27 +501,11 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                 </div>
                             </div>
                             <div className="text-center">
-                                <div className="text-2xl font-bold text-blue-600">
-                                    {summaryData.summary.yesterday || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    Kemarin
-                                </div>
-                            </div>
-                            <div className="text-center">
                                 <div className="text-2xl font-bold text-purple-600">
                                     {summaryData.summary.this_week || 0}
                                 </div>
                                 <div className="text-sm text-gray-600">
                                     Minggu Ini
-                                </div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-2xl font-bold text-orange-600">
-                                    {summaryData.summary.this_month || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    Bulan Ini
                                 </div>
                             </div>
                             <div className="text-center">
@@ -599,11 +543,14 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                 Memuat data history...
                             </p>
                             <p className="text-sm text-gray-500">
-                                Mohon tunggu sebentar
+                                {retryCount > 0
+                                    ? "Sistem sedang berusaha keras untuk device Anda"
+                                    : "Mohon tunggu sebentar"}
                             </p>
                             {retryCount > 0 && (
                                 <div className="mt-2 text-xs text-gray-400">
-                                    Percobaan ke-{retryCount + 1}
+                                    Percobaan ke-{retryCount + 1} - Sistem akan
+                                    sabar menunggu
                                 </div>
                             )}
                         </div>
@@ -688,7 +635,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                         className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-[#439454] transition-all duration-300"
                                     >
                                         <div className="flex items-start gap-4">
-                                            {/* ENHANCED: Avatar dengan gradient */}
+                                            {/* Avatar */}
                                             <div className="flex-shrink-0">
                                                 <div className="w-16 h-16 bg-gradient-to-r from-[#439454] to-[#367a41] rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
                                                     {getEmployeeInitial(
@@ -729,7 +676,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                         </div>
                                                     </div>
 
-                                                    {/* ENHANCED: Date Badge dengan relative time */}
+                                                    {/* Date Badge */}
                                                     <div className="flex flex-col items-end ml-4">
                                                         <div className="px-3 py-1 bg-[#439454] bg-opacity-10 text-[#439454] rounded-full text-sm font-medium mb-1 whitespace-nowrap">
                                                             {employee.relative_date ||
@@ -746,7 +693,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* ENHANCED: Organizational Structure */}
+                                                {/* Organizational Structure */}
                                                 <div className="mb-3">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <Building2 className="w-4 h-4 text-gray-400" />
@@ -763,7 +710,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* ENHANCED: Job Information */}
+                                                {/* Job Information */}
                                                 <div className="mb-3">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <Briefcase className="w-4 h-4 text-gray-400" />
@@ -792,7 +739,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                                     </div>
                                                 </div>
 
-                                                {/* ENHANCED: Status Information */}
+                                                {/* Status Information */}
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex items-center gap-2">
                                                         <UserCheck className="w-4 h-4 text-gray-400" />
@@ -816,30 +763,9 @@ const HistoryModal = ({ isOpen, onClose }) => {
                             </div>
                         </div>
                     )}
-
-                    {/* ENHANCED: Debug Information Panel */}
-                    {showDebug && debugInfo && (
-                        <div className="p-4 border-t border-gray-200 bg-gray-50">
-                            <div className="max-w-full">
-                                <h4 className="flex items-center gap-2 mb-2 font-medium text-gray-700">
-                                    <Database className="w-4 h-4" />
-                                    Debug Information:
-                                </h4>
-                                <div className="p-3 overflow-auto font-mono text-xs text-green-400 bg-gray-900 rounded-lg max-h-48">
-                                    <pre className="whitespace-pre-wrap">
-                                        {JSON.stringify(debugInfo, null, 2)}
-                                    </pre>
-                                </div>
-                                <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
-                                    <span>Connection: {connectionStatus}</span>
-                                    <span>Retry attempts: {retryCount}</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {/* ENHANCED: Footer dengan informasi tambahan */}
+                {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -865,10 +791,6 @@ const HistoryModal = ({ isOpen, onClose }) => {
                                         ).toLocaleTimeString("id-ID")}
                                     </span>
                                 )}
-                            <span className="flex items-center gap-1">
-                                {getConnectionIcon()}
-                                {connectionStatus}
-                            </span>
                         </div>
                     </div>
                 </div>
