@@ -38,6 +38,7 @@ const InputField = ({
     onBlur,
     error,
     disabled = false,
+    readonly = false,
     hint = null,
 }) => {
     const [focused, setFocused] = useState(false);
@@ -48,19 +49,46 @@ const InputField = ({
     }, [value]);
 
     const handleChange = (e) => {
-        onChange(name, e.target.value);
-        setHasValue(Boolean(e.target.value));
+        if (!readonly && !disabled) {
+            onChange(name, e.target.value);
+            setHasValue(Boolean(e.target.value));
+        }
     };
 
     const handleBlur = (e) => {
         setFocused(false);
-        if (onBlur) {
+        if (onBlur && !readonly && !disabled) {
             onBlur(name, e.target.value);
         }
     };
 
     const handleFocus = () => {
-        setFocused(true);
+        if (!readonly && !disabled) {
+            setFocused(true);
+        }
+    };
+
+    const getInputClasses = () => {
+        let baseClasses =
+            "w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:outline-none";
+
+        if (readonly) {
+            return `${baseClasses} bg-gray-100 border-gray-300 cursor-not-allowed text-gray-600`;
+        }
+
+        if (disabled) {
+            return `${baseClasses} border-gray-300 bg-gray-50 cursor-not-allowed opacity-50`;
+        }
+
+        if (error) {
+            return `${baseClasses} border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100`;
+        }
+
+        if (focused) {
+            return `${baseClasses} border-[#439454] bg-white shadow-md focus:border-[#439454] focus:ring-2 focus:ring-[#439454]/20`;
+        }
+
+        return `${baseClasses} border-gray-300 bg-white hover:border-[#439454]/60 focus:border-[#439454] focus:ring-2 focus:ring-[#439454]/20`;
     };
 
     return (
@@ -86,14 +114,8 @@ const InputField = ({
                     onChange={handleChange}
                     onBlur={handleBlur}
                     onFocus={handleFocus}
-                    disabled={disabled}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        error
-                            ? "border-red-300 bg-red-50"
-                            : focused
-                            ? "border-[#439454] bg-white"
-                            : "border-gray-300 bg-white"
-                    }`}
+                    disabled={disabled || readonly}
+                    className={getInputClasses()}
                 >
                     <option value="">{placeholder || `Pilih ${label}`}</option>
                     {options.map((option) => (
@@ -114,14 +136,9 @@ const InputField = ({
                     onFocus={handleFocus}
                     placeholder={placeholder}
                     disabled={disabled}
+                    readOnly={readonly}
                     rows={4}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 resize-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                        error
-                            ? "border-red-300 bg-red-50"
-                            : focused
-                            ? "border-[#439454] bg-white"
-                            : "border-gray-300 bg-white"
-                    }`}
+                    className={`${getInputClasses()} resize-none`}
                 />
             ) : (
                 <input
@@ -133,13 +150,8 @@ const InputField = ({
                     onFocus={handleFocus}
                     placeholder={placeholder}
                     disabled={disabled}
-                    className={`w-full px-4 py-3 text-gray-900 transition-all duration-300 border-2 rounded-xl focus:ring-4 focus:ring-[#439454]/20 focus:border-[#439454] hover:border-[#439454]/60 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        error
-                            ? "border-red-300 bg-red-50"
-                            : focused
-                            ? "border-[#439454] bg-white"
-                            : "border-gray-300 bg-white"
-                    }`}
+                    readOnly={readonly}
+                    className={getInputClasses()}
                 />
             )}
 
@@ -235,12 +247,15 @@ export default function Create({
     statusPegawaiOptions = [],
     kelompokJabatanOptions = [],
     unitOrganisasiOptions = [],
+    providerOptions = [],
+    statusKerjaOptions = [],
     success = null,
     error = null,
     message = null,
 }) {
     const { data, setData, post, processing, errors, reset, clearErrors } =
         useForm({
+            // Existing fields
             nik: "",
             nip: "",
             nama_lengkap: "",
@@ -273,7 +288,32 @@ export default function Create({
             height: "",
             weight: "",
             seragam: "",
+
+            // NEW FIELDS
+            status_kerja: "Non-Aktif", // Auto-calculated
+            tmt_akhir_jabatan: "",
+            provider: "",
+            unit_kerja_kontrak: "",
+            grade: "",
+            lokasi_kerja: "Bandar Udara Ngurah Rai", // Fixed value
+            cabang: "DPS", // Fixed value
+            masa_kerja: "", // Auto-calculated
+            tmt_berakhir_kerja: "",
         });
+
+    // Provider options constant
+    const providerOptionsDefault = [
+        "PT Gapura Angkasa",
+        "PT Air Box Personalia",
+        "PT Finfleet Teknologi Indonesia",
+        "PT Mitra Angkasa Perdana",
+        "PT Safari Dharma Sakti",
+        "PT Grha Humanindo Management",
+        "PT Duta Griya Sarana",
+        "PT Aerotrans Wisata",
+        "PT Mandala Garda Nusantara",
+        "PT Kidora Mandiri Investama",
+    ];
 
     const [activeSection, setActiveSection] = useState("personal");
     const [formValidation, setFormValidation] = useState({});
@@ -289,6 +329,42 @@ export default function Create({
 
     // FIXED: Unit organisasi yang tidak memiliki sub unit
     const unitWithoutSubUnits = ["EGM", "GM"];
+
+    // NEW: Calculate masa kerja from TMT mulai kerja
+    const calculateMasaKerja = (startDate) => {
+        if (!startDate) return "";
+
+        const start = new Date(startDate);
+        const now = new Date();
+
+        let years = now.getFullYear() - start.getFullYear();
+        let months = now.getMonth() - start.getMonth();
+
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+
+        if (years > 0 && months > 0) {
+            return `${years} tahun ${months} bulan`;
+        } else if (years > 0) {
+            return `${years} tahun`;
+        } else if (months > 0) {
+            return `${months} bulan`;
+        } else {
+            return "Kurang dari 1 bulan";
+        }
+    };
+
+    // NEW: Calculate status kerja based on tmt_berakhir_kerja
+    const calculateStatusKerja = (berakhirKerja) => {
+        if (!berakhirKerja) return "Non-Aktif";
+
+        const today = new Date();
+        const endDate = new Date(berakhirKerja);
+
+        return today <= endDate ? "Aktif" : "Non-Aktif";
+    };
 
     // Show notification dari session
     useEffect(() => {
@@ -306,6 +382,26 @@ export default function Create({
             });
         }
     }, [success, error]);
+
+    // NEW: Auto-calculate masa kerja when tmt_mulai_kerja changes
+    useEffect(() => {
+        if (data.tmt_mulai_kerja) {
+            const masaKerja = calculateMasaKerja(data.tmt_mulai_kerja);
+            setData("masa_kerja", masaKerja);
+        } else {
+            setData("masa_kerja", "");
+        }
+    }, [data.tmt_mulai_kerja]);
+
+    // NEW: Auto-calculate status kerja when tmt_berakhir_kerja changes
+    useEffect(() => {
+        if (data.tmt_berakhir_kerja) {
+            const statusKerja = calculateStatusKerja(data.tmt_berakhir_kerja);
+            setData("status_kerja", statusKerja);
+        } else {
+            setData("status_kerja", "Non-Aktif");
+        }
+    }, [data.tmt_berakhir_kerja]);
 
     // FIXED: Fetch units berdasarkan unit organisasi dengan error handling yang lebih baik
     const fetchUnits = async (unitOrganisasi) => {
@@ -575,6 +671,39 @@ export default function Create({
                     }
                 }
                 break;
+            // NEW: Validation for new fields
+            case "unit_kerja_kontrak":
+                if (value && value.length > 255) {
+                    error = "Unit kerja kontrak maksimal 255 karakter";
+                }
+                break;
+            case "grade":
+                if (value && value.length > 50) {
+                    error = "Grade maksimal 50 karakter";
+                }
+                break;
+            case "tmt_akhir_jabatan":
+                if (value && data.tmt_mulai_jabatan) {
+                    const mulaiJabatan = new Date(data.tmt_mulai_jabatan);
+                    const akhirJabatan = new Date(value);
+
+                    if (akhirJabatan <= mulaiJabatan) {
+                        error =
+                            "TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan";
+                    }
+                }
+                break;
+            case "tmt_berakhir_kerja":
+                if (value && data.tmt_mulai_kerja) {
+                    const mulaiKerja = new Date(data.tmt_mulai_kerja);
+                    const berakhirKerja = new Date(value);
+
+                    if (berakhirKerja <= mulaiKerja) {
+                        error =
+                            "TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja";
+                    }
+                }
+                break;
         }
 
         setFormValidation((prev) => ({
@@ -590,7 +719,7 @@ export default function Create({
         return error;
     };
 
-    // ENHANCED: handleInputChange dengan improved cascading logic
+    // ENHANCED: handleInputChange dengan improved cascading logic dan NEW FIELD logic
     const handleInputChange = (name, value) => {
         setData(name, value);
 
@@ -645,6 +774,74 @@ export default function Create({
             }
         }
 
+        // NEW: Date validation for TMT Akhir Jabatan
+        if (name === "tmt_akhir_jabatan") {
+            if (value && data.tmt_mulai_jabatan) {
+                const mulaiJabatan = new Date(data.tmt_mulai_jabatan);
+                const akhirJabatan = new Date(value);
+
+                if (akhirJabatan <= mulaiJabatan) {
+                    setFormValidation((prev) => ({
+                        ...prev,
+                        tmt_akhir_jabatan:
+                            "TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan",
+                    }));
+                } else {
+                    setFormValidation((prev) => ({
+                        ...prev,
+                        tmt_akhir_jabatan: "",
+                    }));
+                }
+            }
+        }
+
+        // NEW: Date validation for TMT Berakhir Kerja
+        if (name === "tmt_berakhir_kerja") {
+            if (value && data.tmt_mulai_kerja) {
+                const mulaiKerja = new Date(data.tmt_mulai_kerja);
+                const berakhirKerja = new Date(value);
+
+                if (berakhirKerja <= mulaiKerja) {
+                    setFormValidation((prev) => ({
+                        ...prev,
+                        tmt_berakhir_kerja:
+                            "TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja",
+                    }));
+                } else {
+                    setFormValidation((prev) => ({
+                        ...prev,
+                        tmt_berakhir_kerja: "",
+                    }));
+                    // Update status kerja when valid berakhir kerja is set
+                    const statusKerja = calculateStatusKerja(value);
+                    setData("status_kerja", statusKerja);
+                }
+            }
+        }
+
+        // Clear dependent fields when parent date changes
+        if (name === "tmt_mulai_jabatan") {
+            if (data.tmt_akhir_jabatan) {
+                setData("tmt_akhir_jabatan", "");
+                setFormValidation((prev) => ({
+                    ...prev,
+                    tmt_akhir_jabatan: "",
+                }));
+            }
+        }
+
+        if (name === "tmt_mulai_kerja") {
+            if (data.tmt_berakhir_kerja) {
+                setData("tmt_berakhir_kerja", "");
+                setData("status_kerja", "Non-Aktif");
+                setData("masa_kerja", "");
+                setFormValidation((prev) => ({
+                    ...prev,
+                    tmt_berakhir_kerja: "",
+                }));
+            }
+        }
+
         // Clear errors saat user mulai mengetik
         if (errors[name]) {
             clearErrors(name);
@@ -659,7 +856,18 @@ export default function Create({
         }
 
         // Real-time validation for important fields
-        if (["nik", "nip", "email", "handphone"].includes(name)) {
+        if (
+            [
+                "nik",
+                "nip",
+                "email",
+                "handphone",
+                "unit_kerja_kontrak",
+                "grade",
+                "tmt_akhir_jabatan",
+                "tmt_berakhir_kerja",
+            ].includes(name)
+        ) {
             setTimeout(() => validateField(name, value), 500);
         }
     };
@@ -698,6 +906,17 @@ export default function Create({
                 newErrors[field] = message;
             }
         });
+
+        // Additional validation for date dependencies
+        if (data.tmt_akhir_jabatan && !data.tmt_mulai_jabatan) {
+            newErrors.tmt_mulai_jabatan =
+                "TMT Mulai Jabatan harus diisi terlebih dahulu";
+        }
+
+        if (data.tmt_berakhir_kerja && !data.tmt_mulai_kerja) {
+            newErrors.tmt_mulai_kerja =
+                "TMT Mulai Kerja harus diisi terlebih dahulu";
+        }
 
         return newErrors;
     };
@@ -834,6 +1053,14 @@ export default function Create({
                     errorMessage = "Status pegawai wajib dipilih";
                 } else if (errors.kelompok_jabatan) {
                     errorMessage = "Kelompok jabatan wajib dipilih";
+                } else if (errors.provider) {
+                    errorMessage = "Provider yang dipilih tidak valid";
+                } else if (errors.tmt_akhir_jabatan) {
+                    errorMessage =
+                        "TMT Akhir Jabatan harus diatas TMT Mulai Jabatan";
+                } else if (errors.tmt_berakhir_kerja) {
+                    errorMessage =
+                        "TMT Berakhir Kerja harus diatas TMT Mulai Kerja";
                 } else if (Object.keys(errors).length > 0) {
                     const firstError = Object.values(errors)[0];
                     errorMessage =
@@ -1047,7 +1274,7 @@ export default function Create({
         </div>
     );
 
-    // FIXED: renderWorkSection dengan cascading dropdown struktur organisasi lengkap
+    // UPDATED: renderWorkSection dengan field baru
     const renderWorkSection = () => {
         // FIXED: Determine if sub unit is required
         const isSubUnitRequired =
@@ -1218,19 +1445,21 @@ export default function Create({
                     )}
                 </div>
 
+                {/* Main Work Information Section */}
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
                         name="nama_jabatan"
                         label="Nama Jabatan"
                         required={true}
                         placeholder="Contoh: Manager Operasional"
-                        icon={UserCheck}
+                        icon={Briefcase}
                         value={data.nama_jabatan}
                         onChange={handleInputChange}
                         error={
                             errors.nama_jabatan || formValidation.nama_jabatan
                         }
                     />
+
                     <InputField
                         name="status_pegawai"
                         label="Status Pegawai"
@@ -1254,6 +1483,7 @@ export default function Create({
                             formValidation.status_pegawai
                         }
                     />
+
                     <InputField
                         name="kelompok_jabatan"
                         label="Kelompok Jabatan"
@@ -1277,6 +1507,26 @@ export default function Create({
                             formValidation.kelompok_jabatan
                         }
                     />
+
+                    {/* NEW FIELD: Provider */}
+                    <InputField
+                        name="provider"
+                        label="Provider"
+                        options={
+                            providerOptions.length > 0
+                                ? providerOptions
+                                : providerOptionsDefault
+                        }
+                        placeholder="Pilih Provider"
+                        icon={Building2}
+                        value={data.provider}
+                        onChange={handleInputChange}
+                        error={errors.provider}
+                    />
+                </div>
+
+                {/* Date Fields Section */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
                         name="tmt_mulai_kerja"
                         label="TMT Mulai Kerja"
@@ -1287,6 +1537,23 @@ export default function Create({
                         error={errors.tmt_mulai_kerja}
                         hint="Tanggal Mulai Tugas pertama kali bekerja"
                     />
+
+                    <InputField
+                        name="tmt_berakhir_kerja"
+                        label="TMT Berakhir Kerja"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_berakhir_kerja}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.tmt_berakhir_kerja ||
+                            formValidation.tmt_berakhir_kerja
+                        }
+                        disabled={!data.tmt_mulai_kerja}
+                        hint="Harus diisi setelah TMT Mulai Kerja diisi"
+                    />
+
                     <InputField
                         name="tmt_mulai_jabatan"
                         label="TMT Mulai Jabatan"
@@ -1297,6 +1564,102 @@ export default function Create({
                         error={errors.tmt_mulai_jabatan}
                         hint="Tanggal Mulai Tugas pada jabatan saat ini"
                     />
+
+                    {/* NEW FIELD: TMT Akhir Jabatan */}
+                    <InputField
+                        name="tmt_akhir_jabatan"
+                        label="TMT Akhir Jabatan"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_akhir_jabatan}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.tmt_akhir_jabatan ||
+                            formValidation.tmt_akhir_jabatan
+                        }
+                        disabled={!data.tmt_mulai_jabatan}
+                        hint="Harus diisi setelah TMT Mulai Jabatan diisi"
+                    />
+                </div>
+
+                {/* Additional Work Information */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    {/* NEW FIELD: Status Kerja - Read Only */}
+                    <InputField
+                        name="status_kerja"
+                        label="Status Kerja"
+                        value={data.status_kerja}
+                        onChange={handleInputChange}
+                        error={errors.status_kerja}
+                        readonly={true}
+                        hint="Otomatis berdasarkan TMT Berakhir Kerja"
+                        icon={UserCheck}
+                    />
+
+                    {/* NEW FIELD: Unit Kerja Kontrak */}
+                    <InputField
+                        name="unit_kerja_kontrak"
+                        label="Unit Kerja Sesuai Kontrak"
+                        placeholder="Contoh: ADMINISTRASI"
+                        icon={Building2}
+                        value={data.unit_kerja_kontrak}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.unit_kerja_kontrak ||
+                            formValidation.unit_kerja_kontrak
+                        }
+                    />
+
+                    {/* NEW FIELD: Grade */}
+                    <InputField
+                        name="grade"
+                        label="Grade"
+                        placeholder="Contoh: IX"
+                        icon={Users}
+                        value={data.grade}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={errors.grade || formValidation.grade}
+                    />
+
+                    {/* NEW FIELD: Lokasi Kerja - Read Only */}
+                    <InputField
+                        name="lokasi_kerja"
+                        label="Lokasi Kerja"
+                        value={data.lokasi_kerja}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={MapPin}
+                        hint="Otomatis terisi Bandar Udara Ngurah Rai"
+                    />
+
+                    {/* NEW FIELD: Cabang - Read Only */}
+                    <InputField
+                        name="cabang"
+                        label="Cabang"
+                        value={data.cabang}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={MapPin}
+                        hint="Otomatis terisi DPS"
+                    />
+
+                    {/* NEW FIELD: Masa Kerja - Read Only */}
+                    <InputField
+                        name="masa_kerja"
+                        label="Masa Kerja"
+                        value={data.masa_kerja}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={Calendar}
+                        hint="Otomatis dihitung berdasarkan TMT Mulai Kerja"
+                    />
+                </div>
+
+                {/* Existing TMT Pensiun field */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
                         name="tmt_pensiun"
                         label="TMT Pensiun"
@@ -1305,8 +1668,12 @@ export default function Create({
                         value={data.tmt_pensiun}
                         onChange={handleInputChange}
                         error={errors.tmt_pensiun}
-                        disabled={true}
-                        hint="Otomatis dihitung dari tanggal lahir (56 tahun dengan logika baru)"
+                        readonly={true}
+                        hint={
+                            calculatedAge
+                                ? `Otomatis dihitung dari tanggal lahir (Usia saat ini: ${calculatedAge} tahun)`
+                                : "Akan otomatis terisi saat tanggal lahir diisi"
+                        }
                     />
                 </div>
             </div>

@@ -35,7 +35,7 @@ class Employee extends Model
     protected $keyType = 'int';
 
     /**
-     * FIXED: Fillable attributes - NIK sebagai unique field (bukan primary key)
+     * UPDATED: Fillable attributes dengan field baru yang ditambahkan
      * Mempertahankan semua field yang diperlukan untuk seeder compatibility
      */
     protected $fillable = [
@@ -45,8 +45,8 @@ class Employee extends Model
         'lokasi_kerja',
         'cabang',
         'status_pegawai',
-        'status_kerja',
-        'provider',
+        'status_kerja', // NEW: Status kerja otomatis
+        'provider', // NEW: Provider perusahaan
         'kode_organisasi',
         'unit_organisasi',
         'unit_id',
@@ -54,13 +54,16 @@ class Employee extends Model
         'nama_organisasi',
         'nama_jabatan',
         'jabatan',
-        'unit_kerja_kontrak',
+        'unit_kerja_kontrak', // NEW: Unit kerja sesuai kontrak
         'tmt_mulai_kerja',
         'tmt_mulai_jabatan',
+        'tmt_akhir_jabatan', // NEW: TMT akhir jabatan
         'tmt_berakhir_jabatan',
         'tmt_berakhir_kerja',
         'masa_kerja_bulan',
         'masa_kerja_tahun',
+        'masa_kerja', // NEW: Masa kerja calculated field
+        'grade', // NEW: Grade karyawan
         'jenis_kelamin',
         'jenis_sepatu',
         'ukuran_sepatu',
@@ -81,7 +84,6 @@ class Employee extends Model
         'email',
         'kategori_karyawan',
         'tmt_pensiun',
-        'grade',
         'no_bpjs_kesehatan',
         'no_bpjs_ketenagakerjaan',
         'kelompok_jabatan',
@@ -100,9 +102,13 @@ class Employee extends Model
         'no_telepon'
     ];
 
+    /**
+     * UPDATED: Cast attributes dengan field baru
+     */
     protected $casts = [
         'tmt_mulai_kerja' => 'date',
         'tmt_mulai_jabatan' => 'date',
+        'tmt_akhir_jabatan' => 'date', // NEW
         'tmt_berakhir_jabatan' => 'date',
         'tmt_berakhir_kerja' => 'date',
         'tanggal_lahir' => 'date',
@@ -169,7 +175,7 @@ class Employee extends Model
     }
 
     // =====================================================
-    // CONSTANTS - FITUR BARU
+    // CONSTANTS - UPDATED WITH NEW FIELDS
     // =====================================================
 
     /**
@@ -191,6 +197,32 @@ class Employee extends Model
         'PKWT',
         'TAD PAKET SDM',
         'TAD PAKET PEKERJAAN'
+    ];
+
+    /**
+     * NEW: Provider options constant
+     */
+    const PROVIDER_OPTIONS = [
+        'PT Gapura Angkasa',
+        'PT Air Box Personalia',
+        'PT Finfleet Teknologi Indonesia',
+        'PT Mitra Angkasa Perdana',
+        'PT Safari Dharma Sakti',
+        'PT Grha Humanindo Management',
+        'PT Duta Griya Sarana',
+        'PT Aerotrans Wisata',
+        'PT Mandala Garda Nusantara',
+        'PT Kidora Mandiri Investama'
+    ];
+
+    /**
+     * NEW: Status kerja options constant
+     */
+    const STATUS_KERJA_OPTIONS = [
+        'Aktif',
+        'Non-Aktif',
+        'Pensiun',
+        'Mutasi'
     ];
 
     // =====================================================
@@ -242,6 +274,147 @@ class Employee extends Model
             ]);
             return null;
         }
+    }
+
+    // =====================================================
+    // NEW FIELD METHODS - AUTO CALCULATION
+    // =====================================================
+
+    /**
+     * NEW: Calculate masa kerja from TMT mulai kerja
+     */
+    public function calculateMasaKerja()
+    {
+        if (!$this->tmt_mulai_kerja) {
+            return null;
+        }
+
+        $startDate = Carbon::parse($this->tmt_mulai_kerja);
+        $endDate = Carbon::now('Asia/Makassar');
+        
+        $years = $endDate->diffInYears($startDate);
+        $months = $endDate->diffInMonths($startDate) % 12;
+
+        if ($years > 0 && $months > 0) {
+            return "{$years} tahun {$months} bulan";
+        } elseif ($years > 0) {
+            return "{$years} tahun";
+        } elseif ($months > 0) {
+            return "{$months} bulan";
+        } else {
+            return "Kurang dari 1 bulan";
+        }
+    }
+
+    /**
+     * NEW: Calculate status kerja based on tmt_berakhir_kerja
+     */
+    public function calculateStatusKerja()
+    {
+        if (!$this->tmt_berakhir_kerja) {
+            return 'Non-Aktif';
+        }
+
+        $today = Carbon::now('Asia/Makassar');
+        $endDate = Carbon::parse($this->tmt_berakhir_kerja);
+
+        if ($today->lte($endDate)) {
+            return 'Aktif';
+        } else {
+            return 'Non-Aktif';
+        }
+    }
+
+    /**
+     * NEW: Update calculated fields automatically
+     */
+    public function updateCalculatedFields()
+    {
+        // Set fixed values
+        $this->lokasi_kerja = 'Bandar Udara Ngurah Rai';
+        $this->cabang = 'DPS';
+
+        // Calculate masa kerja
+        if ($this->tmt_mulai_kerja) {
+            $this->masa_kerja = $this->calculateMasaKerja();
+        }
+
+        // Auto-set status kerja based on tmt_berakhir_kerja
+        $this->status_kerja = $this->calculateStatusKerja();
+    }
+
+    // =====================================================
+    // NEW SCOPES FOR NEW FIELDS
+    // =====================================================
+
+    /**
+     * NEW: Scope for active employees by status_kerja
+     */
+    public function scopeStatusKerjaAktif($query)
+    {
+        return $query->where('status_kerja', 'Aktif');
+    }
+
+    /**
+     * NEW: Scope for employees by provider
+     */
+    public function scopeByProvider($query, $provider)
+    {
+        return $query->where('provider', $provider);
+    }
+
+    /**
+     * NEW: Scope for employees by grade
+     */
+    public function scopeByGrade($query, $grade)
+    {
+        return $query->where('grade', $grade);
+    }
+
+    // =====================================================
+    // NEW MUTATORS FOR VALIDATION
+    // =====================================================
+
+    /**
+     * NEW: Mutator to ensure tmt_akhir_jabatan is after tmt_mulai_jabatan
+     */
+    public function setTmtAkhirJabatanAttribute($value)
+    {
+        if ($value && $this->tmt_mulai_jabatan) {
+            $mulaiJabatan = Carbon::parse($this->tmt_mulai_jabatan);
+            $akhirJabatan = Carbon::parse($value);
+            
+            if ($akhirJabatan->lte($mulaiJabatan)) {
+                throw new \InvalidArgumentException('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan');
+            }
+        }
+        
+        $this->attributes['tmt_akhir_jabatan'] = $value;
+    }
+
+    /**
+     * NEW: Mutator to ensure tmt_berakhir_kerja is after tmt_mulai_kerja
+     */
+    public function setTmtBerakhirKerjaAttribute($value)
+    {
+        if ($value && $this->tmt_mulai_kerja) {
+            $mulaiKerja = Carbon::parse($this->tmt_mulai_kerja);
+            $berakhirKerja = Carbon::parse($value);
+            
+            if ($berakhirKerja->lte($mulaiKerja)) {
+                throw new \InvalidArgumentException('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja');
+            }
+        }
+        
+        $this->attributes['tmt_berakhir_kerja'] = $value;
+    }
+
+    /**
+     * NEW: Accessor for formatted masa kerja
+     */
+    public function getMasaKerjaFormattedAttribute()
+    {
+        return $this->masa_kerja ?: $this->calculateMasaKerja();
     }
 
     // =====================================================
@@ -575,7 +748,10 @@ class Employee extends Model
               ->orWhere('handphone', 'like', $searchTerm)
               ->orWhere('email', 'like', $searchTerm)
               ->orWhere('tempat_lahir', 'like', $searchTerm)
-              ->orWhere('alamat', 'like', $searchTerm);
+              ->orWhere('alamat', 'like', $searchTerm)
+              ->orWhere('provider', 'like', $searchTerm) // NEW: Include provider in search
+              ->orWhere('unit_kerja_kontrak', 'like', $searchTerm) // NEW: Include unit_kerja_kontrak in search
+              ->orWhere('grade', 'like', $searchTerm); // NEW: Include grade in search
               
             // FIXED: Search dalam unit dan sub unit dengan enhanced error handling
             try {
@@ -788,7 +964,7 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Comprehensive filter scope untuk pagination dengan error handling
+     * UPDATED: Comprehensive filter scope untuk pagination dengan error handling dan field baru
      */
     public function scopeApplyFilters(Builder $query, array $filters)
     {
@@ -837,6 +1013,19 @@ class Employee extends Model
 
             if (!empty($filters['pendidikan'])) {
                 $query->byPendidikan($filters['pendidikan']);
+            }
+
+            // NEW: Filters for new fields
+            if (!empty($filters['provider'])) {
+                $query->byProvider($filters['provider']);
+            }
+
+            if (!empty($filters['status_kerja'])) {
+                $query->where('status_kerja', $filters['status_kerja']);
+            }
+
+            if (!empty($filters['grade'])) {
+                $query->byGrade($filters['grade']);
             }
 
         } catch (\Exception $e) {
@@ -911,32 +1100,6 @@ class Employee extends Model
         }
         
         return Carbon::parse($this->tanggal_lahir)->age;
-    }
-
-    /**
-     * Accessor untuk mendapatkan masa kerja dalam format yang lebih rapi
-     */
-    public function getMasaKerjaFormattedAttribute()
-    {
-        if ($this->tmt_mulai_kerja) {
-            $diff = Carbon::parse($this->tmt_mulai_kerja)->diff(Carbon::now());
-            $years = $diff->y;
-            $months = $diff->m;
-            
-            $result = [];
-            if ($years > 0) {
-                $result[] = $years . ' tahun';
-            }
-            if ($months > 0) {
-                $result[] = $months . ' bulan';
-            }
-            
-            return !empty($result) ? implode(' ', $result) : '0 bulan';
-        }
-        
-        return $this->masa_kerja_tahun && $this->masa_kerja_bulan 
-            ? $this->masa_kerja_tahun . ', ' . $this->masa_kerja_bulan
-            : null;
     }
 
     /**
@@ -1091,8 +1254,7 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * Get comprehensive statistics untuk dashboard
-     * UPDATED: Tambah TAD Split dan Kelompok Jabatan
+     * UPDATED: Get comprehensive statistics untuk dashboard dengan field baru
      */
     public static function getComprehensiveStatistics()
     {
@@ -1110,6 +1272,16 @@ class Employee extends Model
             'tad_paket_pekerjaan' => $tadPaketPekerjaan,
             'male_employees' => self::whereIn('jenis_kelamin', ['L', 'Laki-laki'])->count(),
             'female_employees' => self::whereIn('jenis_kelamin', ['P', 'Perempuan'])->count(),
+            
+            // NEW: Status kerja statistics
+            'status_kerja_aktif' => self::where('status_kerja', 'Aktif')->count(),
+            'status_kerja_non_aktif' => self::where('status_kerja', 'Non-Aktif')->count(),
+            'status_kerja_pensiun' => self::where('status_kerja', 'Pensiun')->count(),
+            'status_kerja_mutasi' => self::where('status_kerja', 'Mutasi')->count(),
+            
+            // NEW: Provider statistics
+            'by_provider' => self::getByProvider(),
+            
             'shoe_statistics' => [
                 'pantofel' => self::where('jenis_sepatu', 'Pantofel')->count(),
                 'safety_shoes' => self::where('jenis_sepatu', 'Safety Shoes')->count(),
@@ -1128,8 +1300,27 @@ class Employee extends Model
     }
 
     /**
-     * Get filter options untuk dropdown - optimized untuk pagination
-     * UPDATED: Tambah kelompok jabatan options dan unit options
+     * NEW: Get employees by provider dengan count
+     */
+    public static function getByProvider()
+    {
+        return self::select('provider', \DB::raw('count(*) as total'))
+                   ->whereNotNull('provider')
+                   ->where('provider', '!=', '')
+                   ->where('status', 'active')
+                   ->groupBy('provider')
+                   ->orderBy('total', 'desc')
+                   ->get()
+                   ->map(function ($item) {
+                       return [
+                           'name' => $item->provider,
+                           'count' => $item->total,
+                       ];
+                   });
+    }
+
+    /**
+     * UPDATED: Get filter options untuk dropdown dengan field baru
      */
     public static function getFilterOptions()
     {
@@ -1189,6 +1380,25 @@ class Employee extends Model
                                      ->pluck('kelompok_jabatan')
                                      ->filter()
                                      ->values(),
+            
+            // NEW: Filter options for new fields
+            'providers' => self::whereNotNull('provider')
+                              ->where('provider', '!=', '')
+                              ->distinct()
+                              ->orderBy('provider')
+                              ->pluck('provider')
+                              ->filter()
+                              ->values(),
+            
+            'grades' => self::whereNotNull('grade')
+                           ->where('grade', '!=', '')
+                           ->distinct()
+                           ->orderBy('grade')
+                           ->pluck('grade')
+                           ->filter()
+                           ->values(),
+            
+            'status_kerja' => self::STATUS_KERJA_OPTIONS,
         ];
     }
 
@@ -1427,8 +1637,7 @@ class Employee extends Model
     }
 
     /**
-     * Calculate profile completion percentage
-     * UPDATED: Tidak include no_telepon dalam perhitungan
+     * UPDATED: Calculate profile completion percentage dengan field baru
      */
     public function getProfileCompletionPercentage()
     {
@@ -1437,7 +1646,7 @@ class Employee extends Model
             'tanggal_lahir', 'alamat', 'handphone', 'email',
             'unit_organisasi', 'nama_jabatan', 'status_pegawai', 'kelompok_jabatan',
             'tmt_mulai_jabatan', 'pendidikan_terakhir', 'jenis_sepatu', 
-            'ukuran_sepatu', 'seragam'
+            'ukuran_sepatu', 'seragam', 'provider', 'grade'
         ];
 
         $completedFields = 0;
@@ -1485,8 +1694,7 @@ class Employee extends Model
     }
 
     /**
-     * Generate ID card data
-     * UPDATED: Include NIK dan unit structure
+     * UPDATED: Generate ID card data dengan field baru
      */
     public function getIdCardData()
     {
@@ -1499,13 +1707,17 @@ class Employee extends Model
             'unit_organisasi' => $this->unit_organisasi,
             'unit_display' => $this->unit_display,
             'kelompok_jabatan' => $this->kelompok_jabatan,
+            'provider' => $this->provider,
+            'grade' => $this->grade,
+            'lokasi_kerja' => $this->lokasi_kerja,
+            'cabang' => $this->cabang,
             'initials' => $this->initials,
             'foto_url' => null, // Placeholder for future photo implementation
         ];
     }
 
     /**
-     * FIXED: Method untuk mendapatkan informasi ringkas employee
+     * UPDATED: Method untuk mendapatkan informasi ringkas employee dengan field baru
      */
     public function getSummaryAttribute()
     {
@@ -1517,16 +1729,19 @@ class Employee extends Model
             'unit' => $this->unit_organisasi,
             'jabatan' => $this->nama_jabatan,
             'status' => $this->status_pegawai,
+            'status_kerja' => $this->status_kerja,
+            'provider' => $this->provider,
+            'grade' => $this->grade,
+            'masa_kerja' => $this->masa_kerja,
         ];
     }
 
     // =====================================================
-    // BOOT METHOD - AUTO CALCULATIONS
+    // UPDATED BOOT METHOD - AUTO CALCULATIONS WITH NEW FIELDS
     // =====================================================
 
     /**
-     * REVISI: Boot method dengan logika TMT Pensiun yang diperbaiki
-     * ENHANCED: Include logging untuk history tracking
+     * UPDATED: Boot method dengan logika untuk field baru
      */
     protected static function boot()
     {
@@ -1540,16 +1755,16 @@ class Employee extends Model
             }
             
             if (empty($employee->status_kerja)) {
-                $employee->status_kerja = 'Aktif';
+                $employee->status_kerja = 'Non-Aktif';
             }
 
-            // Set default lokasi kerja dan cabang
+            // NEW: Set default lokasi kerja dan cabang
             if (empty($employee->lokasi_kerja)) {
                 $employee->lokasi_kerja = 'Bandar Udara Ngurah Rai';
             }
             
             if (empty($employee->cabang)) {
-                $employee->cabang = 'Denpasar';
+                $employee->cabang = 'DPS';
             }
 
             // Hitung usia otomatis jika ada tanggal lahir
@@ -1574,6 +1789,9 @@ class Employee extends Model
                 
                 $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
             }
+
+            // NEW: Auto-calculate masa kerja and status kerja
+            $employee->updateCalculatedFields();
         });
 
         // ENHANCED: Event ketika employee dibuat (untuk history tracking)
@@ -1586,6 +1804,9 @@ class Employee extends Model
                     'unit_organisasi' => $employee->unit_organisasi,
                     'unit_id' => $employee->unit_id,
                     'sub_unit_id' => $employee->sub_unit_id,
+                    'provider' => $employee->provider,
+                    'grade' => $employee->grade,
+                    'status_kerja' => $employee->status_kerja,
                     'created_at' => $employee->created_at
                 ]);
             } catch (\Exception $e) {
@@ -1613,6 +1834,11 @@ class Employee extends Model
                 }
                 
                 $employee->tmt_pensiun = $pensionDate->format('Y-m-d');
+            }
+
+            // NEW: Auto-update calculated fields when relevant fields change
+            if ($employee->isDirty(['tmt_mulai_kerja', 'tmt_berakhir_kerja'])) {
+                $employee->updateCalculatedFields();
             }
         });
 

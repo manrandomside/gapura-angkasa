@@ -493,7 +493,8 @@ class EmployeeController extends Controller
             Log::info('Employee Index Request', [
                 'filters' => $request->only([
                     'search', 'status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 
-                    'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'
+                    'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu',
+                    'provider', 'status_kerja', 'grade' // NEW FILTERS
                 ]),
                 'page' => $request->get('page', 1),
                 'per_page' => $request->get('per_page', 20)
@@ -521,7 +522,7 @@ class EmployeeController extends Controller
             // Initialize filter conditions untuk statistics
             $filterConditions = [];
 
-            // ENHANCED: Global search dengan field yang lebih lengkap
+            // ENHANCED: Global search dengan field yang lebih lengkap + NEW FIELDS
             if ($request->filled('search')) {
                 $searchTerm = trim($request->search);
                 
@@ -537,7 +538,14 @@ class EmployeeController extends Controller
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
                           ->orWhere('alamat', 'like', "%{$searchTerm}%")
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
-                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%");
+                          ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
+                          // NEW: Search in new fields
+                          ->orWhere('provider', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_kerja_kontrak', 'like', "%{$searchTerm}%")
+                          ->orWhere('grade', 'like', "%{$searchTerm}%")
+                          ->orWhere('status_kerja', 'like', "%{$searchTerm}%")
+                          ->orWhere('lokasi_kerja', 'like', "%{$searchTerm}%")
+                          ->orWhere('cabang', 'like', "%{$searchTerm}%");
                           
                         // Search pada organization name jika relationship ada
                         if (method_exists(Employee::class, 'organization')) {
@@ -565,7 +573,7 @@ class EmployeeController extends Controller
                 }
             }
 
-            // FIXED: Individual filters dengan validation yang lebih baik
+            // EXISTING FILTERS + NEW FILTERS
             if ($request->filled('status_pegawai') && $request->status_pegawai !== 'all') {
                 $query->where('status_pegawai', $request->status_pegawai);
                 $filterConditions['status_pegawai'] = $request->status_pegawai;
@@ -579,6 +587,24 @@ class EmployeeController extends Controller
             if ($request->filled('unit_organisasi') && $request->unit_organisasi !== 'all') {
                 $query->where('unit_organisasi', $request->unit_organisasi);
                 $filterConditions['unit_organisasi'] = $request->unit_organisasi;
+            }
+
+            // NEW: Provider filter
+            if ($request->filled('provider') && $request->provider !== 'all') {
+                $query->where('provider', $request->provider);
+                $filterConditions['provider'] = $request->provider;
+            }
+
+            // NEW: Status kerja filter
+            if ($request->filled('status_kerja') && $request->status_kerja !== 'all') {
+                $query->where('status_kerja', $request->status_kerja);
+                $filterConditions['status_kerja'] = $request->status_kerja;
+            }
+
+            // NEW: Grade filter
+            if ($request->filled('grade') && $request->grade !== 'all') {
+                $query->where('grade', $request->grade);
+                $filterConditions['grade'] = $request->grade;
             }
 
             // ENHANCED: Unit filter berdasarkan unit name atau ID dengan error handling
@@ -662,7 +688,7 @@ class EmployeeController extends Controller
             // Get organizations for filter dropdown
             $organizations = $this->getOrganizationsForFilter();
 
-            // FIXED: Get filter options dari database yang sebenarnya
+            // UPDATED: Get filter options dari database yang sebenarnya + NEW FIELDS
             $filterOptions = $this->getFilterOptions();
 
             // Get new employees data for notifications
@@ -698,7 +724,11 @@ class EmployeeController extends Controller
                     'sub_unit_id',
                     'jenis_kelamin', 
                     'jenis_sepatu', 
-                    'ukuran_sepatu'
+                    'ukuran_sepatu',
+                    // NEW FILTERS
+                    'provider',
+                    'status_kerja',
+                    'grade'
                 ]),
                 'pagination' => [
                     'current_page' => $employees->currentPage(),
@@ -778,10 +808,10 @@ class EmployeeController extends Controller
                 $query->where('status', 'active');
             }
 
-            // Apply all the same filters as index method
+            // Apply all the same filters as index method including NEW FIELDS
             $filterConditions = [];
 
-            // Global search
+            // Global search with NEW FIELDS
             if ($request->filled('search')) {
                 $searchTerm = trim($request->search);
                 
@@ -791,14 +821,19 @@ class EmployeeController extends Controller
                           ->orWhere('nip', 'like', "%{$searchTerm}%")
                           ->orWhere('nik', 'like', "%{$searchTerm}%")
                           ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%");
+                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
+                          // NEW FIELDS
+                          ->orWhere('provider', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_kerja_kontrak', 'like', "%{$searchTerm}%")
+                          ->orWhere('grade', 'like', "%{$searchTerm}%")
+                          ->orWhere('status_kerja', 'like', "%{$searchTerm}%");
                     });
                     $filterConditions['search'] = $searchTerm;
                 }
             }
 
-            // Apply the same individual filters
-            foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'] as $filterKey) {
+            // Apply the same individual filters including NEW FIELDS
+            foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'provider', 'status_kerja', 'grade'] as $filterKey) {
                 if ($request->filled($filterKey) && $request->$filterKey !== 'all') {
                     $query->where($filterKey, $request->$filterKey);
                     $filterConditions[$filterKey] = $request->$filterKey;
@@ -839,7 +874,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Show the form for creating a new employee
+     * UPDATED: Show the form for creating a new employee with new field options
      */
     public function create()
     {
@@ -864,6 +899,9 @@ class EmployeeController extends Controller
                 'unitOrganisasiOptions' => $unitOrganisasiOptions,
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
+                // NEW: Provider options
+                'providerOptions' => Employee::PROVIDER_OPTIONS,
+                'statusKerjaOptions' => Employee::STATUS_KERJA_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
                 'message' => session('message'),
@@ -880,8 +918,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Store a newly created employee with comprehensive validation
-     * FIXED: Auto-increment ID compatibility dan improved error handling
+     * UPDATED: Store a newly created employee with comprehensive validation and NEW FIELDS
      */
     public function store(Request $request)
     {
@@ -897,6 +934,12 @@ class EmployeeController extends Controller
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'kelompok_jabatan' => $request->kelompok_jabatan,
                 'status_pegawai' => $request->status_pegawai,
+                // NEW FIELDS
+                'provider' => $request->provider,
+                'unit_kerja_kontrak' => $request->unit_kerja_kontrak,
+                'grade' => $request->grade,
+                'tmt_berakhir_kerja' => $request->tmt_berakhir_kerja,
+                'tmt_akhir_jabatan' => $request->tmt_akhir_jabatan,
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
             ]);
@@ -909,7 +952,7 @@ class EmployeeController extends Controller
             // Unit organisasi yang tidak memiliki sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // Enhanced validation rules
+            // UPDATED: Enhanced validation rules with NEW FIELDS
             $validator = Validator::make($request->all(), [
                 // Required identity fields
                 'nik' => [
@@ -986,6 +1029,47 @@ class EmployeeController extends Controller
                     Rule::in(['PEGAWAI TETAP', 'PKWT', 'TAD PAKET SDM', 'TAD PAKET PEKERJAAN'])
                 ],
                 
+                // NEW FIELD VALIDATIONS
+                'provider' => [
+                    'nullable',
+                    'string',
+                    Rule::in(Employee::PROVIDER_OPTIONS)
+                ],
+                'unit_kerja_kontrak' => 'nullable|string|max:255',
+                'grade' => 'nullable|string|max:50',
+                
+                // NEW: Date validations with custom rules
+                'tmt_mulai_kerja' => 'nullable|date',
+                'tmt_berakhir_kerja' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_kerja) {
+                            $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
+                            $berakhirKerja = \Carbon\Carbon::parse($value);
+                            
+                            if ($berakhirKerja->lte($mulaiKerja)) {
+                                $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
+                            }
+                        }
+                    }
+                ],
+                'tmt_mulai_jabatan' => 'nullable|date',
+                'tmt_akhir_jabatan' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_jabatan) {
+                            $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
+                            $akhirJabatan = \Carbon\Carbon::parse($value);
+                            
+                            if ($akhirJabatan->lte($mulaiJabatan)) {
+                                $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
+                            }
+                        }
+                    }
+                ],
+                
                 // Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
@@ -995,8 +1079,6 @@ class EmployeeController extends Controller
                 'email' => 'nullable|email|max:100|unique:employees,email',
                 'no_bpjs_kesehatan' => 'nullable|string|max:50',
                 'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
-                'tmt_mulai_jabatan' => 'nullable|date',
-                'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_pensiun' => 'nullable|date',
                 'pendidikan_terakhir' => 'nullable|string|max:50',
                 'pendidikan' => 'nullable|string|max:50',
@@ -1009,7 +1091,7 @@ class EmployeeController extends Controller
                 'weight' => 'nullable|integer|min:30|max:200',
                 'seragam' => 'nullable|string|max:100',
             ], [
-                // Custom error messages
+                // UPDATED: Custom error messages including NEW FIELDS
                 'nik.required' => 'NIK wajib diisi.',
                 'nik.size' => 'NIK harus tepat 16 digit.',
                 'nik.regex' => 'NIK hanya boleh berisi angka.',
@@ -1025,7 +1107,13 @@ class EmployeeController extends Controller
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
                 'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
                 'status_pegawai.required' => 'Status pegawai wajib dipilih.',
-                'email.unique' => 'Email sudah terdaftar di sistem.'
+                'email.unique' => 'Email sudah terdaftar di sistem.',
+                // NEW FIELD MESSAGES
+                'provider.in' => 'Provider yang dipilih tidak valid.',
+                'unit_kerja_kontrak.max' => 'Unit kerja kontrak maksimal 255 karakter.',
+                'grade.max' => 'Grade maksimal 50 karakter.',
+                'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
+                'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
             ]);
 
             // Return validation errors using Inertia redirect back
@@ -1055,11 +1143,20 @@ class EmployeeController extends Controller
                 $employeeData['sub_unit_id'] = null;
             }
 
-            // Set default values yang diperlukan
+            // NEW: Set default values untuk field baru
             $employeeData['status'] = 'active';
             $employeeData['organization_id'] = 1; // Default organization
-            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Default location
-            $employeeData['cabang'] = 'Denpasar'; // Default branch
+            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // NEW: Fixed location
+            $employeeData['cabang'] = 'DPS'; // NEW: Fixed branch
+
+            // NEW: Auto-set status kerja based on tmt_berakhir_kerja
+            if (isset($employeeData['tmt_berakhir_kerja'])) {
+                $today = Carbon::now('Asia/Makassar');
+                $endDate = Carbon::parse($employeeData['tmt_berakhir_kerja']);
+                $employeeData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
+            } else {
+                $employeeData['status_kerja'] = 'Non-Aktif';
+            }
 
             // Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
             if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
@@ -1082,7 +1179,7 @@ class EmployeeController extends Controller
             DB::beginTransaction();
             
             try {
-                // Create employee
+                // Create employee - this will automatically calculate masa_kerja in the model
                 $employee = Employee::create($employeeData);
                 
                 // Commit transaction
@@ -1095,6 +1192,9 @@ class EmployeeController extends Controller
                     'nip' => $employee->nip,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
+                    'provider' => $employee->provider,
+                    'grade' => $employee->grade,
+                    'status_kerja' => $employee->status_kerja,
                     'has_sub_unit' => !is_null($employee->sub_unit_id)
                 ]);
 
@@ -1111,6 +1211,9 @@ class EmployeeController extends Controller
                             'nip' => $employee->nip,
                             'nama_lengkap' => $employee->nama_lengkap,
                             'unit_organisasi' => $employee->unit_organisasi,
+                            'provider' => $employee->provider,
+                            'grade' => $employee->grade,
+                            'status_kerja' => $employee->status_kerja,
                             'created_at' => $employee->created_at->format('d/m/Y H:i:s')
                         ]
                     ]);
@@ -1194,8 +1297,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Show the form for editing the specified employee
-     * FIXED: Parameter menggunakan flexible identifier, Include kelompok jabatan dan status pegawai options
+     * UPDATED: Show the form for editing the specified employee dengan provider options
      */
     public function edit(string $identifier)
     {
@@ -1224,8 +1326,8 @@ class EmployeeController extends Controller
                 $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
             }
             
-            // Format dates untuk input type="date"
-            $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun'];
+            // Format dates untuk input type="date" including NEW FIELDS
+            $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun', 'tmt_akhir_jabatan', 'tmt_berakhir_kerja'];
             foreach ($dateFields as $field) {
                 if (isset($employeeData[$field]) && $employeeData[$field]) {
                     $employeeData[$field] = Carbon::parse($employeeData[$field])->format('Y-m-d');
@@ -1254,6 +1356,9 @@ class EmployeeController extends Controller
                 'unitOrganisasiOptions' => $unitOrganisasiOptions,
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
+                // NEW: Provider and status kerja options
+                'providerOptions' => Employee::PROVIDER_OPTIONS,
+                'statusKerjaOptions' => Employee::STATUS_KERJA_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
             ]);
@@ -1270,8 +1375,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Update the specified employee in storage
-     * FIXED: Parameter menggunakan flexible identifier
+     * UPDATED: Update the specified employee in storage with NEW FIELD validation
      */
     public function update(Request $request, string $identifier)
     {
@@ -1291,7 +1395,7 @@ class EmployeeController extends Controller
             // Unit yang tidak memerlukan sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // Validation rules (similar to store but with ignore for unique fields)
+            // UPDATED: Validation rules with NEW FIELDS (similar to store but with ignore for unique fields)
             $validator = Validator::make($request->all(), [
                 'nik' => [
                     'required',
@@ -1351,14 +1455,58 @@ class EmployeeController extends Controller
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
                 
+                // NEW FIELD VALIDATIONS FOR UPDATE
+                'provider' => [
+                    'nullable',
+                    'string',
+                    Rule::in(Employee::PROVIDER_OPTIONS)
+                ],
+                'unit_kerja_kontrak' => 'nullable|string|max:255',
+                'grade' => 'nullable|string|max:50',
+                'status_kerja' => [
+                    'nullable',
+                    'string',
+                    Rule::in(Employee::STATUS_KERJA_OPTIONS)
+                ],
+                
+                // NEW: Date validations with custom rules
+                'tmt_mulai_kerja' => 'nullable|date',
+                'tmt_berakhir_kerja' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_kerja) {
+                            $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
+                            $berakhirKerja = \Carbon\Carbon::parse($value);
+                            
+                            if ($berakhirKerja->lte($mulaiKerja)) {
+                                $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
+                            }
+                        }
+                    }
+                ],
+                'tmt_mulai_jabatan' => 'nullable|date',
+                'tmt_akhir_jabatan' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_jabatan) {
+                            $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
+                            $akhirJabatan = \Carbon\Carbon::parse($value);
+                            
+                            if ($akhirJabatan->lte($mulaiJabatan)) {
+                                $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
+                            }
+                        }
+                    }
+                ],
+                
                 // Optional fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
-                'tmt_mulai_jabatan' => 'nullable|date',
-                'tmt_mulai_kerja' => 'nullable|date',
                 
                 // Contact fields
                 'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
@@ -1409,6 +1557,13 @@ class EmployeeController extends Controller
             // Handle sub_unit_id untuk EGM dan GM
             if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($updateData['sub_unit_id'])) {
                 $updateData['sub_unit_id'] = null;
+            }
+
+            // NEW: Auto-update status_kerja if not manually set and tmt_berakhir_kerja is provided
+            if (!isset($updateData['status_kerja']) && isset($updateData['tmt_berakhir_kerja'])) {
+                $today = Carbon::now('Asia/Makassar');
+                $endDate = Carbon::parse($updateData['tmt_berakhir_kerja']);
+                $updateData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
             }
 
             // Update employee
@@ -1522,7 +1677,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FIXED: Enhanced filter options dengan data dari database
+     * UPDATED: Enhanced filter options dengan data dari database + NEW FIELDS
      */
     public function getFilterOptions()
     {
@@ -1556,6 +1711,28 @@ class EmployeeController extends Controller
                 // FIXED: Unit dan sub unit options dari database
                 'units' => $this->getUnitsForFilter(),
                 'sub_units' => $this->getSubUnitsForFilter(),
+
+                // NEW: Filter options for new fields
+                'providers' => Employee::select('provider')
+                    ->whereNotNull('provider')
+                    ->distinct()
+                    ->orderBy('provider')
+                    ->pluck('provider')
+                    ->toArray(),
+
+                'status_kerja' => Employee::select('status_kerja')
+                    ->whereNotNull('status_kerja')
+                    ->distinct()
+                    ->orderBy('status_kerja')
+                    ->pluck('status_kerja')
+                    ->toArray(),
+
+                'grades' => Employee::select('grade')
+                    ->whereNotNull('grade')
+                    ->distinct()
+                    ->orderBy('grade')
+                    ->pluck('grade')
+                    ->toArray(),
             ];
         } catch (\Exception $e) {
             return [
@@ -1567,6 +1744,9 @@ class EmployeeController extends Controller
                 'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
                 'units' => [],
                 'sub_units' => [],
+                'providers' => [],
+                'status_kerja' => [],
+                'grades' => [],
             ];
         }
     }
@@ -1633,7 +1813,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get employee statistics (API endpoint)
+     * UPDATED: Get employee statistics (API endpoint) with NEW FIELDS
      */
     public function getStatistics()
     {
@@ -1657,6 +1837,26 @@ class EmployeeController extends Controller
                     'executive_gm' => Employee::where('kelompok_jabatan', 'EXECUTIVE GENERAL MANAGER')->count(),
                     'account_executive' => Employee::where('kelompok_jabatan', 'ACCOUNT EXECUTIVE/AE')->count(),
                 ],
+                // NEW: Status kerja statistics
+                'status_kerja' => [
+                    'aktif' => Employee::where('status_kerja', 'Aktif')->count(),
+                    'non_aktif' => Employee::where('status_kerja', 'Non-Aktif')->count(),
+                    'pensiun' => Employee::where('status_kerja', 'Pensiun')->count(),
+                    'mutasi' => Employee::where('status_kerja', 'Mutasi')->count(),
+                ],
+                // NEW: Provider statistics
+                'by_provider' => Employee::select('provider', DB::raw('count(*) as total'))
+                    ->whereNotNull('provider')
+                    ->groupBy('provider')
+                    ->orderBy('total', 'desc')
+                    ->get()
+                    ->map(function ($item) {
+                        return [
+                            'name' => $item->provider,
+                            'count' => $item->total,
+                        ];
+                    })
+                    ->toArray(),
                 'total_organizations' => $this->getOrganizationCount(),
             ];
 
@@ -1675,7 +1875,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * ENHANCED: Get enhanced statistics with safe null handling and comprehensive filter support
+     * UPDATED: Get enhanced statistics with safe null handling and comprehensive filter support + NEW FIELDS
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
@@ -1707,14 +1907,22 @@ class EmployeeController extends Controller
                 }
                 
                 $uniqueUnits = (clone $baseQuery)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+                
+                // NEW: Status kerja statistics
+                $statusKerjaAktif = (clone $baseQuery)->where('status_kerja', 'Aktif')->count();
+                $statusKerjaNonAktif = (clone $baseQuery)->where('status_kerja', 'Non-Aktif')->count();
+                
+                // NEW: Provider count
+                $providerCount = (clone $baseQuery)->whereNotNull('provider')->distinct()->count('provider');
+                
             } else {
-                // Apply filters to calculate statistics
+                // Apply filters to calculate statistics including NEW FIELDS
                 $query = Employee::query();
                 if (Schema::hasColumn('employees', 'status')) {
                     $query->where('status', 'active');
                 }
                 
-                // ENHANCED: Apply filters menggunakan enhanced search logic
+                // ENHANCED: Apply filters menggunakan enhanced search logic including NEW FIELDS
                 if (isset($filterConditions['search'])) {
                     $searchTerm = $filterConditions['search'];
                     $query->where(function($q) use ($searchTerm) {
@@ -1728,7 +1936,12 @@ class EmployeeController extends Controller
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
                           ->orWhere('alamat', 'like', "%{$searchTerm}%")
-                          ->orWhere('handphone', 'like', "%{$searchTerm}%");
+                          ->orWhere('handphone', 'like', "%{$searchTerm}%")
+                          // NEW FIELD SEARCHES
+                          ->orWhere('provider', 'like', "%{$searchTerm}%")
+                          ->orWhere('unit_kerja_kontrak', 'like', "%{$searchTerm}%")
+                          ->orWhere('grade', 'like', "%{$searchTerm}%")
+                          ->orWhere('status_kerja', 'like', "%{$searchTerm}%");
                           
                         // Try relationship search with error handling
                         try {
@@ -1752,8 +1965,8 @@ class EmployeeController extends Controller
                     });
                 }
 
-                // Apply other filters
-                foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu'] as $filterKey) {
+                // Apply other filters including NEW FIELDS
+                foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'provider', 'status_kerja', 'grade'] as $filterKey) {
                     if (isset($filterConditions[$filterKey])) {
                         $query->where($filterKey, $filterConditions[$filterKey]);
                     }
@@ -1770,6 +1983,13 @@ class EmployeeController extends Controller
                 $tadTotal = $tadPaketSDM + $tadPaketPekerjaan + $tadLegacy;
                 
                 $uniqueUnits = (clone $query)->whereNotNull('unit_organisasi')->distinct()->count('unit_organisasi');
+                
+                // NEW: Status kerja statistics with filters
+                $statusKerjaAktif = (clone $query)->where('status_kerja', 'Aktif')->count();
+                $statusKerjaNonAktif = (clone $query)->where('status_kerja', 'Non-Aktif')->count();
+                
+                // NEW: Provider count with filters
+                $providerCount = (clone $query)->whereNotNull('provider')->distinct()->count('provider');
             }
             
             // Get new employees count (global, not filtered)
@@ -1785,6 +2005,11 @@ class EmployeeController extends Controller
                 'tad' => $tadTotal, // Backward compatibility
                 'uniqueUnits' => $uniqueUnits,
                 'newToday' => $newToday,
+                // NEW: Status kerja statistics
+                'statusKerjaAktif' => $statusKerjaAktif ?? 0,
+                'statusKerjaNonAktif' => $statusKerjaNonAktif ?? 0,
+                // NEW: Provider statistics
+                'providerCount' => $providerCount ?? 0,
                 'activeFilters' => is_array($filterConditions) ? count(array_filter($filterConditions, function($value) {
                     return !is_null($value) && $value !== '' && $value !== 'all';
                 })) : 0
@@ -2065,7 +2290,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get default statistics for fallback
+     * UPDATED: Get default statistics for fallback with NEW FIELDS
      */
     private function getDefaultStatistics()
     {
@@ -2082,12 +2307,16 @@ class EmployeeController extends Controller
             'newYesterday' => 0,
             'newThisWeek' => 0,
             'newThisMonth' => 0,
-            'activeFilters' => 0
+            'activeFilters' => 0,
+            // NEW: Default values for new field statistics
+            'statusKerjaAktif' => 0,
+            'statusKerjaNonAktif' => 0,
+            'providerCount' => 0,
         ];
     }
 
     /**
-     * Get default filter options for fallback
+     * UPDATED: Get default filter options for fallback with NEW FIELDS
      */
     private function getDefaultFilterOptions()
     {
@@ -2099,6 +2328,10 @@ class EmployeeController extends Controller
             'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS,
             'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
             'genders' => ['L', 'P'],
+            // NEW: Default options for new fields
+            'providers' => Employee::PROVIDER_OPTIONS,
+            'status_kerja' => Employee::STATUS_KERJA_OPTIONS,
+            'grades' => [],
         ];
     }
 
