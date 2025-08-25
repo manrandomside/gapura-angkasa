@@ -301,7 +301,7 @@ export default function Create({
             tmt_berakhir_kerja: "",
         });
 
-    // Provider options constant
+    // Provider options sesuai permintaan Anda
     const providerOptionsDefault = [
         "PT Gapura Angkasa",
         "PT Air Box Personalia",
@@ -321,28 +321,37 @@ export default function Create({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [calculatedAge, setCalculatedAge] = useState(null);
 
-    // FIXED: State untuk cascading dropdown
+    // State untuk cascading dropdown
     const [availableUnits, setAvailableUnits] = useState([]);
     const [availableSubUnits, setAvailableSubUnits] = useState([]);
     const [loadingUnits, setLoadingUnits] = useState(false);
     const [loadingSubUnits, setLoadingSubUnits] = useState(false);
 
-    // FIXED: Unit organisasi yang tidak memiliki sub unit
+    // Unit organisasi yang tidak memiliki sub unit
     const unitWithoutSubUnits = ["EGM", "GM"];
 
-    // NEW: Calculate masa kerja from TMT mulai kerja
-    const calculateMasaKerja = (startDate) => {
+    // FIXED: Calculate masa kerja from TMT mulai kerja hingga TMT berakhir kerja (atau hari ini jika belum berakhir)
+    const calculateMasaKerja = (startDate, endDate = null) => {
         if (!startDate) return "";
 
         const start = new Date(startDate);
-        const now = new Date();
+        const end = endDate ? new Date(endDate) : new Date(); // Gunakan endDate jika ada, atau hari ini
 
-        let years = now.getFullYear() - start.getFullYear();
-        let months = now.getMonth() - start.getMonth();
+        let years = end.getFullYear() - start.getFullYear();
+        let months = end.getMonth() - start.getMonth();
 
         if (months < 0) {
             years--;
             months += 12;
+        }
+
+        // Adjust untuk tanggal yang belum lewat di bulan ini
+        if (end.getDate() < start.getDate()) {
+            months--;
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
         }
 
         if (years > 0 && months > 0) {
@@ -356,7 +365,7 @@ export default function Create({
         }
     };
 
-    // NEW: Calculate status kerja based on tmt_berakhir_kerja
+    // Calculate status kerja based on tmt_berakhir_kerja
     const calculateStatusKerja = (berakhirKerja) => {
         if (!berakhirKerja) return "Non-Aktif";
 
@@ -383,17 +392,20 @@ export default function Create({
         }
     }, [success, error]);
 
-    // NEW: Auto-calculate masa kerja when tmt_mulai_kerja changes
+    // FIXED: Auto-calculate masa kerja when tmt_mulai_kerja OR tmt_berakhir_kerja changes
     useEffect(() => {
         if (data.tmt_mulai_kerja) {
-            const masaKerja = calculateMasaKerja(data.tmt_mulai_kerja);
+            const masaKerja = calculateMasaKerja(
+                data.tmt_mulai_kerja,
+                data.tmt_berakhir_kerja
+            );
             setData("masa_kerja", masaKerja);
         } else {
             setData("masa_kerja", "");
         }
-    }, [data.tmt_mulai_kerja]);
+    }, [data.tmt_mulai_kerja, data.tmt_berakhir_kerja]); // FIXED: Tambahkan tmt_berakhir_kerja sebagai dependency
 
-    // NEW: Auto-calculate status kerja when tmt_berakhir_kerja changes
+    // Auto-calculate status kerja when tmt_berakhir_kerja changes
     useEffect(() => {
         if (data.tmt_berakhir_kerja) {
             const statusKerja = calculateStatusKerja(data.tmt_berakhir_kerja);
@@ -403,7 +415,7 @@ export default function Create({
         }
     }, [data.tmt_berakhir_kerja]);
 
-    // FIXED: Fetch units berdasarkan unit organisasi dengan error handling yang lebih baik
+    // Fetch units berdasarkan unit organisasi dengan error handling yang lebih baik
     const fetchUnits = async (unitOrganisasi) => {
         if (!unitOrganisasi) {
             setAvailableUnits([]);
@@ -477,7 +489,7 @@ export default function Create({
         }
     };
 
-    // FIXED: Fetch sub units berdasarkan unit_id dengan error handling yang lebih baik
+    // Fetch sub units berdasarkan unit_id dengan error handling yang lebih baik
     const fetchSubUnits = async (unitId) => {
         if (!unitId) {
             setAvailableSubUnits([]);
@@ -549,13 +561,13 @@ export default function Create({
         }
     };
 
-    // REVISI: Auto-calculate pension date dengan logika baru (56 TAHUN)
+    // Auto-calculate pension date dengan logika baru (56 TAHUN)
     useEffect(() => {
         if (data.tanggal_lahir) {
             const birthDate = new Date(data.tanggal_lahir);
             const pensionDate = new Date(birthDate);
 
-            // REVISI: Logika TMT Pensiun berdasarkan aturan baru
+            // Logika TMT Pensiun berdasarkan aturan baru
             // Jika lahir dibawah tanggal 10: pensiun 1 pada bulan yang sama
             // Jika lahir diatas tanggal 10: pensiun 1 bulan berikutnya
             pensionDate.setFullYear(birthDate.getFullYear() + 56);
@@ -723,7 +735,7 @@ export default function Create({
     const handleInputChange = (name, value) => {
         setData(name, value);
 
-        // FIXED: Handle cascading dropdown untuk struktur organisasi
+        // Handle cascading dropdown untuk struktur organisasi
         if (name === "unit_organisasi") {
             console.log("Unit organisasi changed to:", value);
 
@@ -876,7 +888,7 @@ export default function Create({
         validateField(name, value);
     };
 
-    // FIXED: Conditional validation untuk sub_unit_id berdasarkan unit_organisasi
+    // Conditional validation untuk sub_unit_id berdasarkan unit_organisasi
     const validateRequiredFields = () => {
         const requiredFields = {
             nik: "NIK wajib diisi",
@@ -890,7 +902,7 @@ export default function Create({
             status_pegawai: "Status pegawai wajib dipilih",
         };
 
-        // FIXED: Conditional sub_unit_id validation
+        // Conditional sub_unit_id validation
         // Hanya tambahkan sub_unit_id ke required fields jika unit_organisasi bukan EGM atau GM
         if (
             data.unit_organisasi &&
@@ -921,7 +933,7 @@ export default function Create({
         return newErrors;
     };
 
-    // FIXED: Enhanced form submission dengan better error handling
+    // Enhanced form submission dengan better error handling
     const handleSubmit = (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -933,7 +945,7 @@ export default function Create({
         if (Object.keys(requiredFieldErrors).length > 0) {
             setFormValidation((prev) => ({ ...prev, ...requiredFieldErrors }));
 
-            // FIXED: Conditional notification message
+            // Conditional notification message
             const isEgmOrGm = unitWithoutSubUnits.includes(
                 data.unit_organisasi
             );
@@ -964,7 +976,7 @@ export default function Create({
             return;
         }
 
-        // FIXED: Clean data before submission - proper format for backend
+        // Clean data before submission - proper format for backend
         const cleanData = { ...data };
 
         // Remove empty strings dan convert ke null jika perlu
@@ -1121,7 +1133,7 @@ export default function Create({
         }
     };
 
-    // UPDATED: renderPersonalSection
+    // renderPersonalSection
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -1168,7 +1180,7 @@ export default function Create({
                     name="jenis_kelamin"
                     label="Jenis Kelamin"
                     required={true}
-                    options={["Laki-laki", "Perempuan"]}
+                    options={["L", "P"]}
                     icon={User}
                     value={data.jenis_kelamin}
                     onChange={handleInputChange}
@@ -1274,9 +1286,9 @@ export default function Create({
         </div>
     );
 
-    // UPDATED: renderWorkSection dengan field baru
+    // renderWorkSection dengan field baru
     const renderWorkSection = () => {
-        // FIXED: Determine if sub unit is required
+        // Determine if sub unit is required
         const isSubUnitRequired =
             data.unit_organisasi &&
             !unitWithoutSubUnits.includes(data.unit_organisasi);
@@ -1288,7 +1300,7 @@ export default function Create({
                     Data Pekerjaan & Struktur Organisasi
                 </h2>
 
-                {/* FIXED: Struktur Organisasi Section dengan cascading dropdown */}
+                {/* Struktur Organisasi Section dengan cascading dropdown */}
                 <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
                     <h3 className="flex items-center gap-2 mb-4 font-semibold text-blue-800">
                         <Building2 className="w-4 h-4" />
@@ -1380,7 +1392,7 @@ export default function Create({
                         />
                     </div>
 
-                    {/* FIXED: Preview Struktur Organisasi */}
+                    {/* Preview Struktur Organisasi */}
                     {data.unit_organisasi && (
                         <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
                             <h4 className="mb-2 text-sm font-medium text-green-800">
