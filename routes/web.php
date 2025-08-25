@@ -3,13 +3,14 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\HistoryTroubleshootingController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes for GAPURA ANGKASA SDM System
+| Web Routes for GAPURA ANGKASA SDM System v1.10.0
 |--------------------------------------------------------------------------
 |
 | Routes tanpa middleware untuk kemudahan development
@@ -18,8 +19,59 @@ use Inertia\Inertia;
 | Enhanced dengan filter sepatu dan ukuran sepatu
 | Updated dengan Unit Organisasi Expert System
 | FIXED: Parent-child dropdown dan cascading units
+| NEW: History Modal Troubleshooting System
 |
 */
+
+// =====================================================
+// HISTORY MODAL TROUBLESHOOTING ROUTES - HIGH PRIORITY
+// =====================================================
+
+// Browser accessible troubleshooting dashboard
+Route::get('/troubleshoot-dashboard', function () {
+    try {
+        return response()->view('troubleshoot.dashboard');
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Troubleshoot dashboard view not found',
+            'message' => $e->getMessage(),
+            'instruction' => 'Please create resources/views/troubleshoot/dashboard.blade.php'
+        ], 500);
+    }
+})->name('troubleshoot.dashboard');
+
+// Alternative access routes for troubleshooting
+Route::prefix('troubleshoot')->group(function () {
+    Route::get('/', function () {
+        return redirect()->route('troubleshoot.dashboard');
+    })->name('troubleshoot.index');
+    
+    Route::get('/history-modal', function () {
+        return redirect()->route('troubleshoot.dashboard');
+    })->name('troubleshoot.history.modal');
+    
+    // Direct troubleshooting views (if needed)
+    Route::get('/database', function () {
+        return Inertia::render('Troubleshoot/Database', [
+            'title' => 'Database Troubleshooting',
+            'subtitle' => 'Verify database connectivity and employee data'
+        ]);
+    })->name('troubleshoot.database.view');
+    
+    Route::get('/api', function () {
+        return Inertia::render('Troubleshoot/Api', [
+            'title' => 'API Troubleshooting', 
+            'subtitle' => 'Test History Modal API endpoints'
+        ]);
+    })->name('troubleshoot.api.view');
+    
+    Route::get('/relationships', function () {
+        return Inertia::render('Troubleshoot/Relationships', [
+            'title' => 'Model Relationships',
+            'subtitle' => 'Verify Employee model relationships'
+        ]);
+    })->name('troubleshoot.relationships.view');
+});
 
 // =====================================================
 // API ROUTES - PRIORITAS PERTAMA UNTUK UNIT CASCADING
@@ -40,6 +92,11 @@ Route::prefix('api')->group(function () {
     Route::get('/dashboard/statistics', [DashboardController::class, 'getStatistics'])->name('api.dashboard.statistics');
     Route::get('/dashboard/charts', [DashboardController::class, 'getChartData'])->name('api.dashboard.charts');
     Route::get('/dashboard/activities', [DashboardController::class, 'getRecentActivities'])->name('api.dashboard.activities');
+    
+    // CRITICAL: History Modal API endpoints
+    Route::get('/dashboard/employee-history', [DashboardController::class, 'getEmployeeHistory'])->name('api.dashboard.employee.history');
+    Route::get('/dashboard/employee-history-summary', [DashboardController::class, 'getEmployeeHistorySummary'])->name('api.dashboard.employee.history.summary');
+    Route::get('/dashboard/employee-growth-chart', [DashboardController::class, 'getEmployeeGrowthChart'])->name('api.dashboard.employee.growth.chart');
     
     // Employee API dengan filter enhancement - UPDATED: Flexible identifier support
     Route::get('/employees/search', [EmployeeController::class, 'search'])->name('api.employees.search');
@@ -733,7 +790,7 @@ Route::prefix('data-karyawan')->group(function () {
             return redirect()->route('employees.show', ['identifier' => $identifier]);
         }
         
-        // Jika identifier adalah old auto-increment ID, cari berdasarkan ID dan redirect
+        // Jika identifier adalah format lama, coba cari berdasarkan ID dan redirect
         try {
             $employee = \App\Models\Employee::where('id', $identifier)->orWhere('nip', $identifier)->first();
             if ($employee) {
@@ -844,6 +901,14 @@ Route::prefix('utilities')->group(function () {
                 'unique_nips' => \App\Models\Employee::whereNotNull('nip')->where('nip', '!=', '')->distinct()->count('nip'),
                 'auto_increment_ids' => \App\Models\Employee::max('id'),
             ];
+
+            // NEW: History Modal troubleshooting stats
+            $troubleshootingStats = [
+                'history_controller_available' => class_exists('App\Http\Controllers\HistoryTroubleshootingController'),
+                'dashboard_controller_available' => class_exists('App\Http\Controllers\DashboardController'),
+                'recent_30_days_employees' => \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count(),
+                'troubleshoot_dashboard_route' => \Illuminate\Support\Facades\Route::has('troubleshoot.dashboard'),
+            ];
         } catch (\Exception $e) {
             $dbStatus = 'Error: ' . $e->getMessage();
             $employeeCount = 0;
@@ -851,6 +916,7 @@ Route::prefix('utilities')->group(function () {
             $shoeStats = ['pantofel' => 0, 'safety_shoes' => 0, 'no_shoe_data' => 0, 'unique_sizes' => 0];
             $unitStats = ['message' => 'Database connection failed'];
             $identifierStats = ['total_with_nik' => 0, 'employees_without_nik' => 0, 'unique_niks' => 0, 'unique_nips' => 0, 'auto_increment_ids' => 0];
+            $troubleshootingStats = ['message' => 'Database connection failed'];
         }
         
         return response()->json([
@@ -861,7 +927,8 @@ Route::prefix('utilities')->group(function () {
             'organization_count' => $organizationCount,
             'shoe_statistics' => $shoeStats,
             'unit_statistics' => $unitStats,
-            'identifier_statistics' => $identifierStats, // UPDATED: Include flexible identifier stats
+            'identifier_statistics' => $identifierStats,
+            'troubleshooting_statistics' => $troubleshootingStats, // NEW
             'features' => [
                 'shoe_filtering' => 'enabled',
                 'size_filtering' => 'enabled',
@@ -871,20 +938,21 @@ Route::prefix('utilities')->group(function () {
                 'cascading_dropdown' => 'enabled',
                 'unit_hierarchy' => 'enabled',
                 'unit_statistics' => 'enabled',
-                'flexible_identifier_support' => 'enabled', // UPDATED: New feature
-                'backward_compatibility' => 'enabled', // UPDATED: New feature
+                'flexible_identifier_support' => 'enabled',
+                'backward_compatibility' => 'enabled',
+                'history_modal_troubleshooting' => 'enabled', // NEW
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
             'timestamp' => now()->toISOString(),
-            'version' => '1.5.0', // UPDATED: Version bump untuk fixed parent-child dropdown
+            'version' => '1.10.0', // UPDATED: Version bump for troubleshooting integration
         ]);
     })->name('utilities.health.check');
     
     Route::get('/system-info', function () {
         return response()->json([
             'system_name' => 'GAPURA ANGKASA SDM System',
-            'version' => '1.5.0', // UPDATED: Version bump
+            'version' => '1.10.0', // UPDATED: Version bump
             'features' => [
                 'employee_management' => 'active',
                 'shoe_filtering' => 'active',
@@ -893,14 +961,17 @@ Route::prefix('utilities')->group(function () {
                 'real_time_filtering' => 'active',
                 'shoe_reports' => 'active',
                 'unit_organisasi_expert' => 'active',
-                'cascading_dropdown' => 'active', // FIXED
+                'cascading_dropdown' => 'active',
                 'unit_sub_unit_management' => 'active',
                 'unit_hierarchy_api' => 'active',
                 'unit_statistics_api' => 'active',
-                'flexible_identifier_system' => 'active', // UPDATED: New feature
-                'nik_and_id_support' => 'active', // UPDATED: New feature
-                'legacy_compatibility' => 'active', // UPDATED: New feature
-                'parent_child_dropdown' => 'fixed', // NEW: Fixed feature indicator
+                'flexible_identifier_system' => 'active',
+                'nik_and_id_support' => 'active',
+                'legacy_compatibility' => 'active',
+                'parent_child_dropdown' => 'fixed',
+                'history_modal_troubleshooting' => 'active', // NEW
+                'systematic_debugging' => 'active', // NEW
+                'troubleshoot_dashboard' => 'active', // NEW
             ],
             'laravel_version' => Application::VERSION,
             'php_version' => PHP_VERSION,
@@ -943,6 +1014,66 @@ if (app()->environment('local', 'development')) {
                 'message' => 'Component testing page'
             ]);
         })->name('dev.test.components');
+        
+        // NEW: History Modal troubleshooting test routes
+        Route::get('/test-history-modal', function () {
+            try {
+                $results = [
+                    'timestamp' => now(),
+                    'tests' => []
+                ];
+                
+                // Test 1: History API endpoint
+                try {
+                    $response = app(DashboardController::class)->getEmployeeHistory();
+                    $data = json_decode($response->getContent(), true);
+                    $results['tests']['history_api'] = [
+                        'status' => $response->getStatusCode() === 200 ? 'PASS' : 'FAIL',
+                        'has_success_field' => isset($data['success']) ? 'PASS' : 'FAIL',
+                        'success_value' => $data['success'] ?? 'MISSING',
+                        'history_count' => count($data['history'] ?? []),
+                        'has_proper_structure' => (isset($data['success']) && isset($data['history']) && isset($data['total'])) ? 'PASS' : 'FAIL'
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['history_api'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 2: Recent employees count
+                try {
+                    $recentCount = \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count();
+                    $results['tests']['recent_employees'] = [
+                        'status' => 'OK',
+                        'count_30_days' => $recentCount,
+                        'has_recent_data' => $recentCount > 0 ? 'PASS' : 'FAIL'
+                    ];
+                } catch (\Exception $e) {
+                    $results['tests']['recent_employees'] = [
+                        'status' => 'ERROR',
+                        'error' => $e->getMessage()
+                    ];
+                }
+                
+                // Test 3: Troubleshooting controller
+                $results['tests']['troubleshooting_controller'] = [
+                    'class_exists' => class_exists('App\Http\Controllers\HistoryTroubleshootingController') ? 'PASS' : 'FAIL',
+                    'dashboard_route_exists' => \Illuminate\Support\Facades\Route::has('troubleshoot.dashboard') ? 'PASS' : 'FAIL'
+                ];
+                
+                return response()->json([
+                    'message' => 'History Modal Testing Completed',
+                    'results' => $results
+                ], 200, [], JSON_PRETTY_PRINT);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'History Modal Testing Failed',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        })->name('dev.test.history.modal');
         
         // CRITICAL: Test unit API endpoints langsung
         Route::get('/test-unit-api', function () {
@@ -1358,6 +1489,18 @@ if (app()->environment('local', 'development')) {
                     'sample_niks' => \App\Models\Employee::whereNotNull('nik')->where('nik', '!=', '')->take(3)->pluck('nik'),
                     'sample_nips' => \App\Models\Employee::whereNotNull('nip')->where('nip', '!=', '')->take(3)->pluck('nip'),
                 ];
+
+                // NEW: Test history modal data
+                $historyData = [
+                    'recent_30_days' => \App\Models\Employee::where('created_at', '>=', \Carbon\Carbon::now()->subDays(30))->count(),
+                    'today' => \App\Models\Employee::whereDate('created_at', \Carbon\Carbon::today())->count(),
+                    'this_week' => \App\Models\Employee::whereBetween('created_at', [
+                        \Carbon\Carbon::now()->startOfWeek(),
+                        \Carbon\Carbon::now()->endOfWeek()
+                    ])->count(),
+                    'dashboard_controller' => class_exists('App\Http\Controllers\DashboardController'),
+                    'troubleshoot_controller' => class_exists('App\Http\Controllers\HistoryTroubleshootingController'),
+                ];
                 
                 return response()->json([
                     'database_status' => 'Connected',
@@ -1367,7 +1510,8 @@ if (app()->environment('local', 'development')) {
                     'organizations' => $organizations,
                     'shoe_data' => $shoeData,
                     'unit_data' => $unitData,
-                    'identifier_data' => $identifierData, // UPDATED: Include flexible identifier data
+                    'identifier_data' => $identifierData,
+                    'history_modal_data' => $historyData, // NEW
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
@@ -1569,14 +1713,29 @@ Route::fallback(function () {
         'status' => 404,
         'message' => 'Halaman tidak ditemukan',
         'suggestion' => 'Silakan gunakan menu navigasi untuk mengakses halaman yang tersedia.',
-        'help_text' => 'Jika Anda mencari data karyawan, gunakan ID atau NIK sebagai identifier.'
+        'help_text' => 'Jika Anda mencari data karyawan, gunakan ID atau NIK sebagai identifier.',
+        'troubleshooting_available' => 'Untuk troubleshooting History Modal, akses /troubleshoot-dashboard'
     ]);
 });
 
 /*
 |--------------------------------------------------------------------------
-| Route Documentation - Enhanced dengan Fixed Parent-Child Dropdown v1.5.0
+| Route Documentation - Enhanced dengan History Modal Troubleshooting v1.10.0
 |--------------------------------------------------------------------------
+|
+| NEW: HISTORY MODAL TROUBLESHOOTING SYSTEM:
+| ✅ Browser accessible troubleshooting dashboard
+| ✅ Systematic debugging routes for History Modal issues
+| ✅ Development test routes untuk History Modal
+| ✅ Enhanced health check dengan troubleshooting stats
+| ✅ Comprehensive debugging capabilities
+|
+| TROUBLESHOOTING ROUTES:
+| - /troubleshoot-dashboard          - Interactive troubleshooting interface
+| - /troubleshoot/history-modal      - Direct History Modal troubleshooting
+| - /troubleshoot/database           - Database troubleshooting view
+| - /troubleshoot/api                - API troubleshooting view
+| - /troubleshoot/relationships      - Model relationships troubleshooting
 |
 | CRITICAL FIXES untuk Parent-Child Dropdown:
 | ✅ API routes diprioritaskan di bagian atas untuk menghindari konflik
@@ -1600,31 +1759,40 @@ Route::fallback(function () {
 | - /api/units/hierarchy                  - Get complete unit hierarchy
 | - /api/units/statistics                 - Get unit statistics
 |
+| HISTORY MODAL API ROUTES:
+| - /api/dashboard/employee-history       - History Modal data endpoint
+| - /api/dashboard/employee-history-summary - History Modal summary
+| - /api/dashboard/employee-growth-chart  - History Modal growth chart
+|
 | ENHANCED DEBUGGING ROUTES (development only):
 | - /dev/debug-units                      - Comprehensive unit structure debug
 | - /dev/test-api/{endpoint}              - Direct API testing dengan parameter
 | - /dev/test-unit-api                    - Complete unit API testing suite
 | - /dev/test-unit-seeder                 - Test unit seeder
+| - /dev/test-history-modal               - Test History Modal functionality (NEW)
 |
 | TESTING ENDPOINTS:
 | - /dev/test-api/units?unit_organisasi=SSQC     - Test units API
 | - /dev/test-api/sub-units?unit_id=1            - Test sub units API
 | - /dev/debug-units                             - Debug complete structure
+| - /dev/test-history-modal                      - Test History Modal API (NEW)
 |
-| NEW FEATURES v1.5.0:
-| ✅ Fixed parent-child dropdown routing conflicts
-| ✅ Enhanced API debugging dan testing
-| ✅ Comprehensive unit structure validation
-| ✅ Direct API testing dengan parameter
-| ✅ Real-time debugging capabilities
-| ✅ Enhanced error handling dan logging
-| ✅ Improved route prioritization
+| NEW FEATURES v1.10.0:
+| ✅ History Modal troubleshooting system
+| ✅ Browser accessible troubleshooting dashboard
+| ✅ Systematic debugging capabilities
+| ✅ Enhanced development testing routes
+| ✅ History Modal API integration testing
+| ✅ Comprehensive troubleshooting statistics
+| ✅ Real-time debugging interface
+| ✅ Step-by-step problem diagnosis
 |
 | ROUTE PRIORITIES (order matters):
-| 1. API routes (highest priority)
-| 2. Main application routes
-| 3. Legacy compatibility routes
-| 4. Development/debugging routes
-| 5. Fallback routes (lowest priority)
+| 1. Troubleshooting routes (highest priority - NEW)
+| 2. API routes
+| 3. Main application routes
+| 4. Legacy compatibility routes
+| 5. Development/debugging routes
+| 6. Fallback routes (lowest priority)
 |
 */

@@ -114,7 +114,7 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // FIXED: EMPLOYEE HISTORY METHODS untuk History Modal
+    // FIXED: EMPLOYEE HISTORY METHODS untuk History Modal - UPDATED to 3 periods only
     // =====================================================
 
     /**
@@ -193,7 +193,7 @@ class DashboardController extends Controller
                 return $data;
             });
 
-            // Calculate summary statistics safely
+            // Calculate summary statistics safely (only 3 periods)
             $summary = $this->calculateHistorySummarySafe($startDate, $endDate);
 
             $response = [
@@ -206,19 +206,22 @@ class DashboardController extends Controller
                     'end' => $endDate->format('d/m/Y')
                 ],
                 'summary' => $summary,
+                'periods_included' => ['today', 'this_week', 'total_period'],  // Only 3 periods
                 'debug' => [
                     'query_start_date' => $startDate->toISOString(),
                     'query_end_date' => $endDate->toISOString(),
                     'total_employees_found' => $historyData->count(),
                     'timestamp' => Carbon::now()->toISOString(),
                     'safe_mode' => true,
-                    'method_version' => 'fixed_safe_v2.0'
+                    'method_version' => 'fixed_safe_v3.0_3periods'
                 ]
             ];
 
-            Log::info('HISTORY API: Successfully fetched employee history', [
+            Log::info('HISTORY API: Successfully fetched employee history (3 periods)', [
                 'total_employees' => $historyData->count(),
                 'period' => '30 days',
+                'summary_today' => $summary['today'] ?? 0,
+                'summary_week' => $summary['this_week'] ?? 0,
                 'summary_total' => $summary['total_period'] ?? 0
             ]);
 
@@ -249,7 +252,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Get employee history summary - SAFE VERSION
+     * FIXED: Get employee history summary - Enhanced untuk 3 periods only
+     * API endpoint: /api/dashboard/employee-history-summary
      */
     public function getEmployeeHistorySummary()
     {
@@ -257,15 +261,16 @@ class DashboardController extends Controller
             $startDate = Carbon::now()->subDays(30)->startOfDay();
             $endDate = Carbon::now()->endOfDay();
 
-            Log::info('HISTORY SUMMARY API: Fetching employee history summary', [
+            Log::info('HISTORY SUMMARY API: Fetching summary data (3 periods only)', [
                 'start_date' => $startDate->format('Y-m-d H:i:s'),
-                'end_date' => $endDate->format('Y-m-d H:i:s')
+                'end_date' => $endDate->format('Y-m-d H:i:s'),
+                'method' => 'getEmployeeHistorySummary'
             ]);
 
-            // Calculate summary statistics safely
+            // Calculate summary with only 3 periods
             $summary = $this->calculateHistorySummarySafe($startDate, $endDate);
 
-            // Get latest employees tanpa relationship loading
+            // Get latest employees for preview
             $latestEmployees = Employee::select([
                     'id', 'nip', 'nik', 'nama_lengkap', 'unit_organisasi', 
                     'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan', 
@@ -276,13 +281,12 @@ class DashboardController extends Controller
                 ->limit(5)
                 ->get()
                 ->map(function ($employee) {
-                    $organizationalStructure = $this->buildOrganizationalStructureSafe($employee);
-                    
                     return [
                         'id' => $employee->id,
+                        'nip' => $employee->nip,
+                        'nik' => $employee->nik,
                         'nama_lengkap' => $employee->nama_lengkap,
-                        'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
-                        'organizational_structure' => $organizationalStructure,
+                        'unit_organisasi' => $employee->unit_organisasi,
                         'jabatan' => $employee->jabatan ?? $employee->nama_jabatan,
                         'status_pegawai' => $employee->status_pegawai,
                         'created_at' => $employee->created_at,
@@ -300,11 +304,14 @@ class DashboardController extends Controller
                     'start' => $startDate->format('d/m/Y'),
                     'end' => $endDate->format('d/m/Y')
                 ],
+                'periods_included' => ['today', 'this_week', 'total_period'],  // Only 3 periods
                 'timestamp' => Carbon::now()->toISOString()
             ];
 
-            Log::info('HISTORY SUMMARY API: Summary calculated successfully', [
-                'summary_total' => $summary['total_period'] ?? 0,
+            Log::info('HISTORY SUMMARY API: Summary calculated successfully (3 periods only)', [
+                'today' => $summary['today'],
+                'this_week' => $summary['this_week'],
+                'total_period' => $summary['total_period'],
                 'latest_count' => $latestEmployees->count()
             ]);
 
@@ -322,9 +329,7 @@ class DashboardController extends Controller
                 'success' => false,
                 'summary' => [
                     'today' => 0,
-                    'yesterday' => 0,
                     'this_week' => 0,
-                    'this_month' => 0,
                     'total_period' => 0,
                     'growth_percentage' => 0
                 ],
@@ -507,15 +512,17 @@ class DashboardController extends Controller
                     'employee_statistics' => true,
                     'chart_data' => true,
                     'recent_activities' => true,
-                    'organizational_structure' => $unitModelAvailable && $subUnitModelAvailable
+                    'organizational_structure' => $unitModelAvailable && $subUnitModelAvailable,
+                    'history_3_periods_only' => true  // New feature flag
                 ],
                 'history_methods' => [
                     'getEmployeeHistory' => method_exists($this, 'getEmployeeHistory'),
                     'getEmployeeHistorySummary' => method_exists($this, 'getEmployeeHistorySummary'),
-                    'working' => $historyMethodsWorking
+                    'working' => $historyMethodsWorking,
+                    'periods_supported' => ['today', 'this_week', 'total_period']  // Only 3 periods
                 ],
                 'timestamp' => now()->toISOString(),
-                'version' => '1.8.0',
+                'version' => '1.9.0',
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -662,25 +669,22 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Calculate history summary statistics - SAFE VERSION
+     * FIXED: Calculate history summary statistics - Only 3 periods (Today, This Week, 30 Days)
      */
     private function calculateHistorySummarySafe($startDate, $endDate)
     {
         try {
             $today = Carbon::today();
-            $yesterday = Carbon::yesterday();
             $weekStart = Carbon::now()->startOfWeek();
-            $monthStart = Carbon::now()->startOfMonth();
 
+            // Only calculate the 3 required statistics
             $summary = [
                 'today' => Employee::whereDate('created_at', $today)->count(),
-                'yesterday' => Employee::whereDate('created_at', $yesterday)->count(),
-                'this_week' => Employee::where('created_at', '>=', $weekStart)->count(),
-                'this_month' => Employee::where('created_at', '>=', $monthStart)->count(),
+                'this_week' => Employee::where('created_at', '>=', $weekStart)->count(), 
                 'total_period' => Employee::whereBetween('created_at', [$startDate, $endDate])->count()
             ];
 
-            // Add growth calculation
+            // Add growth calculation for 30 days period
             $previousPeriodStart = $startDate->copy()->subDays(30);
             $previousPeriodTotal = Employee::whereBetween('created_at', [$previousPeriodStart, $startDate])->count();
             
@@ -690,8 +694,9 @@ class DashboardController extends Controller
                 $summary['growth_percentage'] = $summary['total_period'] > 0 ? 100 : 0;
             }
 
-            Log::debug('SAFE: History summary calculated', [
+            Log::debug('FIXED: History summary calculated (3 periods only)', [
                 'today' => $summary['today'],
+                'this_week' => $summary['this_week'], 
                 'total_period' => $summary['total_period'],
                 'growth_percentage' => $summary['growth_percentage']
             ]);
@@ -705,9 +710,7 @@ class DashboardController extends Controller
             
             return [
                 'today' => 0,
-                'yesterday' => 0,
-                'this_week' => 0,
-                'this_month' => 0,
+                'this_week' => 0, 
                 'total_period' => 0,
                 'growth_percentage' => 0
             ];
@@ -855,10 +858,9 @@ class DashboardController extends Controller
                 'success' => false,
                 'summary' => [
                     'today' => 0,
-                    'yesterday' => 0,
                     'this_week' => 0,
-                    'this_month' => 0,
-                    'total_period' => 0
+                    'total_period' => 0,
+                    'growth_percentage' => 0
                 ],
                 'latest_employees' => []
             ];

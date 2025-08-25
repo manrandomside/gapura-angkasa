@@ -4,22 +4,209 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HistoryTroubleshootingController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes - GAPURA ANGKASA SDM System v1.8.0 - FIXED
+| API Routes - GAPURA ANGKASA SDM System v1.9.0 - ENHANCED TROUBLESHOOTING
 |--------------------------------------------------------------------------
 |
-| FIXED: API routes untuk employee history dan management data  
+| ENHANCED: Comprehensive troubleshooting routes untuk History Modal debugging
 | PRIORITY: Employee History API untuk History Modal
 | Base color: putih dengan hover hijau (#439454)
 | 
-| ENHANCED: Debugging routes added untuk troubleshooting History Modal
+| ADDED: Systematic troubleshooting endpoints untuk History Modal issues
 |
 */
 
 // =====================================================
-// DEBUGGING ROUTES - TEMPORARY (untuk troubleshooting)
+// HISTORY MODAL TROUBLESHOOTING ROUTES - SYSTEMATIC DEBUGGING
+// =====================================================
+
+Route::prefix('troubleshoot')->group(function () {
+    
+    // Step-by-step troubleshooting endpoints
+    Route::get('/step1-database', [HistoryTroubleshootingController::class, 'databaseVerification'])
+        ->name('api.troubleshoot.database');
+    
+    Route::get('/step2-relationships', [HistoryTroubleshootingController::class, 'modelRelationshipVerification'])
+        ->name('api.troubleshoot.relationships');
+    
+    Route::get('/step3-api-response', [HistoryTroubleshootingController::class, 'apiResponseVerification'])
+        ->name('api.troubleshoot.api');
+    
+    // Comprehensive troubleshooting
+    Route::get('/full-check', [HistoryTroubleshootingController::class, 'runFullTroubleshooting'])
+        ->name('api.troubleshoot.full');
+    
+    // Quick fixes for common issues
+    Route::post('/add-test-employee', [HistoryTroubleshootingController::class, 'addTestEmployee'])
+        ->name('api.troubleshoot.add.employee');
+    
+    Route::post('/fix-timestamps', [HistoryTroubleshootingController::class, 'fixEmployeeTimestamps'])
+        ->name('api.troubleshoot.fix.timestamps');
+    
+    Route::post('/fix-organizational-structure', [HistoryTroubleshootingController::class, 'fixOrganizationalStructure'])
+        ->name('api.troubleshoot.fix.organization');
+});
+
+// =====================================================  
+// QUICK TEST ENDPOINTS untuk debugging
+// =====================================================
+
+Route::prefix('quick-test')->group(function () {
+    
+    // Test raw SQL query
+    Route::get('/raw-sql-30-days', function () {
+        try {
+            $startDate = \Carbon\Carbon::now()->subDays(30)->startOfDay();
+            $endDate = \Carbon\Carbon::now()->endOfDay();
+            
+            $result = \Illuminate\Support\Facades\DB::select("
+                SELECT 
+                    e.id,
+                    e.nama_lengkap,
+                    e.unit_organisasi,
+                    e.created_at,
+                    DATEDIFF(NOW(), e.created_at) as days_ago
+                FROM employees e
+                WHERE e.created_at BETWEEN ? AND ?
+                ORDER BY e.created_at DESC
+                LIMIT 10
+            ", [$startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')]);
+            
+            return response()->json([
+                'success' => true,
+                'query_period' => '30 days',
+                'start_date' => $startDate->toISOString(),
+                'end_date' => $endDate->toISOString(),
+                'results_count' => count($result),
+                'raw_results' => $result,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    });
+    
+    // Test timezone configuration
+    Route::get('/timezone-test', function () {
+        try {
+            $dbTimezone = \Illuminate\Support\Facades\DB::select('SELECT NOW() as db_now, @@session.time_zone as db_timezone')[0];
+            $carbonNow = \Carbon\Carbon::now();
+            $carbonUtc = \Carbon\Carbon::now('UTC');
+            
+            return response()->json([
+                'success' => true,
+                'app_timezone' => config('app.timezone'),
+                'db_timezone' => $dbTimezone->db_timezone,
+                'db_now' => $dbTimezone->db_now,
+                'carbon_now' => $carbonNow->toISOString(),
+                'carbon_utc' => $carbonUtc->toISOString(),
+                'carbon_formatted' => $carbonNow->format('Y-m-d H:i:s'),
+                'php_timezone' => date_default_timezone_get(),
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    });
+    
+    // Test organizational structure building
+    Route::get('/org-structure-test/{employeeId?}', function ($employeeId = null) {
+        try {
+            if ($employeeId) {
+                $employee = \App\Models\Employee::find($employeeId);
+                if (!$employee) {
+                    throw new \Exception("Employee with ID {$employeeId} not found");
+                }
+                $employees = collect([$employee]);
+            } else {
+                $employees = \App\Models\Employee::take(5)->get();
+            }
+            
+            $results = $employees->map(function ($emp) {
+                try {
+                    $controller = app('App\Http\Controllers\DashboardController');
+                    
+                    // Use reflection to access private method
+                    $reflection = new \ReflectionClass($controller);
+                    $method = $reflection->getMethod('buildOrganizationalStructureSafe');
+                    $method->setAccessible(true);
+                    
+                    $orgStructure = $method->invoke($controller, $emp);
+                    
+                    return [
+                        'employee_id' => $emp->id,
+                        'employee_name' => $emp->nama_lengkap,
+                        'unit_organisasi' => $emp->unit_organisasi,
+                        'unit_id' => $emp->unit_id,
+                        'sub_unit_id' => $emp->sub_unit_id,
+                        'organizational_structure' => $orgStructure,
+                        'full_structure' => $orgStructure['full_structure'] ?? 'ERROR',
+                        'success' => true,
+                    ];
+                } catch (\Exception $e) {
+                    return [
+                        'employee_id' => $emp->id,
+                        'employee_name' => $emp->nama_lengkap,
+                        'success' => false,
+                        'error' => $e->getMessage(),
+                    ];
+                }
+            });
+            
+            return response()->json([
+                'success' => true,
+                'test_count' => $employees->count(),
+                'results' => $results,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    });
+    
+    // Direct API endpoint test
+    Route::get('/direct-history-call', function () {
+        try {
+            $controller = app('App\Http\Controllers\DashboardController');
+            $response = $controller->getEmployeeHistory();
+            
+            $responseData = json_decode($response->getContent(), true);
+            
+            return response()->json([
+                'success' => true,
+                'api_status_code' => $response->getStatusCode(),
+                'api_response' => $responseData,
+                'api_success_field' => $responseData['success'] ?? 'MISSING',
+                'api_total_field' => $responseData['total'] ?? 'MISSING',
+                'api_history_count' => count($responseData['history'] ?? []),
+                'response_keys' => array_keys($responseData ?? []),
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile()),
+            ], 500);
+        }
+    });
+});
+
+// =====================================================
+// DEBUGGING ROUTES - EXISTING (PRESERVED)
 // =====================================================
 
 Route::prefix('debug')->group(function () {
@@ -513,6 +700,14 @@ Route::prefix('validate')->group(function () {
 });
 
 // =====================================================
+// BROWSER ACCESSIBLE TEST PAGES (HTML responses)
+// =====================================================
+
+Route::get('/troubleshoot-dashboard', function () {
+    return response()->view('troubleshoot.dashboard');
+})->name('troubleshoot.dashboard');
+
+// =====================================================
 // ENHANCED HEALTH CHECK & SYSTEM STATUS
 // =====================================================
 
@@ -539,7 +734,8 @@ Route::get('/health', function () {
         // Controller availability checks
         $controllerStatus = [
             'dashboard' => class_exists('App\Http\Controllers\DashboardController') ? 'available' : 'missing',
-            'employee' => class_exists('App\Http\Controllers\EmployeeController') ? 'available' : 'missing'
+            'employee' => class_exists('App\Http\Controllers\EmployeeController') ? 'available' : 'missing',
+            'troubleshooting' => class_exists('App\Http\Controllers\HistoryTroubleshootingController') ? 'available' : 'missing'
         ];
         
         // Employee statistics
@@ -582,6 +778,24 @@ Route::get('/health', function () {
             }
         }
         
+        // Troubleshooting status
+        $troubleshootingStatus = [
+            'controller_available' => $controllerStatus['troubleshooting'] === 'available',
+            'endpoints_available' => false
+        ];
+        
+        if ($troubleshootingStatus['controller_available']) {
+            try {
+                $troubleshootingController = app('App\Http\Controllers\HistoryTroubleshootingController');
+                $troubleshootingStatus['endpoints_available'] = 
+                    method_exists($troubleshootingController, 'databaseVerification') &&
+                    method_exists($troubleshootingController, 'modelRelationshipVerification') &&
+                    method_exists($troubleshootingController, 'apiResponseVerification');
+            } catch (\Exception $e) {
+                \Log::warning('Health check: Troubleshooting methods check failed', ['error' => $e->getMessage()]);
+            }
+        }
+        
         // Overall system health
         $overallHealth = $dbStatus === 'connected' && 
                         $modelStatus['employee'] === 'available' && 
@@ -595,7 +809,7 @@ Route::get('/health', function () {
             'versions' => [
                 'php' => PHP_VERSION,
                 'laravel' => app()->version(),
-                'system' => '1.8.0'
+                'system' => '1.9.0'
             ],
             'database' => [
                 'status' => $dbStatus,
@@ -606,17 +820,20 @@ Route::get('/health', function () {
             'controllers' => $controllerStatus,
             'employee_data' => $employeeStats,
             'history_functionality' => $historyStatus,
+            'troubleshooting' => $troubleshootingStatus,
             'critical_endpoints' => [
                 '/api/dashboard/employee-history' => $historyStatus['available'],
                 '/api/dashboard/employee-history-summary' => $historyStatus['available'],
                 '/api/units' => $controllerStatus['employee'] === 'available',
-                '/api/sub-units' => $controllerStatus['employee'] === 'available'
+                '/api/sub-units' => $controllerStatus['employee'] === 'available',
+                '/api/troubleshoot/full-check' => $troubleshootingStatus['endpoints_available']
             ],
             'features_status' => [
                 'employee_history' => $historyStatus['available'],
                 'cascading_dropdown' => $controllerStatus['employee'] === 'available',
                 'employee_management' => $modelStatus['employee'] === 'available',
-                'dashboard_statistics' => $controllerStatus['dashboard'] === 'available'
+                'dashboard_statistics' => $controllerStatus['dashboard'] === 'available',
+                'troubleshooting_tools' => $troubleshootingStatus['endpoints_available']
             ]
         ], $overallHealth ? 200 : 503);
     } catch (\Exception $e) {
@@ -637,7 +854,7 @@ Route::get('/health', function () {
 
 /*
 |--------------------------------------------------------------------------
-| API Routes Documentation - v1.8.0 FIXED
+| API Routes Documentation - v1.9.0 ENHANCED TROUBLESHOOTING
 |--------------------------------------------------------------------------
 |
 | CRITICAL ENDPOINTS untuk History Modal:
@@ -645,11 +862,29 @@ Route::get('/health', function () {
 | 2. GET /api/dashboard/employee-history-summary -> Fixed dengan proper structure
 | 3. GET /api/dashboard/employee-growth-chart -> Growth chart data
 |
-| DEBUGGING ENDPOINTS (TEMPORARY):
+| TROUBLESHOOTING ENDPOINTS (SYSTEMATIC):
+| - GET /api/troubleshoot/step1-database -> Database level verification
+| - GET /api/troubleshoot/step2-relationships -> Model relationship verification
+| - GET /api/troubleshoot/step3-api-response -> API response structure verification
+| - GET /api/troubleshoot/full-check -> Comprehensive troubleshooting
+| - POST /api/troubleshoot/fix-timestamps -> Fix employee timestamps
+| - POST /api/troubleshoot/add-test-employee -> Add test employee
+| - POST /api/troubleshoot/fix-organizational-structure -> Fix org structure
+|
+| QUICK TEST ENDPOINTS:
+| - GET /api/quick-test/raw-sql-30-days -> Raw SQL query test
+| - GET /api/quick-test/timezone-test -> Timezone configuration test
+| - GET /api/quick-test/org-structure-test/{employeeId?} -> Org structure test
+| - GET /api/quick-test/direct-history-call -> Direct API call test
+|
+| DEBUGGING ENDPOINTS (EXISTING):
 | - GET /api/debug/database-test -> Test database connection dan employee count
 | - GET /api/debug/history-api-test -> Direct test ke DashboardController method
 | - GET /api/debug/system-check -> Check model dan controller availability  
 | - GET /api/debug/route-test -> Test route accessibility
+|
+| TROUBLESHOOTING DASHBOARD:
+| - GET /api/troubleshoot-dashboard -> Browser-accessible troubleshooting interface
 |
 | DASHBOARD ENDPOINTS:
 | - GET /api/dashboard/statistics -> Employee statistics
@@ -667,13 +902,12 @@ Route::get('/health', function () {
 | - GET /api/validate/nip/{nip} -> NIP availability check
 |
 | SYSTEM ENDPOINTS:
-| - GET /api/health -> Enhanced system health with feature detection
+| - GET /api/health -> Enhanced system health with troubleshooting status
 |
-| TROUBLESHOOTING STEPS:
-| 1. Test /api/debug/database-test dulu
-| 2. Kemudian /api/debug/history-api-test
-| 3. Lalu /api/debug/system-check
-| 4. Terakhir /api/debug/route-test
-| 5. Jika semua OK, test /api/dashboard/employee-history
+| TROUBLESHOOTING WORKFLOW:
+| 1. Access /api/troubleshoot-dashboard di browser
+| 2. Atau gunakan step-by-step: step1 -> step2 -> step3 -> full-check
+| 3. Apply fixes sesuai recommendation yang diberikan
+| 4. Re-test History Modal di frontend
 |
 */
