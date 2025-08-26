@@ -258,7 +258,7 @@ const FormNotification = ({ type, title, message, onClose }) => {
     );
 };
 
-// FIXED: Helper function to properly convert jenis_kelamin
+// Helper function to properly convert jenis_kelamin
 const convertJenisKelaminToDisplay = (jenisKelamin) => {
     if (!jenisKelamin) return "";
 
@@ -272,6 +272,32 @@ const convertJenisKelaminToDisplay = (jenisKelamin) => {
     return jenisKelamin; // fallback
 };
 
+// Helper function to calculate masa kerja
+const calculateMasaKerja = (tmtMulaiKerja) => {
+    if (!tmtMulaiKerja) return "";
+
+    const startDate = new Date(tmtMulaiKerja);
+    const today = new Date();
+
+    let years = today.getFullYear() - startDate.getFullYear();
+    let months = today.getMonth() - startDate.getMonth();
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years > 0 && months > 0) {
+        return `${years} tahun ${months} bulan`;
+    } else if (years > 0) {
+        return `${years} tahun`;
+    } else if (months > 0) {
+        return `${months} bulan`;
+    } else {
+        return "Kurang dari 1 bulan";
+    }
+};
+
 export default function Edit({
     employee,
     organizations = [],
@@ -281,11 +307,13 @@ export default function Edit({
     jabatanOptions = [],
     kelompokJabatanOptions = [],
     statusPegawaiOptions = [],
+    providerOptions = [],
+    statusKerjaOptions = [],
     success = null,
     error = null,
     message = null,
 }) {
-    // FIXED: Improved jenis_kelamin conversion with better logging
+    // Initialize form data with all NEW FIELDS
     const initializeFormData = () => {
         console.log("Raw employee data:", employee);
         console.log("Employee jenis_kelamin:", employee?.jenis_kelamin);
@@ -310,10 +338,10 @@ export default function Edit({
             no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
             no_bpjs_ketenagakerjaan: employee?.no_bpjs_ketenagakerjaan || "",
 
-            // Data Pekerjaan & Struktur Organisasi - FIXED: Preserve existing data
+            // Data Pekerjaan & Struktur Organisasi
             unit_organisasi: employee?.unit_organisasi || "",
-            unit_id: employee?.unit_id?.toString() || "", // Convert to string for select compatibility
-            sub_unit_id: employee?.sub_unit_id?.toString() || "", // Convert to string for select compatibility
+            unit_id: employee?.unit_id?.toString() || "",
+            sub_unit_id: employee?.sub_unit_id?.toString() || "",
             nama_jabatan: employee?.nama_jabatan || "",
             jabatan: employee?.jabatan || "",
             kelompok_jabatan: employee?.kelompok_jabatan || "",
@@ -321,6 +349,19 @@ export default function Edit({
             tmt_mulai_kerja: employee?.tmt_mulai_kerja || "",
             tmt_mulai_jabatan: employee?.tmt_mulai_jabatan || "",
             tmt_pensiun: employee?.tmt_pensiun || "",
+
+            // NEW FIELDS
+            status_kerja: employee?.status_kerja || "Non-Aktif",
+            tmt_berakhir_kerja: employee?.tmt_berakhir_kerja || "",
+            tmt_akhir_jabatan: employee?.tmt_akhir_jabatan || "",
+            provider: employee?.provider || "",
+            unit_kerja_kontrak: employee?.unit_kerja_kontrak || "",
+            grade: employee?.grade || "",
+            lokasi_kerja: employee?.lokasi_kerja || "Bandar Udara Ngurah Rai",
+            cabang: employee?.cabang || "DPS",
+            masa_kerja:
+                employee?.masa_kerja ||
+                calculateMasaKerja(employee?.tmt_mulai_kerja),
 
             // Data Pendidikan
             pendidikan_terakhir: employee?.pendidikan_terakhir || "",
@@ -353,7 +394,7 @@ export default function Edit({
     const [loadingUnits, setLoadingUnits] = useState(false);
     const [loadingSubUnits, setLoadingSubUnits] = useState(false);
 
-    // FIXED: Use database-based unit organisasi options
+    // Default options
     const unitOrganisasiOptionsStatic = [
         "EGM",
         "GM",
@@ -362,6 +403,26 @@ export default function Edit({
         "Back Office",
         "SSQC",
         "Ancillary",
+    ];
+
+    const providerOptionsDefault = [
+        "PT Gapura Angkasa",
+        "PT Air Box Personalia",
+        "PT Finfleet Teknologi Indonesia",
+        "PT Mitra Angkasa Perdana",
+        "PT Safari Dharma Sakti",
+        "PT Grha Humanindo Management",
+        "PT Duta Griya Sarana",
+        "PT Aerotrans Wisata",
+        "PT Mandala Garda Nusantara",
+        "PT Kidora Mandiri Investama",
+    ];
+
+    const statusKerjaOptionsDefault = [
+        "Aktif",
+        "Non-Aktif",
+        "Pensiun",
+        "Mutasi",
     ];
 
     // Units without sub units
@@ -390,7 +451,7 @@ export default function Edit({
         }
     }, [success, error, message]);
 
-    // ENHANCED: fetchUnits dengan notifikasi lengkap (hanya untuk user interaction)
+    // Fetch units function
     const fetchUnits = async (unitOrganisasi, showNotification = true) => {
         if (!unitOrganisasi) {
             setAvailableUnits([]);
@@ -428,7 +489,6 @@ export default function Edit({
                 setAvailableUnits(result.data);
                 console.log("Units loaded successfully:", result.data);
 
-                // Show success notification only if showNotification is true and units were found
                 if (showNotification && result.data.length > 0) {
                     setNotification({
                         type: "success",
@@ -440,7 +500,6 @@ export default function Edit({
                 console.warn("No units found for:", unitOrganisasi, result);
                 setAvailableUnits([]);
 
-                // Show info notification only if showNotification is true
                 if (showNotification) {
                     setNotification({
                         type: "info",
@@ -455,7 +514,6 @@ export default function Edit({
             console.error("Error fetching units:", error);
             setAvailableUnits([]);
 
-            // Show error notification only if showNotification is true
             if (showNotification) {
                 setNotification({
                     type: "error",
@@ -468,7 +526,7 @@ export default function Edit({
         }
     };
 
-    // ENHANCED: fetchSubUnits dengan notifikasi lengkap (hanya untuk user interaction)
+    // Fetch sub units function
     const fetchSubUnits = async (unitId, showNotification = true) => {
         if (!unitId) {
             setAvailableSubUnits([]);
@@ -502,7 +560,6 @@ export default function Edit({
                 setAvailableSubUnits(result.data);
                 console.log("Sub units loaded successfully:", result.data);
 
-                // Show success notification only if showNotification is true and sub units were found
                 if (showNotification && result.data.length > 0) {
                     setNotification({
                         type: "success",
@@ -514,7 +571,6 @@ export default function Edit({
                 console.warn("No sub units found for unit_id:", unitId, result);
                 setAvailableSubUnits([]);
 
-                // Only show notification if showNotification is true and it's an actual error
                 if (showNotification && result.success === false) {
                     setNotification({
                         type: "info",
@@ -529,7 +585,6 @@ export default function Edit({
             console.error("Error fetching sub units:", error);
             setAvailableSubUnits([]);
 
-            // Show error notification only if showNotification is true
             if (showNotification) {
                 setNotification({
                     type: "error",
@@ -542,22 +597,20 @@ export default function Edit({
         }
     };
 
-    // FIXED: Load initial data when component mounts (tanpa notifikasi)
+    // Load initial data when component mounts
     useEffect(() => {
         console.log("Employee data on mount:", employee);
         console.log("Form data on mount:", data);
 
         if (employee) {
-            // Load units for current unit_organisasi (tanpa notifikasi)
             if (employee.unit_organisasi) {
                 console.log("Loading units for:", employee.unit_organisasi);
-                fetchUnits(employee.unit_organisasi, false); // false = no notification
+                fetchUnits(employee.unit_organisasi, false);
             }
 
-            // Load sub units for current unit_id (tanpa notifikasi)
             if (employee.unit_id) {
                 console.log("Loading sub units for unit_id:", employee.unit_id);
-                fetchSubUnits(employee.unit_id, false); // false = no notification
+                fetchSubUnits(employee.unit_id, false);
             }
         }
     }, []);
@@ -607,6 +660,18 @@ export default function Edit({
             setData("jabatan", data.nama_jabatan);
         }
     }, [data.nama_jabatan]);
+
+    // AUTO-UPDATE: Masa kerja when tmt_mulai_kerja changes
+    useEffect(() => {
+        if (data.tmt_mulai_kerja) {
+            const calculatedMasaKerja = calculateMasaKerja(
+                data.tmt_mulai_kerja
+            );
+            setData("masa_kerja", calculatedMasaKerja);
+        } else {
+            setData("masa_kerja", "");
+        }
+    }, [data.tmt_mulai_kerja]);
 
     // Define sections
     const sections = {
@@ -704,6 +769,27 @@ export default function Edit({
                     error = "Sub unit wajib dipilih untuk unit organisasi ini";
                 }
                 break;
+            // NEW VALIDATIONS
+            case "tmt_berakhir_kerja":
+                if (value && data.tmt_mulai_kerja) {
+                    const startDate = new Date(data.tmt_mulai_kerja);
+                    const endDate = new Date(value);
+                    if (endDate <= startDate) {
+                        error =
+                            "TMT Berakhir Kerja harus setelah TMT Mulai Kerja";
+                    }
+                }
+                break;
+            case "tmt_akhir_jabatan":
+                if (value && data.tmt_mulai_jabatan) {
+                    const startDate = new Date(data.tmt_mulai_jabatan);
+                    const endDate = new Date(value);
+                    if (endDate <= startDate) {
+                        error =
+                            "TMT Akhir Jabatan harus setelah TMT Mulai Jabatan";
+                    }
+                }
+                break;
         }
 
         setFormValidation((prev) => ({
@@ -714,7 +800,7 @@ export default function Edit({
         return error;
     };
 
-    // Handle input changes
+    // Handle input changes with NEW FIELD logic
     const handleInputChange = (name, value) => {
         setData(name, value);
 
@@ -737,9 +823,9 @@ export default function Edit({
                 }));
             }
 
-            // Load units untuk unit organisasi yang dipilih (dengan notifikasi)
+            // Load units untuk unit organisasi yang dipilih
             if (value) {
-                fetchUnits(value, true); // true = show notification for user interaction
+                fetchUnits(value, true);
             }
         } else if (name === "unit_id") {
             console.log("Unit ID changed to:", value);
@@ -748,9 +834,9 @@ export default function Edit({
             setData("sub_unit_id", "");
             setAvailableSubUnits([]);
 
-            // Load sub units untuk unit yang dipilih (dengan notifikasi)
+            // Load sub units untuk unit yang dipilih
             if (value && !unitWithoutSubUnits.includes(data.unit_organisasi)) {
-                fetchSubUnits(value, true); // true = show notification for user interaction
+                fetchSubUnits(value, true);
             }
         }
 
@@ -768,7 +854,16 @@ export default function Edit({
         }
 
         // Real-time validation for important fields
-        if (["nik", "nip", "email", "handphone"].includes(name)) {
+        if (
+            [
+                "nik",
+                "nip",
+                "email",
+                "handphone",
+                "tmt_berakhir_kerja",
+                "tmt_akhir_jabatan",
+            ].includes(name)
+        ) {
             setTimeout(() => validateField(name, value), 500);
         }
     };
@@ -843,7 +938,7 @@ export default function Edit({
         // Prepare clean data for submission
         const cleanData = { ...data };
 
-        // FIXED: Handle jenis_kelamin conversion with better logging
+        // Handle jenis_kelamin conversion
         if (cleanData.jenis_kelamin) {
             console.log(
                 "Converting jenis_kelamin from:",
@@ -1102,24 +1197,34 @@ export default function Edit({
                     onBlur={handleInputBlur}
                     error={errors.email || formValidation.email}
                 />
-                <InputField
-                    name="no_bpjs_kesehatan"
-                    label="No. BPJS Kesehatan"
-                    placeholder="0001234567890"
-                    icon={Shield}
-                    value={data.no_bpjs_kesehatan}
-                    onChange={handleInputChange}
-                    error={errors.no_bpjs_kesehatan}
-                />
-                <InputField
-                    name="no_bpjs_ketenagakerjaan"
-                    label="No. BPJS Ketenagakerjaan"
-                    placeholder="0001234567890"
-                    icon={Shield}
-                    value={data.no_bpjs_ketenagakerjaan}
-                    onChange={handleInputChange}
-                    error={errors.no_bpjs_ketenagakerjaan}
-                />
+            </div>
+
+            {/* Data BPJS Section */}
+            <div className="space-y-4">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800">
+                    <Shield className="w-4 h-4 text-[#439454]" />
+                    Data BPJS
+                </h3>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <InputField
+                        name="no_bpjs_kesehatan"
+                        label="No. BPJS Kesehatan"
+                        placeholder="0001234567890"
+                        icon={Shield}
+                        value={data.no_bpjs_kesehatan}
+                        onChange={handleInputChange}
+                        error={errors.no_bpjs_kesehatan}
+                    />
+                    <InputField
+                        name="no_bpjs_ketenagakerjaan"
+                        label="No. BPJS Ketenagakerjaan"
+                        placeholder="0001234567890"
+                        icon={Shield}
+                        value={data.no_bpjs_ketenagakerjaan}
+                        onChange={handleInputChange}
+                        error={errors.no_bpjs_ketenagakerjaan}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -1353,6 +1458,26 @@ export default function Edit({
                             formValidation.kelompok_jabatan
                         }
                     />
+
+                    {/* NEW FIELD: Provider */}
+                    <InputField
+                        name="provider"
+                        label="Provider"
+                        options={
+                            providerOptions.length > 0
+                                ? providerOptions
+                                : providerOptionsDefault
+                        }
+                        placeholder="Pilih Provider"
+                        icon={Building2}
+                        value={data.provider}
+                        onChange={handleInputChange}
+                        error={errors.provider}
+                    />
+                </div>
+
+                {/* Date Fields Section */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
                         name="tmt_mulai_kerja"
                         label="TMT Mulai Kerja"
@@ -1363,6 +1488,23 @@ export default function Edit({
                         error={errors.tmt_mulai_kerja}
                         hint="Tanggal Mulai Tugas pertama kali bekerja"
                     />
+
+                    <InputField
+                        name="tmt_berakhir_kerja"
+                        label="TMT Berakhir Kerja"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_berakhir_kerja}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.tmt_berakhir_kerja ||
+                            formValidation.tmt_berakhir_kerja
+                        }
+                        disabled={!data.tmt_mulai_kerja}
+                        hint="Harus diisi setelah TMT Mulai Kerja diisi"
+                    />
+
                     <InputField
                         name="tmt_mulai_jabatan"
                         label="TMT Mulai Jabatan"
@@ -1373,6 +1515,107 @@ export default function Edit({
                         error={errors.tmt_mulai_jabatan}
                         hint="Tanggal Mulai Tugas pada jabatan saat ini"
                     />
+
+                    {/* NEW FIELD: TMT Akhir Jabatan */}
+                    <InputField
+                        name="tmt_akhir_jabatan"
+                        label="TMT Akhir Jabatan"
+                        type="date"
+                        icon={Calendar}
+                        value={data.tmt_akhir_jabatan}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.tmt_akhir_jabatan ||
+                            formValidation.tmt_akhir_jabatan
+                        }
+                        disabled={!data.tmt_mulai_jabatan}
+                        hint="Harus diisi setelah TMT Mulai Jabatan diisi"
+                    />
+                </div>
+
+                {/* Additional Work Information */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    {/* NEW FIELD: Status Kerja - EDITABLE in Edit Mode */}
+                    <InputField
+                        name="status_kerja"
+                        label="Status Kerja"
+                        options={
+                            statusKerjaOptions.length > 0
+                                ? statusKerjaOptions
+                                : statusKerjaOptionsDefault
+                        }
+                        placeholder="Pilih Status Kerja"
+                        value={data.status_kerja}
+                        onChange={handleInputChange}
+                        error={errors.status_kerja}
+                        hint="Bisa diubah manual: Aktif, Non-Aktif, Pensiun, Mutasi"
+                        icon={UserCheck}
+                    />
+
+                    {/* NEW FIELD: Unit Kerja Kontrak */}
+                    <InputField
+                        name="unit_kerja_kontrak"
+                        label="Unit Kerja Sesuai Kontrak"
+                        placeholder="Contoh: ADMINISTRASI"
+                        icon={Building2}
+                        value={data.unit_kerja_kontrak}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={
+                            errors.unit_kerja_kontrak ||
+                            formValidation.unit_kerja_kontrak
+                        }
+                    />
+
+                    {/* NEW FIELD: Grade */}
+                    <InputField
+                        name="grade"
+                        label="Grade"
+                        placeholder="Contoh: IX"
+                        icon={Users}
+                        value={data.grade}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        error={errors.grade || formValidation.grade}
+                    />
+
+                    {/* NEW FIELD: Lokasi Kerja - Read Only */}
+                    <InputField
+                        name="lokasi_kerja"
+                        label="Lokasi Kerja"
+                        value={data.lokasi_kerja}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={MapPin}
+                        hint="Otomatis terisi Bandar Udara Ngurah Rai"
+                    />
+
+                    {/* NEW FIELD: Cabang - Read Only */}
+                    <InputField
+                        name="cabang"
+                        label="Cabang"
+                        value={data.cabang}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={MapPin}
+                        hint="Otomatis terisi DPS"
+                    />
+
+                    {/* NEW FIELD: Masa Kerja - Read Only */}
+                    <InputField
+                        name="masa_kerja"
+                        label="Masa Kerja"
+                        value={data.masa_kerja}
+                        onChange={handleInputChange}
+                        readonly={true}
+                        icon={Calendar}
+                        hint="Otomatis dihitung berdasarkan TMT Mulai Kerja"
+                    />
+                </div>
+
+                {/* Existing TMT Pensiun field */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <InputField
                         name="tmt_pensiun"
                         label="TMT Pensiun"
@@ -1403,14 +1646,16 @@ export default function Edit({
                     options={[
                         "SD",
                         "SMP",
-                        "SMA/SMK",
+                        "SMA",
+                        "SMK",
                         "D1",
                         "D2",
                         "D3",
-                        "D4/S1",
+                        "S1",
                         "S2",
                         "S3",
                     ]}
+                    placeholder="Pilih Pendidikan Terakhir"
                     icon={GraduationCap}
                     value={data.pendidikan_terakhir}
                     onChange={handleInputChange}
@@ -1461,17 +1706,19 @@ export default function Edit({
                 <InputField
                     name="seragam"
                     label="Seragam"
-                    options={["S", "M", "L", "XL", "XXL", "XXXL"]}
+                    placeholder="Akan diisi nanti"
                     icon={Shield}
                     value={data.seragam}
                     onChange={handleInputChange}
+                    readonly={true}
                     error={errors.seragam}
-                    hint="Ukuran seragam karyawan"
+                    hint="Field ini akan diisi oleh admin"
                 />
                 <InputField
                     name="jenis_sepatu"
                     label="Jenis Sepatu"
-                    options={["Safety", "Formal"]}
+                    options={["Pantofel", "Safety Shoes"]}
+                    placeholder="Pilih Jenis Sepatu"
                     icon={Briefcase}
                     value={data.jenis_sepatu}
                     onChange={handleInputChange}
@@ -1494,12 +1741,13 @@ export default function Edit({
                         "45",
                         "46",
                     ]}
+                    placeholder="Pilih Ukuran Sepatu"
                     icon={Briefcase}
                     value={data.ukuran_sepatu}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.ukuran_sepatu || formValidation.ukuran_sepatu}
-                    hint="Ukuran sepatu karyawan"
+                    hint="Ukuran sepatu karyawan (30-50)"
                 />
                 <InputField
                     name="height"
@@ -1578,8 +1826,10 @@ export default function Edit({
                             </h1>
                             <p className="text-sm text-gray-600">
                                 Perbarui data karyawan{" "}
-                                {employee?.nama_lengkap || "Unknown"}. Semua
-                                field dapat diedit termasuk NIK dan NIP.
+                                {employee?.nama_lengkap || "Unknown"}. Lengkapi
+                                data karyawan dengan teliti, SEMUA struktur
+                                organisasi (Unit Organisasi, Unit, Sub Unit)
+                                WAJIB diisi.
                             </p>
                         </div>
                     </div>

@@ -1350,7 +1350,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Show the form for editing the specified employee dengan provider options
+     * UPDATED: Show the form for editing the specified employee dengan semua options untuk Edit.jsx
      */
     public function edit(string $identifier)
     {
@@ -1379,7 +1379,7 @@ class EmployeeController extends Controller
                 $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
             }
             
-            // Format dates untuk input type="date" including NEW FIELDS
+            // Format dates untuk input type="date" including ALL NEW FIELDS
             $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun', 'tmt_akhir_jabatan', 'tmt_berakhir_kerja'];
             foreach ($dateFields as $field) {
                 if (isset($employeeData[$field]) && $employeeData[$field]) {
@@ -1409,11 +1409,12 @@ class EmployeeController extends Controller
                 'unitOrganisasiOptions' => $unitOrganisasiOptions,
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
-                // NEW: Provider and status kerja options
+                // UPDATED: Ensure ALL new field options are passed to Edit.jsx
                 'providerOptions' => self::PROVIDER_OPTIONS,
                 'statusKerjaOptions' => self::STATUS_KERJA_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
+                'message' => session('message'),
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Edit Error', [
@@ -1428,7 +1429,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Update the specified employee in storage with NEW FIELD validation
+     * UPDATED: Update the specified employee in storage with COMPREHENSIVE NEW FIELD validation
      */
     public function update(Request $request, string $identifier)
     {
@@ -1448,8 +1449,9 @@ class EmployeeController extends Controller
             // Unit yang tidak memerlukan sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // UPDATED: Validation rules with NEW FIELDS (similar to store but with ignore for unique fields)
+            // UPDATED: Comprehensive validation rules with ALL NEW FIELDS for Edit mode
             $validator = Validator::make($request->all(), [
+                // Identity fields with ignore current record for unique validation
                 'nik' => [
                     'required',
                     'string',
@@ -1470,6 +1472,8 @@ class EmployeeController extends Controller
                     'string',
                     Rule::in(['Laki-laki', 'Perempuan', 'L', 'P'])
                 ],
+                
+                // Organizational structure validation - SAME AS CREATE
                 'unit_organisasi' => [
                     'required',
                     'string',
@@ -1504,11 +1508,13 @@ class EmployeeController extends Controller
                         }
                     }
                 ],
+                
+                // Job fields - REQUIRED
                 'nama_jabatan' => 'required|string|max:255',
                 'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
                 'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
                 
-                // NEW FIELD VALIDATIONS FOR UPDATE
+                // NEW FIELD VALIDATIONS FOR EDIT MODE - COMPREHENSIVE
                 'provider' => [
                     'nullable',
                     'string',
@@ -1517,12 +1523,12 @@ class EmployeeController extends Controller
                 'unit_kerja_kontrak' => 'nullable|string|max:255',
                 'grade' => 'nullable|string|max:50',
                 'status_kerja' => [
-                    'required',
+                    'required', // REQUIRED in edit mode - user can change manually
                     'string',
                     Rule::in(self::STATUS_KERJA_OPTIONS)
                 ],
                 
-                // NEW: Date validations with custom rules
+                // NEW: Enhanced date validations for EDIT mode
                 'tmt_mulai_kerja' => 'nullable|date',
                 'tmt_berakhir_kerja' => [
                     'nullable',
@@ -1554,14 +1560,15 @@ class EmployeeController extends Controller
                     }
                 ],
                 
-                // Optional fields
+                // Optional personal fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
                 'alamat' => 'nullable|string|max:500',
+                'alamat_lengkap' => 'nullable|string|max:500', // Support both field names
                 'kota_domisili' => 'nullable|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 
-                // Contact fields
+                // Contact fields with ignore current record
                 'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
                 'email' => [
                     'nullable',
@@ -1577,7 +1584,7 @@ class EmployeeController extends Controller
                 'jurusan' => 'nullable|string|max:100',
                 'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
                 
-                // Physical attributes
+                // Physical attributes and equipment
                 'height' => 'nullable|integer|min:100|max:250',
                 'weight' => 'nullable|integer|min:30|max:200',
                 'jenis_sepatu' => 'nullable|string|max:50',
@@ -1590,9 +1597,49 @@ class EmployeeController extends Controller
                 
                 // TMT fields
                 'tmt_pensiun' => 'nullable|date',
+                
+                // FIXED FIELDS - These should be passed but not changed
+                'lokasi_kerja' => 'string|in:Bandar Udara Ngurah Rai',
+                'cabang' => 'string|in:DPS',
+                'masa_kerja' => 'nullable|string', // This is calculated automatically
+            ], [
+                // UPDATED: Comprehensive error messages including ALL NEW FIELDS
+                'nik.required' => 'NIK wajib diisi.',
+                'nik.size' => 'NIK harus tepat 16 digit.',
+                'nik.regex' => 'NIK hanya boleh berisi angka.',
+                'nik.unique' => 'NIK sudah digunakan oleh karyawan lain.',
+                'nip.required' => 'NIP wajib diisi.',
+                'nip.min' => 'NIP minimal 5 digit.',
+                'nip.regex' => 'NIP hanya boleh berisi angka.',
+                'nip.unique' => 'NIP sudah digunakan oleh karyawan lain.',
+                'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
+                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih.',
+                'unit_organisasi.required' => 'Unit organisasi wajib dipilih.',
+                'unit_id.required' => 'Unit wajib dipilih.',
+                'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
+                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
+                'status_pegawai.required' => 'Status pegawai wajib dipilih.',
+                'email.unique' => 'Email sudah digunakan oleh karyawan lain.',
+                // NEW FIELD MESSAGES
+                'provider.in' => 'Provider yang dipilih tidak valid.',
+                'unit_kerja_kontrak.max' => 'Unit kerja kontrak maksimal 255 karakter.',
+                'grade.max' => 'Grade maksimal 50 karakter.',
+                'status_kerja.required' => 'Status kerja wajib dipilih.',
+                'status_kerja.in' => 'Status kerja yang dipilih tidak valid.',
+                'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
+                'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
+                'lokasi_kerja.in' => 'Lokasi kerja harus "Bandar Udara Ngurah Rai".',
+                'cabang.in' => 'Cabang harus "DPS".',
             ]);
 
             if ($validator->fails()) {
+                Log::warning('Employee Update Validation Failed', [
+                    'employee_id' => $employee->id,
+                    'errors' => $validator->errors()->toArray(),
+                    'nik' => $request->nik,
+                    'nip' => $request->nip
+                ]);
+
                 return redirect()->back()
                     ->withErrors($validator->errors())
                     ->withInput()
@@ -1618,12 +1665,16 @@ class EmployeeController extends Controller
                 $updateData['sub_unit_id'] = null;
             }
 
-            // NEW: Ensure fixed fields remain unchanged
+            // UPDATED: Ensure fixed fields remain unchanged even in edit mode
             $updateData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
             $updateData['cabang'] = 'DPS';
 
-            // Status kerja bisa diedit pada update, tidak perlu auto-set lagi
-            // Masa kerja akan dihitung ulang otomatis oleh model jika ada perubahan tanggal
+            // NEW: In edit mode, status_kerja is editable and NOT auto-calculated
+            // This allows manual changes to Pensiun, Mutasi, etc.
+            // The user can manually set these values via dropdown in Edit.jsx
+            
+            // Masa kerja will be recalculated automatically by model if tmt_mulai_kerja changes
+            // But we don't override it here since it's calculated in the model
 
             // Update employee
             DB::beginTransaction();
@@ -1635,7 +1686,13 @@ class EmployeeController extends Controller
                 Log::info('Employee Updated Successfully', [
                     'employee_id' => $employee->id,
                     'employee_nik' => $employee->nik,
-                    'updated_fields' => array_keys($updateData)
+                    'updated_fields' => array_keys($updateData),
+                    'new_values' => [
+                        'status_kerja' => $updateData['status_kerja'] ?? 'unchanged',
+                        'provider' => $updateData['provider'] ?? 'null',
+                        'grade' => $updateData['grade'] ?? 'null',
+                        'unit_kerja_kontrak' => $updateData['unit_kerja_kontrak'] ?? 'null',
+                    ]
                 ]);
 
                 return redirect()->route('employees.index')
@@ -1643,7 +1700,7 @@ class EmployeeController extends Controller
                     ->with('notification', [
                         'type' => 'success',
                         'title' => 'Berhasil!',
-                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui."
+                        'message' => "Data karyawan {$employee->nama_lengkap} berhasil diperbarui dengan semua field baru."
                     ]);
 
             } catch (\Exception $e) {
@@ -1736,7 +1793,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Enhanced filter options dengan data dari database + NEW FIELDS
+     * UPDATED: Enhanced filter options dengan data dari database + ALL NEW FIELDS
      */
     public function getFilterOptions()
     {
@@ -1771,7 +1828,7 @@ class EmployeeController extends Controller
                 'units' => $this->getUnitsForFilter(),
                 'sub_units' => $this->getSubUnitsForFilter(),
 
-                // NEW: Filter options for new fields
+                // UPDATED: Enhanced filter options for ALL NEW FIELDS
                 'providers' => Employee::select('provider')
                     ->whereNotNull('provider')
                     ->distinct()
@@ -1792,6 +1849,14 @@ class EmployeeController extends Controller
                     ->orderBy('grade')
                     ->pluck('grade')
                     ->toArray(),
+
+                // NEW: Additional filter options for comprehensive search
+                'unit_kerja_kontrak' => Employee::select('unit_kerja_kontrak')
+                    ->whereNotNull('unit_kerja_kontrak')
+                    ->distinct()
+                    ->orderBy('unit_kerja_kontrak')
+                    ->pluck('unit_kerja_kontrak')
+                    ->toArray(),
             ];
         } catch (\Exception $e) {
             return [
@@ -1803,9 +1868,10 @@ class EmployeeController extends Controller
                 'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
                 'units' => [],
                 'sub_units' => [],
-                'providers' => [],
-                'status_kerja' => [],
+                'providers' => self::PROVIDER_OPTIONS,
+                'status_kerja' => self::STATUS_KERJA_OPTIONS,
                 'grades' => [],
+                'unit_kerja_kontrak' => [],
             ];
         }
     }
@@ -1896,14 +1962,14 @@ class EmployeeController extends Controller
                     'executive_gm' => Employee::where('kelompok_jabatan', 'EXECUTIVE GENERAL MANAGER')->count(),
                     'account_executive' => Employee::where('kelompok_jabatan', 'ACCOUNT EXECUTIVE/AE')->count(),
                 ],
-                // NEW: Status kerja statistics
+                // UPDATED: Enhanced status kerja statistics
                 'status_kerja' => [
                     'aktif' => Employee::where('status_kerja', 'Aktif')->count(),
                     'non_aktif' => Employee::where('status_kerja', 'Non-Aktif')->count(),
                     'pensiun' => Employee::where('status_kerja', 'Pensiun')->count(),
                     'mutasi' => Employee::where('status_kerja', 'Mutasi')->count(),
                 ],
-                // NEW: Provider statistics
+                // UPDATED: Enhanced provider statistics
                 'by_provider' => Employee::select('provider', DB::raw('count(*) as total'))
                     ->whereNotNull('provider')
                     ->groupBy('provider')
@@ -1912,6 +1978,19 @@ class EmployeeController extends Controller
                     ->map(function ($item) {
                         return [
                             'name' => $item->provider,
+                            'count' => $item->total,
+                        ];
+                    })
+                    ->toArray(),
+                // NEW: Grade statistics
+                'by_grade' => Employee::select('grade', DB::raw('count(*) as total'))
+                    ->whereNotNull('grade')
+                    ->groupBy('grade')
+                    ->orderBy('grade')
+                    ->get()
+                    ->map(function ($item) {
+                        return [
+                            'name' => $item->grade,
                             'count' => $item->total,
                         ];
                     })
@@ -1934,7 +2013,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * UPDATED: Get enhanced statistics with safe null handling and comprehensive filter support + NEW FIELDS
+     * UPDATED: Get enhanced statistics with safe null handling and comprehensive filter support + ALL NEW FIELDS
      */
     private function getEnhancedStatistics($filterConditions = [])
     {
