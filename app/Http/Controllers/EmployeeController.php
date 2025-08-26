@@ -39,6 +39,32 @@ class EmployeeController extends Controller
         'ACCOUNT EXECUTIVE/AE'
     ];
 
+    /**
+     * PROVIDER OPTIONS CONSTANTS - NEW
+     */
+    const PROVIDER_OPTIONS = [
+        'PT Gapura Angkasa',
+        'PT Air Box Personalia',
+        'PT Finfleet Teknologi Indonesia',
+        'PT Mitra Angkasa Perdana',
+        'PT Safari Dharma Sakti',
+        'PT Grha Humanindo Management',
+        'PT Duta Griya Sarana',
+        'PT Aerotrans Wisata',
+        'PT Mandala Garda Nusantara',
+        'PT Kidora Mandiri Investama'
+    ];
+
+    /**
+     * STATUS KERJA OPTIONS CONSTANTS - NEW
+     */
+    const STATUS_KERJA_OPTIONS = [
+        'Aktif',
+        'Non-Aktif',
+        'Pensiun',
+        'Mutasi'
+    ];
+
     // =====================================================
     // UNIT/SUBUNIT API METHODS - FIXED & ENHANCED
     // =====================================================
@@ -900,8 +926,8 @@ class EmployeeController extends Controller
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
                 // NEW: Provider options
-                'providerOptions' => Employee::PROVIDER_OPTIONS,
-                'statusKerjaOptions' => Employee::STATUS_KERJA_OPTIONS,
+                'providerOptions' => self::PROVIDER_OPTIONS,
+                'statusKerjaOptions' => self::STATUS_KERJA_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
                 'message' => session('message'),
@@ -938,7 +964,9 @@ class EmployeeController extends Controller
                 'provider' => $request->provider,
                 'unit_kerja_kontrak' => $request->unit_kerja_kontrak,
                 'grade' => $request->grade,
+                'tmt_mulai_kerja' => $request->tmt_mulai_kerja,
                 'tmt_berakhir_kerja' => $request->tmt_berakhir_kerja,
+                'tmt_mulai_jabatan' => $request->tmt_mulai_jabatan,
                 'tmt_akhir_jabatan' => $request->tmt_akhir_jabatan,
                 'user_agent' => $request->header('User-Agent'),
                 'ip_address' => $request->ip()
@@ -973,7 +1001,7 @@ class EmployeeController extends Controller
                 'jenis_kelamin' => [
                     'required',
                     'string',
-                    Rule::in(['Laki-laki', 'Perempuan'])
+                    Rule::in(['Laki-laki', 'Perempuan', 'L', 'P'])
                 ],
                 
                 // Organizational structure validation
@@ -1033,7 +1061,7 @@ class EmployeeController extends Controller
                 'provider' => [
                     'nullable',
                     'string',
-                    Rule::in(Employee::PROVIDER_OPTIONS)
+                    Rule::in(self::PROVIDER_OPTIONS)
                 ],
                 'unit_kerja_kontrak' => 'nullable|string|max:255',
                 'grade' => 'nullable|string|max:50',
@@ -1044,12 +1072,17 @@ class EmployeeController extends Controller
                     'nullable',
                     'date',
                     function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->tmt_mulai_kerja) {
-                            $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
-                            $berakhirKerja = \Carbon\Carbon::parse($value);
-                            
-                            if ($berakhirKerja->lte($mulaiKerja)) {
-                                $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
+                        if ($value) {
+                            // TMT berakhir kerja harus diset setelah TMT mulai kerja diisi
+                            if (!$request->tmt_mulai_kerja) {
+                                $fail('TMT Mulai Kerja harus diisi terlebih dahulu sebelum mengatur TMT Berakhir Kerja.');
+                            } else {
+                                $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
+                                $berakhirKerja = \Carbon\Carbon::parse($value);
+                                
+                                if ($berakhirKerja->lte($mulaiKerja)) {
+                                    $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
+                                }
                             }
                         }
                     }
@@ -1059,12 +1092,17 @@ class EmployeeController extends Controller
                     'nullable',
                     'date',
                     function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->tmt_mulai_jabatan) {
-                            $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
-                            $akhirJabatan = \Carbon\Carbon::parse($value);
-                            
-                            if ($akhirJabatan->lte($mulaiJabatan)) {
-                                $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
+                        if ($value) {
+                            // TMT akhir jabatan harus diset setelah TMT mulai jabatan diisi
+                            if (!$request->tmt_mulai_jabatan) {
+                                $fail('TMT Mulai Jabatan harus diisi terlebih dahulu sebelum mengatur TMT Akhir Jabatan.');
+                            } else {
+                                $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
+                                $akhirJabatan = \Carbon\Carbon::parse($value);
+                                
+                                if ($akhirJabatan->lte($mulaiJabatan)) {
+                                    $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
+                                }
                             }
                         }
                     }
@@ -1133,9 +1171,15 @@ class EmployeeController extends Controller
             // Prepare data for employee creation
             $employeeData = $validator->validated();
             
-            // Handle jenis_kelamin conversion (Frontend: Laki-laki/Perempuan -> Database: L/P)
+            // Handle jenis_kelamin conversion (Support both formats)
             if (isset($employeeData['jenis_kelamin'])) {
-                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'Laki-laki' ? 'L' : 'P';
+                // Convert dari format apapun ke database format (L/P)
+                if ($employeeData['jenis_kelamin'] === 'Laki-laki') {
+                    $employeeData['jenis_kelamin'] = 'L';
+                } elseif ($employeeData['jenis_kelamin'] === 'Perempuan') {
+                    $employeeData['jenis_kelamin'] = 'P';
+                }
+                // Jika sudah L atau P, biarkan seperti itu
             }
             
             // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
@@ -1143,18 +1187,22 @@ class EmployeeController extends Controller
                 $employeeData['sub_unit_id'] = null;
             }
 
-            // NEW: Set default values untuk field baru
+            // NEW: Set default values untuk field baru yang tidak bisa diubah
             $employeeData['status'] = 'active';
             $employeeData['organization_id'] = 1; // Default organization
-            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // NEW: Fixed location
-            $employeeData['cabang'] = 'DPS'; // NEW: Fixed branch
+            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Fixed location
+            $employeeData['cabang'] = 'DPS'; // Fixed branch
 
-            // NEW: Auto-set status kerja based on tmt_berakhir_kerja
-            if (isset($employeeData['tmt_berakhir_kerja'])) {
+            // NEW: Auto-set status kerja based on tmt_berakhir_kerja logic
+            if (isset($employeeData['tmt_berakhir_kerja']) && !empty($employeeData['tmt_berakhir_kerja'])) {
+                // Status kerja otomatis menjadi aktif saat tmt berakhir kerja diisi
                 $today = Carbon::now('Asia/Makassar');
                 $endDate = Carbon::parse($employeeData['tmt_berakhir_kerja']);
+                
+                // Auto-set berdasarkan apakah sudah melewati tanggal berakhir atau belum
                 $employeeData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
             } else {
+                // Jika tidak ada tmt_berakhir_kerja, status kerja default Non-Aktif
                 $employeeData['status_kerja'] = 'Non-Aktif';
             }
 
@@ -1179,7 +1227,7 @@ class EmployeeController extends Controller
             DB::beginTransaction();
             
             try {
-                // Create employee - this will automatically calculate masa_kerja in the model
+                // Create employee - masa_kerja akan dihitung otomatis di model
                 $employee = Employee::create($employeeData);
                 
                 // Commit transaction
@@ -1195,6 +1243,9 @@ class EmployeeController extends Controller
                     'provider' => $employee->provider,
                     'grade' => $employee->grade,
                     'status_kerja' => $employee->status_kerja,
+                    'lokasi_kerja' => $employee->lokasi_kerja,
+                    'cabang' => $employee->cabang,
+                    'masa_kerja' => $employee->masa_kerja ?? 'Belum dihitung',
                     'has_sub_unit' => !is_null($employee->sub_unit_id)
                 ]);
 
@@ -1214,6 +1265,8 @@ class EmployeeController extends Controller
                             'provider' => $employee->provider,
                             'grade' => $employee->grade,
                             'status_kerja' => $employee->status_kerja,
+                            'lokasi_kerja' => $employee->lokasi_kerja,
+                            'cabang' => $employee->cabang,
                             'created_at' => $employee->created_at->format('d/m/Y H:i:s')
                         ]
                     ]);
@@ -1357,8 +1410,8 @@ class EmployeeController extends Controller
                 'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
                 'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
                 // NEW: Provider and status kerja options
-                'providerOptions' => Employee::PROVIDER_OPTIONS,
-                'statusKerjaOptions' => Employee::STATUS_KERJA_OPTIONS,
+                'providerOptions' => self::PROVIDER_OPTIONS,
+                'statusKerjaOptions' => self::STATUS_KERJA_OPTIONS,
                 'success' => session('success'),
                 'error' => session('error'),
             ]);
@@ -1415,7 +1468,7 @@ class EmployeeController extends Controller
                 'jenis_kelamin' => [
                     'required',
                     'string',
-                    Rule::in(['Laki-laki', 'Perempuan'])
+                    Rule::in(['Laki-laki', 'Perempuan', 'L', 'P'])
                 ],
                 'unit_organisasi' => [
                     'required',
@@ -1459,14 +1512,14 @@ class EmployeeController extends Controller
                 'provider' => [
                     'nullable',
                     'string',
-                    Rule::in(Employee::PROVIDER_OPTIONS)
+                    Rule::in(self::PROVIDER_OPTIONS)
                 ],
                 'unit_kerja_kontrak' => 'nullable|string|max:255',
                 'grade' => 'nullable|string|max:50',
                 'status_kerja' => [
-                    'nullable',
+                    'required',
                     'string',
-                    Rule::in(Employee::STATUS_KERJA_OPTIONS)
+                    Rule::in(self::STATUS_KERJA_OPTIONS)
                 ],
                 
                 // NEW: Date validations with custom rules
@@ -1549,9 +1602,15 @@ class EmployeeController extends Controller
             // Prepare update data
             $updateData = $validator->validated();
             
-            // Handle jenis_kelamin conversion
+            // Handle jenis_kelamin conversion (Support both formats)
             if (isset($updateData['jenis_kelamin'])) {
-                $updateData['jenis_kelamin'] = $updateData['jenis_kelamin'] === 'Laki-laki' ? 'L' : 'P';
+                // Convert dari format apapun ke database format (L/P)
+                if ($updateData['jenis_kelamin'] === 'Laki-laki') {
+                    $updateData['jenis_kelamin'] = 'L';
+                } elseif ($updateData['jenis_kelamin'] === 'Perempuan') {
+                    $updateData['jenis_kelamin'] = 'P';
+                }
+                // Jika sudah L atau P, biarkan seperti itu
             }
             
             // Handle sub_unit_id untuk EGM dan GM
@@ -1559,12 +1618,12 @@ class EmployeeController extends Controller
                 $updateData['sub_unit_id'] = null;
             }
 
-            // NEW: Auto-update status_kerja if not manually set and tmt_berakhir_kerja is provided
-            if (!isset($updateData['status_kerja']) && isset($updateData['tmt_berakhir_kerja'])) {
-                $today = Carbon::now('Asia/Makassar');
-                $endDate = Carbon::parse($updateData['tmt_berakhir_kerja']);
-                $updateData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
-            }
+            // NEW: Ensure fixed fields remain unchanged
+            $updateData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
+            $updateData['cabang'] = 'DPS';
+
+            // Status kerja bisa diedit pada update, tidak perlu auto-set lagi
+            // Masa kerja akan dihitung ulang otomatis oleh model jika ada perubahan tanggal
 
             // Update employee
             DB::beginTransaction();
@@ -2329,8 +2388,8 @@ class EmployeeController extends Controller
             'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
             'genders' => ['L', 'P'],
             // NEW: Default options for new fields
-            'providers' => Employee::PROVIDER_OPTIONS,
-            'status_kerja' => Employee::STATUS_KERJA_OPTIONS,
+            'providers' => self::PROVIDER_OPTIONS,
+            'status_kerja' => self::STATUS_KERJA_OPTIONS,
             'grades' => [],
         ];
     }

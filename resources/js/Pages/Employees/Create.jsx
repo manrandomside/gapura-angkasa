@@ -301,6 +301,12 @@ export default function Create({
             tmt_berakhir_kerja: "",
         });
 
+    // FIXED: Jenis kelamin options dengan format yang user-friendly
+    const jenisKelaminOptions = [
+        { value: "Laki-laki", label: "Laki-laki" },
+        { value: "Perempuan", label: "Perempuan" },
+    ];
+
     // Provider options sesuai permintaan Anda
     const providerOptionsDefault = [
         "PT Gapura Angkasa",
@@ -1073,6 +1079,8 @@ export default function Create({
                 } else if (errors.tmt_berakhir_kerja) {
                     errorMessage =
                         "TMT Berakhir Kerja harus diatas TMT Mulai Kerja";
+                } else if (errors.jenis_kelamin) {
+                    errorMessage = "Jenis kelamin wajib dipilih";
                 } else if (Object.keys(errors).length > 0) {
                     const firstError = Object.values(errors)[0];
                     errorMessage =
@@ -1176,11 +1184,13 @@ export default function Create({
                     onChange={handleInputChange}
                     error={errors.nama_lengkap || formValidation.nama_lengkap}
                 />
+                {/* FIXED: Jenis Kelamin dengan options yang user-friendly */}
                 <InputField
                     name="jenis_kelamin"
                     label="Jenis Kelamin"
                     required={true}
-                    options={["L", "P"]}
+                    options={jenisKelaminOptions}
+                    placeholder="Pilih Jenis Kelamin"
                     icon={User}
                     value={data.jenis_kelamin}
                     onChange={handleInputChange}
