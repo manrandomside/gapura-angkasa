@@ -65,6 +65,35 @@ class EmployeeController extends Controller
         'Mutasi'
     ];
 
+    /**
+     * HELPER: Calculate masa kerja between two dates
+     */
+    private function calculateMasaKerja($tmtMulaiKerja, $tmtBerakhirKerja = null)
+    {
+        if (!$tmtMulaiKerja) return "";
+
+        $startDate = Carbon::parse($tmtMulaiKerja);
+        $endDate = $tmtBerakhirKerja ? Carbon::parse($tmtBerakhirKerja) : Carbon::now('Asia/Makassar');
+
+        // Validate dates
+        if ($endDate < $startDate) {
+            return "Tanggal berakhir sebelum tanggal mulai";
+        }
+
+        $years = $endDate->diffInYears($startDate);
+        $months = $endDate->copy()->subYears($years)->diffInMonths($startDate);
+
+        if ($years > 0 && $months > 0) {
+            return "{$years} tahun {$months} bulan";
+        } else if ($years > 0) {
+            return "{$years} tahun";
+        } else if ($months > 0) {
+            return "{$months} bulan";
+        } else {
+            return "Kurang dari 1 bulan";
+        }
+    }
+
     // =====================================================
     // UNIT/SUBUNIT API METHODS - FIXED & ENHANCED
     // =====================================================
@@ -562,7 +591,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
+                          ->orWhere('alamat_lengkap', 'like', "%{$searchTerm}%") // FIXED: alamat_lengkap
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           // NEW: Search in new fields
@@ -1111,7 +1140,7 @@ class EmployeeController extends Controller
                 // Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat' => 'nullable|string|max:500',
+                'alamat_lengkap' => 'nullable|string|max:500', // FIXED: alamat_lengkap consistency
                 'kota_domisili' => 'nullable|string|max:100',
                 'handphone' => 'nullable|string|max:20',
                 'email' => 'nullable|email|max:100|unique:employees,email',
@@ -1152,6 +1181,7 @@ class EmployeeController extends Controller
                 'grade.max' => 'Grade maksimal 50 karakter.',
                 'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
                 'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
+                'alamat_lengkap.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED
             ]);
 
             // Return validation errors using Inertia redirect back
@@ -1206,6 +1236,14 @@ class EmployeeController extends Controller
                 $employeeData['status_kerja'] = 'Non-Aktif';
             }
 
+            // FIXED: Calculate masa kerja using helper function
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
+            }
+
             // Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
             if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
                 $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
@@ -1227,7 +1265,7 @@ class EmployeeController extends Controller
             DB::beginTransaction();
             
             try {
-                // Create employee - masa_kerja akan dihitung otomatis di model
+                // Create employee
                 $employee = Employee::create($employeeData);
                 
                 // Commit transaction
@@ -1377,6 +1415,14 @@ class EmployeeController extends Controller
             // Convert gender dari database format (L/P) ke display format
             if (isset($employeeData['jenis_kelamin'])) {
                 $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+            }
+            
+            // FIXED: Recalculate masa kerja to ensure it's current
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
             }
             
             // Format dates untuk input type="date" including ALL NEW FIELDS
@@ -1563,8 +1609,7 @@ class EmployeeController extends Controller
                 // Optional personal fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat' => 'nullable|string|max:500',
-                'alamat_lengkap' => 'nullable|string|max:500', // Support both field names
+                'alamat_lengkap' => 'nullable|string|max:500', // FIXED: Support alamat_lengkap consistently
                 'kota_domisili' => 'nullable|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 
@@ -1630,6 +1675,7 @@ class EmployeeController extends Controller
                 'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
                 'lokasi_kerja.in' => 'Lokasi kerja harus "Bandar Udara Ngurah Rai".',
                 'cabang.in' => 'Cabang harus "DPS".',
+                'alamat_lengkap.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED
             ]);
 
             if ($validator->fails()) {
@@ -1669,12 +1715,17 @@ class EmployeeController extends Controller
             $updateData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai';
             $updateData['cabang'] = 'DPS';
 
+            // FIXED: Recalculate masa kerja when dates change
+            if (isset($updateData['tmt_mulai_kerja'])) {
+                $updateData['masa_kerja'] = $this->calculateMasaKerja(
+                    $updateData['tmt_mulai_kerja'], 
+                    $updateData['tmt_berakhir_kerja'] ?? null
+                );
+            }
+
             // NEW: In edit mode, status_kerja is editable and NOT auto-calculated
             // This allows manual changes to Pensiun, Mutasi, etc.
             // The user can manually set these values via dropdown in Edit.jsx
-            
-            // Masa kerja will be recalculated automatically by model if tmt_mulai_kerja changes
-            // But we don't override it here since it's calculated in the model
 
             // Update employee
             DB::beginTransaction();
@@ -1692,6 +1743,7 @@ class EmployeeController extends Controller
                         'provider' => $updateData['provider'] ?? 'null',
                         'grade' => $updateData['grade'] ?? 'null',
                         'unit_kerja_kontrak' => $updateData['unit_kerja_kontrak'] ?? 'null',
+                        'masa_kerja' => $updateData['masa_kerja'] ?? 'unchanged',
                     ]
                 ]);
 
@@ -2073,7 +2125,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
+                          ->orWhere('alamat_lengkap', 'like', "%{$searchTerm}%") // FIXED: alamat_lengkap
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           // NEW FIELD SEARCHES
                           ->orWhere('provider', 'like', "%{$searchTerm}%")
@@ -2242,8 +2294,8 @@ class EmployeeController extends Controller
     private function getNewEmployeesToday()
     {
         try {
-            $today = Carbon::now()->startOfDay();
-            $endOfDay = Carbon::now()->endOfDay();
+            $today = Carbon::now('Asia/Makassar')->startOfDay();
+            $endOfDay = Carbon::now('Asia/Makassar')->endOfDay();
 
             $query = Employee::whereBetween('created_at', [$today, $endOfDay]);
             if (Schema::hasColumn('employees', 'status')) {
@@ -2263,8 +2315,8 @@ class EmployeeController extends Controller
     private function getNewEmployeesYesterday()
     {
         try {
-            $yesterday = Carbon::now()->subDay()->startOfDay();
-            $endOfYesterday = Carbon::now()->subDay()->endOfDay();
+            $yesterday = Carbon::now('Asia/Makassar')->subDay()->startOfDay();
+            $endOfYesterday = Carbon::now('Asia/Makassar')->subDay()->endOfDay();
 
             $query = Employee::whereBetween('created_at', [$yesterday, $endOfYesterday]);
             if (Schema::hasColumn('employees', 'status')) {
@@ -2284,8 +2336,8 @@ class EmployeeController extends Controller
     private function getNewEmployeesThisWeek()
     {
         try {
-            $startOfWeek = Carbon::now()->startOfWeek();
-            $now = Carbon::now();
+            $startOfWeek = Carbon::now('Asia/Makassar')->startOfWeek();
+            $now = Carbon::now('Asia/Makassar');
 
             $query = Employee::whereBetween('created_at', [$startOfWeek, $now]);
             if (Schema::hasColumn('employees', 'status')) {
@@ -2356,7 +2408,7 @@ class EmployeeController extends Controller
                 return TimezoneHelper::getTimeBasedGreeting();
             }
             
-            $hour = Carbon::now()->hour;
+            $hour = Carbon::now('Asia/Makassar')->hour;
             if ($hour < 12) {
                 return ['greeting' => 'Selamat Pagi', 'period' => 'morning'];
             } elseif ($hour < 15) {
@@ -2382,7 +2434,7 @@ class EmployeeController extends Controller
                 return TimezoneHelper::getBusinessHoursStatus();
             }
             
-            $hour = Carbon::now()->hour;
+            $hour = Carbon::now('Asia/Makassar')->hour;
             return [
                 'isBusinessHours' => $hour >= 8 && $hour < 17,
                 'status' => $hour >= 8 && $hour < 17 ? 'open' : 'closed'

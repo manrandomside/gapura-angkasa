@@ -126,6 +126,24 @@ const InputField = ({
             );
         }
 
+        // For alamat_lengkap, use textarea for better UX
+        if (name === "alamat_lengkap") {
+            return (
+                <textarea
+                    name={name}
+                    value={value || ""}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    onFocus={handleFocus}
+                    placeholder={readonly ? "" : placeholder}
+                    disabled={disabled}
+                    readOnly={readonly}
+                    rows={3}
+                    className={getInputClasses()}
+                />
+            );
+        }
+
         return (
             <input
                 type={type}
@@ -272,21 +290,33 @@ const convertJenisKelaminToDisplay = (jenisKelamin) => {
     return jenisKelamin; // fallback
 };
 
-// Helper function to calculate masa kerja
-const calculateMasaKerja = (tmtMulaiKerja) => {
+// FIXED: Helper function to calculate masa kerja with proper range (simplified)
+const calculateMasaKerja = (tmtMulaiKerja, tmtBerakhirKerja = null) => {
     if (!tmtMulaiKerja) return "";
 
     const startDate = new Date(tmtMulaiKerja);
-    const today = new Date();
+    const endDate = tmtBerakhirKerja ? new Date(tmtBerakhirKerja) : new Date();
 
-    let years = today.getFullYear() - startDate.getFullYear();
-    let months = today.getMonth() - startDate.getMonth();
+    // Validate dates
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return "Tanggal tidak valid";
+    }
 
+    // If end date is before start date, show error
+    if (endDate < startDate) {
+        return "Tanggal berakhir sebelum tanggal mulai";
+    }
+
+    let years = endDate.getFullYear() - startDate.getFullYear();
+    let months = endDate.getMonth() - startDate.getMonth();
+
+    // Adjust for negative months
     if (months < 0) {
         years--;
         months += 12;
     }
 
+    // Simple display: only years and months, no day calculation
     if (years > 0 && months > 0) {
         return `${years} tahun ${months} bulan`;
     } else if (years > 0) {
@@ -361,7 +391,10 @@ export default function Edit({
             cabang: employee?.cabang || "DPS",
             masa_kerja:
                 employee?.masa_kerja ||
-                calculateMasaKerja(employee?.tmt_mulai_kerja),
+                calculateMasaKerja(
+                    employee?.tmt_mulai_kerja,
+                    employee?.tmt_berakhir_kerja
+                ),
 
             // Data Pendidikan
             pendidikan_terakhir: employee?.pendidikan_terakhir || "",
@@ -661,17 +694,18 @@ export default function Edit({
         }
     }, [data.nama_jabatan]);
 
-    // AUTO-UPDATE: Masa kerja when tmt_mulai_kerja changes
+    // FIXED: AUTO-UPDATE Masa kerja when tmt_mulai_kerja or tmt_berakhir_kerja changes
     useEffect(() => {
         if (data.tmt_mulai_kerja) {
             const calculatedMasaKerja = calculateMasaKerja(
-                data.tmt_mulai_kerja
+                data.tmt_mulai_kerja,
+                data.tmt_berakhir_kerja || null
             );
             setData("masa_kerja", calculatedMasaKerja);
         } else {
             setData("masa_kerja", "");
         }
-    }, [data.tmt_mulai_kerja]);
+    }, [data.tmt_mulai_kerja, data.tmt_berakhir_kerja]);
 
     // Define sections
     const sections = {
@@ -1167,15 +1201,17 @@ export default function Edit({
                     onChange={handleInputChange}
                     error={errors.kota_domisili}
                 />
-                <InputField
-                    name="alamat_lengkap"
-                    label="Alamat Lengkap"
-                    placeholder="Alamat lengkap tempat tinggal"
-                    icon={MapPin}
-                    value={data.alamat_lengkap}
-                    onChange={handleInputChange}
-                    error={errors.alamat_lengkap}
-                />
+                <div className="md:col-span-2">
+                    <InputField
+                        name="alamat_lengkap"
+                        label="Alamat Lengkap"
+                        placeholder="Alamat lengkap tempat tinggal"
+                        icon={MapPin}
+                        value={data.alamat_lengkap}
+                        onChange={handleInputChange}
+                        error={errors.alamat_lengkap}
+                    />
+                </div>
                 <InputField
                     name="handphone"
                     label="No. Handphone"
@@ -1501,7 +1537,6 @@ export default function Edit({
                             errors.tmt_berakhir_kerja ||
                             formValidation.tmt_berakhir_kerja
                         }
-                        disabled={!data.tmt_mulai_kerja}
                         hint="Harus diisi setelah TMT Mulai Kerja diisi"
                     />
 
@@ -1529,7 +1564,6 @@ export default function Edit({
                             errors.tmt_akhir_jabatan ||
                             formValidation.tmt_akhir_jabatan
                         }
-                        disabled={!data.tmt_mulai_jabatan}
                         hint="Harus diisi setelah TMT Mulai Jabatan diisi"
                     />
                 </div>
@@ -1602,7 +1636,7 @@ export default function Edit({
                         hint="Otomatis terisi DPS"
                     />
 
-                    {/* NEW FIELD: Masa Kerja - Read Only */}
+                    {/* FIXED: Masa Kerja - Read Only with corrected calculation */}
                     <InputField
                         name="masa_kerja"
                         label="Masa Kerja"
@@ -1610,7 +1644,7 @@ export default function Edit({
                         onChange={handleInputChange}
                         readonly={true}
                         icon={Calendar}
-                        hint="Otomatis dihitung berdasarkan TMT Mulai Kerja"
+                        hint="Otomatis dihitung berdasarkan TMT Mulai Kerja sampai TMT Berakhir Kerja (jika ada) atau hari ini"
                     />
                 </div>
 
