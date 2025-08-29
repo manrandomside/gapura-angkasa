@@ -126,8 +126,8 @@ const InputField = ({
             );
         }
 
-        // For alamat_lengkap, use textarea for better UX
-        if (name === "alamat_lengkap") {
+        // FIXED: For alamat field, use textarea for better UX
+        if (name === "alamat") {
             return (
                 <textarea
                     name={name}
@@ -362,7 +362,7 @@ export default function Edit({
             tempat_lahir: employee?.tempat_lahir || "",
             tanggal_lahir: employee?.tanggal_lahir || "",
             kota_domisili: employee?.kota_domisili || "",
-            alamat_lengkap: employee?.alamat_lengkap || "",
+            alamat: employee?.alamat || "", // FIXED: Changed from alamat_lengkap to alamat
             handphone: employee?.handphone || "",
             email: employee?.email || "",
             no_bpjs_kesehatan: employee?.no_bpjs_kesehatan || "",
@@ -1203,13 +1203,13 @@ export default function Edit({
                 />
                 <div className="md:col-span-2">
                     <InputField
-                        name="alamat_lengkap"
+                        name="alamat"
                         label="Alamat Lengkap"
                         placeholder="Alamat lengkap tempat tinggal"
                         icon={MapPin}
-                        value={data.alamat_lengkap}
+                        value={data.alamat}
                         onChange={handleInputChange}
-                        error={errors.alamat_lengkap}
+                        error={errors.alamat}
                     />
                 </div>
                 <InputField

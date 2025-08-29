@@ -591,7 +591,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat_lengkap', 'like', "%{$searchTerm}%") // FIXED: alamat_lengkap
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%") // FIXED: Changed from alamat_lengkap to alamat
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           // NEW: Search in new fields
@@ -1140,7 +1140,7 @@ class EmployeeController extends Controller
                 // Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat_lengkap' => 'nullable|string|max:500', // FIXED: alamat_lengkap consistency
+                'alamat' => 'nullable|string|max:500', // FIXED: Changed from alamat_lengkap to alamat
                 'kota_domisili' => 'nullable|string|max:100',
                 'handphone' => 'nullable|string|max:20',
                 'email' => 'nullable|email|max:100|unique:employees,email',
@@ -1181,7 +1181,7 @@ class EmployeeController extends Controller
                 'grade.max' => 'Grade maksimal 50 karakter.',
                 'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
                 'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
-                'alamat_lengkap.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED
+                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED: Changed from alamat_lengkap.max to alamat.max
             ]);
 
             // Return validation errors using Inertia redirect back
@@ -1609,7 +1609,7 @@ class EmployeeController extends Controller
                 // Optional personal fields
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat_lengkap' => 'nullable|string|max:500', // FIXED: Support alamat_lengkap consistently
+                'alamat' => 'nullable|string|max:500', // FIXED: Changed from alamat_lengkap to alamat
                 'kota_domisili' => 'nullable|string|max:100',
                 'jabatan' => 'nullable|string|max:255',
                 
@@ -1675,7 +1675,7 @@ class EmployeeController extends Controller
                 'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
                 'lokasi_kerja.in' => 'Lokasi kerja harus "Bandar Udara Ngurah Rai".',
                 'cabang.in' => 'Cabang harus "DPS".',
-                'alamat_lengkap.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED
+                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED: Changed from alamat_lengkap.max to alamat.max
             ]);
 
             if ($validator->fails()) {
@@ -2125,7 +2125,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat_lengkap', 'like', "%{$searchTerm}%") // FIXED: alamat_lengkap
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%") // FIXED: Changed from alamat_lengkap to alamat
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           // NEW FIELD SEARCHES
                           ->orWhere('provider', 'like', "%{$searchTerm}%")
