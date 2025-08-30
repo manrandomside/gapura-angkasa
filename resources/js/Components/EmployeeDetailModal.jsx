@@ -199,9 +199,10 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                     {/* Content */}
                     <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 px-8 py-8 max-h-[80vh] overflow-y-auto">
                         <div className="space-y-8">
-                            {/* 1. Data Pekerjaan - PALING ATAS */}
+                            {/* 1. Data Pekerjaan - PALING ATAS dengan urutan yang diminta */}
                             <DetailCard title="Data Pekerjaan" icon={Building2}>
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    {/* Urutan sesuai permintaan */}
                                     <FieldRow
                                         label="Unit Organisasi"
                                         value={employee.unit_organisasi}
@@ -215,40 +216,57 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                         value={getSubUnitName()}
                                     />
                                     <FieldRow
-                                        label="Nama Organisasi"
-                                        value={employee.nama_organisasi}
-                                    />
-                                    <FieldRow
-                                        label="Kode Organisasi"
-                                        value={employee.kode_organisasi}
-                                    />
-                                    <FieldRow
                                         label="Nama Jabatan"
                                         value={employee.nama_jabatan}
-                                    />
-                                    <FieldRow
-                                        label="Jabatan"
-                                        value={employee.jabatan}
-                                    />
-                                    <FieldRow
-                                        label="Kelompok Jabatan"
-                                        value={employee.kelompok_jabatan}
-                                    />
-                                    <FieldRow
-                                        label="Kelas Jabatan"
-                                        value={employee.kelas_jabatan}
                                     />
                                     <FieldRow
                                         label="Status Pegawai"
                                         value={employee.status_pegawai}
                                     />
                                     <FieldRow
-                                        label="Status Kerja"
-                                        value={employee.status_kerja}
+                                        label="Kelompok Jabatan"
+                                        value={employee.kelompok_jabatan}
                                     />
                                     <FieldRow
                                         label="Provider"
                                         value={employee.provider}
+                                    />
+                                    <FieldRow
+                                        label="TMT Mulai Kerja"
+                                        value={formatDate(
+                                            employee.tmt_mulai_kerja
+                                        )}
+                                    />
+                                    <FieldRow
+                                        label="TMT Berakhir Kerja"
+                                        value={formatDate(
+                                            employee.tmt_berakhir_kerja
+                                        )}
+                                    />
+                                    <FieldRow
+                                        label="TMT Mulai Jabatan"
+                                        value={formatDate(
+                                            employee.tmt_mulai_jabatan
+                                        )}
+                                    />
+                                    <FieldRow
+                                        label="TMT Akhir Jabatan"
+                                        value={formatDate(
+                                            employee.tmt_akhir_jabatan ||
+                                                employee.tmt_berakhir_jabatan
+                                        )}
+                                    />
+                                    <FieldRow
+                                        label="Status Kerja"
+                                        value={employee.status_kerja}
+                                    />
+                                    <FieldRow
+                                        label="Unit Kerja Sesuai Kontrak"
+                                        value={employee.unit_kerja_kontrak}
+                                    />
+                                    <FieldRow
+                                        label="Grade"
+                                        value={employee.grade}
                                     />
                                     <FieldRow
                                         label="Lokasi Kerja"
@@ -259,52 +277,109 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                         value={employee.cabang}
                                     />
                                     <FieldRow
-                                        label="Unit Kerja Kontrak"
-                                        value={employee.unit_kerja_kontrak}
-                                    />
-                                    <FieldRow
-                                        label="Kategori Karyawan"
-                                        value={employee.kategori_karyawan}
-                                    />
-                                    <FieldRow
-                                        label="Grade"
-                                        value={employee.grade}
-                                    />
-                                    <FieldRow
-                                        label="TMT Mulai Kerja"
-                                        value={formatDate(
-                                            employee.tmt_mulai_kerja
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Mulai Jabatan"
-                                        value={formatDate(
-                                            employee.tmt_mulai_jabatan
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Berakhir Jabatan"
-                                        value={formatDate(
-                                            employee.tmt_berakhir_jabatan
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Berakhir Kerja"
-                                        value={formatDate(
-                                            employee.tmt_berakhir_kerja
-                                        )}
+                                        label="Masa Kerja"
+                                        value={(() => {
+                                            // Multiple fallback untuk nama field yang mungkin berbeda
+                                            const tahun =
+                                                employee.masa_kerja_tahun ||
+                                                employee.masa_kerja_thn ||
+                                                employee.lamaKerjaTahun ||
+                                                employee.work_years ||
+                                                0;
+                                            const bulan =
+                                                employee.masa_kerja_bulan ||
+                                                employee.masa_kerja_bln ||
+                                                employee.lamaKerjaBulan ||
+                                                employee.work_months ||
+                                                0;
+
+                                            // Convert string to number if needed
+                                            const tahunNum =
+                                                parseInt(tahun) || 0;
+                                            const bulanNum =
+                                                parseInt(bulan) || 0;
+
+                                            if (
+                                                tahunNum === 0 &&
+                                                bulanNum === 0
+                                            ) {
+                                                // Jika tidak ada data masa kerja, coba hitung dari TMT
+                                                if (employee.tmt_mulai_kerja) {
+                                                    try {
+                                                        const startDate =
+                                                            new Date(
+                                                                employee.tmt_mulai_kerja
+                                                            );
+                                                        const currentDate =
+                                                            new Date();
+                                                        const diffTime =
+                                                            Math.abs(
+                                                                currentDate -
+                                                                    startDate
+                                                            );
+                                                        const diffYears =
+                                                            Math.floor(
+                                                                diffTime /
+                                                                    (1000 *
+                                                                        60 *
+                                                                        60 *
+                                                                        24 *
+                                                                        365)
+                                                            );
+                                                        const diffMonths =
+                                                            Math.floor(
+                                                                (diffTime %
+                                                                    (1000 *
+                                                                        60 *
+                                                                        60 *
+                                                                        24 *
+                                                                        365)) /
+                                                                    (1000 *
+                                                                        60 *
+                                                                        60 *
+                                                                        24 *
+                                                                        30)
+                                                            );
+
+                                                        if (
+                                                            diffYears > 0 ||
+                                                            diffMonths > 0
+                                                        ) {
+                                                            let result = "";
+                                                            if (diffYears > 0)
+                                                                result += `${diffYears} tahun`;
+                                                            if (
+                                                                diffMonths > 0
+                                                            ) {
+                                                                if (result)
+                                                                    result +=
+                                                                        " ";
+                                                                result += `${diffMonths} bulan`;
+                                                            }
+                                                            return (
+                                                                result || "-"
+                                                            );
+                                                        }
+                                                    } catch (e) {
+                                                        // Jika gagal hitung, return "-"
+                                                    }
+                                                }
+                                                return "-";
+                                            }
+
+                                            let result = "";
+                                            if (tahunNum > 0)
+                                                result += `${tahunNum} tahun`;
+                                            if (bulanNum > 0) {
+                                                if (result) result += " ";
+                                                result += `${bulanNum} bulan`;
+                                            }
+                                            return result || "-";
+                                        })()}
                                     />
                                     <FieldRow
                                         label="TMT Pensiun"
                                         value={formatDate(employee.tmt_pensiun)}
-                                    />
-                                    <FieldRow
-                                        label="Masa Kerja (Tahun)"
-                                        value={employee.masa_kerja_tahun}
-                                    />
-                                    <FieldRow
-                                        label="Masa Kerja (Bulan)"
-                                        value={employee.masa_kerja_bulan}
                                     />
                                 </div>
                             </DetailCard>
