@@ -79,6 +79,46 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
         }
     };
 
+    // FIXED: Fungsi calculateMasaKerja yang konsisten dengan Edit.jsx
+    const calculateMasaKerja = (tmtMulaiKerja, tmtBerakhirKerja = null) => {
+        if (!tmtMulaiKerja) return "-";
+
+        const startDate = new Date(tmtMulaiKerja);
+        const endDate = tmtBerakhirKerja
+            ? new Date(tmtBerakhirKerja)
+            : new Date();
+
+        // Validate dates
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return "Tanggal tidak valid";
+        }
+
+        // If end date is before start date, show error
+        if (endDate < startDate) {
+            return "Tanggal berakhir sebelum tanggal mulai";
+        }
+
+        let years = endDate.getFullYear() - startDate.getFullYear();
+        let months = endDate.getMonth() - startDate.getMonth();
+
+        // Adjust for negative months
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+
+        // Simple display: only years and months, no day calculation
+        if (years > 0 && months > 0) {
+            return `${years} tahun ${months} bulan`;
+        } else if (years > 0) {
+            return `${years} tahun`;
+        } else if (months > 0) {
+            return `${months} bulan`;
+        } else {
+            return "Kurang dari 1 bulan";
+        }
+    };
+
     const getInitials = (name) => {
         if (!name) return "??";
         return name
@@ -278,104 +318,13 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     />
                                     <FieldRow
                                         label="Masa Kerja"
-                                        value={(() => {
-                                            // Multiple fallback untuk nama field yang mungkin berbeda
-                                            const tahun =
-                                                employee.masa_kerja_tahun ||
-                                                employee.masa_kerja_thn ||
-                                                employee.lamaKerjaTahun ||
-                                                employee.work_years ||
-                                                0;
-                                            const bulan =
-                                                employee.masa_kerja_bulan ||
-                                                employee.masa_kerja_bln ||
-                                                employee.lamaKerjaBulan ||
-                                                employee.work_months ||
-                                                0;
-
-                                            // Convert string to number if needed
-                                            const tahunNum =
-                                                parseInt(tahun) || 0;
-                                            const bulanNum =
-                                                parseInt(bulan) || 0;
-
-                                            if (
-                                                tahunNum === 0 &&
-                                                bulanNum === 0
-                                            ) {
-                                                // Jika tidak ada data masa kerja, coba hitung dari TMT
-                                                if (employee.tmt_mulai_kerja) {
-                                                    try {
-                                                        const startDate =
-                                                            new Date(
-                                                                employee.tmt_mulai_kerja
-                                                            );
-                                                        const currentDate =
-                                                            new Date();
-                                                        const diffTime =
-                                                            Math.abs(
-                                                                currentDate -
-                                                                    startDate
-                                                            );
-                                                        const diffYears =
-                                                            Math.floor(
-                                                                diffTime /
-                                                                    (1000 *
-                                                                        60 *
-                                                                        60 *
-                                                                        24 *
-                                                                        365)
-                                                            );
-                                                        const diffMonths =
-                                                            Math.floor(
-                                                                (diffTime %
-                                                                    (1000 *
-                                                                        60 *
-                                                                        60 *
-                                                                        24 *
-                                                                        365)) /
-                                                                    (1000 *
-                                                                        60 *
-                                                                        60 *
-                                                                        24 *
-                                                                        30)
-                                                            );
-
-                                                        if (
-                                                            diffYears > 0 ||
-                                                            diffMonths > 0
-                                                        ) {
-                                                            let result = "";
-                                                            if (diffYears > 0)
-                                                                result += `${diffYears} tahun`;
-                                                            if (
-                                                                diffMonths > 0
-                                                            ) {
-                                                                if (result)
-                                                                    result +=
-                                                                        " ";
-                                                                result += `${diffMonths} bulan`;
-                                                            }
-                                                            return (
-                                                                result || "-"
-                                                            );
-                                                        }
-                                                    } catch (e) {
-                                                        // Jika gagal hitung, return "-"
-                                                    }
-                                                }
-                                                return "-";
-                                            }
-
-                                            let result = "";
-                                            if (tahunNum > 0)
-                                                result += `${tahunNum} tahun`;
-                                            if (bulanNum > 0) {
-                                                if (result) result += " ";
-                                                result += `${bulanNum} bulan`;
-                                            }
-                                            return result || "-";
-                                        })()}
+                                        value={
+                                            employee.masa_kerja ||
+                                            calculateMasaKerja(
+                                                employee.tmt_mulai_kerja,
+                                                employee.tmt_berakhir_kerja
+                                            )
+                                        }
                                     />
                                     <FieldRow
                                         label="TMT Pensiun"
@@ -480,10 +429,6 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                             >
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                     <FieldRow
-                                        label="Pendidikan"
-                                        value={employee.pendidikan}
-                                    />
-                                    <FieldRow
                                         label="Pendidikan Terakhir"
                                         value={
                                             employee.pendidikan_terakhir ||
@@ -501,11 +446,6 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     <FieldRow
                                         label="Tahun Lulus"
                                         value={employee.tahun_lulus}
-                                    />
-                                    <FieldRow
-                                        label="Remarks Pendidikan"
-                                        value={employee.remarks_pendidikan}
-                                        colSpan={3}
                                     />
                                 </div>
                             </DetailCard>

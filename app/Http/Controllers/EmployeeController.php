@@ -66,31 +66,52 @@ class EmployeeController extends Controller
     ];
 
     /**
-     * HELPER: Calculate masa kerja between two dates
+     * HELPER: Calculate masa kerja between two dates - FIXED VERSION
      */
     private function calculateMasaKerja($tmtMulaiKerja, $tmtBerakhirKerja = null)
     {
         if (!$tmtMulaiKerja) return "";
 
-        $startDate = Carbon::parse($tmtMulaiKerja);
-        $endDate = $tmtBerakhirKerja ? Carbon::parse($tmtBerakhirKerja) : Carbon::now('Asia/Makassar');
+        try {
+            $startDate = Carbon::parse($tmtMulaiKerja);
+            $endDate = $tmtBerakhirKerja ? Carbon::parse($tmtBerakhirKerja) : Carbon::now('Asia/Makassar');
 
-        // Validate dates
-        if ($endDate < $startDate) {
-            return "Tanggal berakhir sebelum tanggal mulai";
-        }
+            // Validate dates
+            if ($endDate < $startDate) {
+                return "Tanggal berakhir sebelum tanggal mulai";
+            }
 
-        $years = $endDate->diffInYears($startDate);
-        $months = $endDate->copy()->subYears($years)->diffInMonths($startDate);
+            // FIXED: More accurate calculation using Carbon's period calculation
+            $years = $startDate->diffInYears($endDate);
+            
+            // Calculate remaining months after removing full years
+            $startAfterYears = $startDate->copy()->addYears($years);
+            $months = $startAfterYears->diffInMonths($endDate);
 
-        if ($years > 0 && $months > 0) {
-            return "{$years} tahun {$months} bulan";
-        } else if ($years > 0) {
-            return "{$years} tahun";
-        } else if ($months > 0) {
-            return "{$months} bulan";
-        } else {
-            return "Kurang dari 1 bulan";
+            // Format output
+            if ($years > 0 && $months > 0) {
+                return "{$years} tahun {$months} bulan";
+            } else if ($years > 0) {
+                return "{$years} tahun";
+            } else if ($months > 0) {
+                return "{$months} bulan";
+            } else {
+                // Check if it's at least a few days
+                $days = $startDate->diffInDays($endDate);
+                if ($days > 0) {
+                    return "Kurang dari 1 bulan";
+                } else {
+                    return "Belum ada masa kerja";
+                }
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Calculate Masa Kerja Error', [
+                'tmt_mulai_kerja' => $tmtMulaiKerja,
+                'tmt_berakhir_kerja' => $tmtBerakhirKerja,
+                'error' => $e->getMessage()
+            ]);
+            return "Error dalam perhitungan";
         }
     }
 
@@ -1348,8 +1369,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Display the specified employee
-     * FIXED: Parameter sekarang menggunakan flexible identifier (ID atau NIK)
+     * FIXED: Display the specified employee with masa kerja calculation
+     * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
      */
     public function show(string $identifier)
     {
@@ -1372,9 +1393,34 @@ class EmployeeController extends Controller
             if (method_exists($employee, 'subUnit')) {
                 $employee->load('subUnit');
             }
+
+            // FIXED: Prepare employee data and ensure masa kerja is calculated
+            $employeeData = $employee->toArray();
+            
+            // CRITICAL FIX: Calculate masa kerja like in edit method
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
+            }
+
+            // Convert gender dari database format (L/P) ke display format jika perlu
+            if (isset($employeeData['jenis_kelamin'])) {
+                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+            }
+
+            Log::info('Employee Show Data', [
+                'employee_id' => $employee->id,
+                'employee_nik' => $employee->nik,
+                'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'] ?? 'null',
+                'tmt_berakhir_kerja' => $employeeData['tmt_berakhir_kerja'] ?? 'null',
+                'masa_kerja_calculated' => $employeeData['masa_kerja'] ?? 'null',
+                'masa_kerja_original' => $employee->masa_kerja ?? 'null'
+            ]);
             
             return Inertia::render('Employees/Show', [
-                'employee' => $employee,
+                'employee' => $employeeData, // Send processed data with calculated masa_kerja
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
