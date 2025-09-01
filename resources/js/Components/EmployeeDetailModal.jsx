@@ -79,44 +79,107 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
         }
     };
 
-    // FIXED: Fungsi calculateMasaKerja yang konsisten dengan Edit.jsx
+    // FIXED: Fungsi calculateMasaKerja yang lebih robust dan konsisten dengan Edit.jsx
     const calculateMasaKerja = (tmtMulaiKerja, tmtBerakhirKerja = null) => {
         if (!tmtMulaiKerja) return "-";
 
-        const startDate = new Date(tmtMulaiKerja);
-        const endDate = tmtBerakhirKerja
-            ? new Date(tmtBerakhirKerja)
-            : new Date();
+        try {
+            // Parse dates with better error handling
+            const startDate = new Date(tmtMulaiKerja);
+            const endDate = tmtBerakhirKerja
+                ? new Date(tmtBerakhirKerja)
+                : new Date();
 
-        // Validate dates
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            return "Tanggal tidak valid";
+            // Validate dates
+            if (isNaN(startDate.getTime())) {
+                console.warn("Invalid start date:", tmtMulaiKerja);
+                return "Tanggal mulai tidak valid";
+            }
+
+            if (isNaN(endDate.getTime())) {
+                console.warn("Invalid end date:", tmtBerakhirKerja);
+                return "Tanggal berakhir tidak valid";
+            }
+
+            // If end date is before start date, show error
+            if (endDate < startDate) {
+                return "Tanggal berakhir sebelum tanggal mulai";
+            }
+
+            // More accurate calculation using months difference
+            let years = endDate.getFullYear() - startDate.getFullYear();
+            let months = endDate.getMonth() - startDate.getMonth();
+
+            // Adjust for negative months
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+
+            // Day adjustment for more accuracy
+            if (endDate.getDate() < startDate.getDate()) {
+                months--;
+                if (months < 0) {
+                    months += 12;
+                    years--;
+                }
+            }
+
+            // Return formatted result
+            if (years > 0 && months > 0) {
+                return `${years} tahun ${months} bulan`;
+            } else if (years > 0) {
+                return `${years} tahun`;
+            } else if (months > 0) {
+                return `${months} bulan`;
+            } else {
+                // Check if at least some days
+                const daysDiff = Math.floor(
+                    (endDate - startDate) / (1000 * 60 * 60 * 24)
+                );
+                return daysDiff > 0
+                    ? "Kurang dari 1 bulan"
+                    : "Belum ada masa kerja";
+            }
+        } catch (error) {
+            console.error("Error calculating masa kerja:", error);
+            return "Error dalam perhitungan";
+        }
+    };
+
+    // ENHANCED: Function untuk mendapatkan masa kerja dengan multiple fallback
+    const getMasaKerja = () => {
+        // Priority 1: Use pre-calculated masa_kerja from database/controller
+        if (
+            employee.masa_kerja &&
+            employee.masa_kerja !== "" &&
+            employee.masa_kerja !== "-"
+        ) {
+            return employee.masa_kerja;
         }
 
-        // If end date is before start date, show error
-        if (endDate < startDate) {
-            return "Tanggal berakhir sebelum tanggal mulai";
+        // Priority 2: Calculate from TMT dates
+        if (employee.tmt_mulai_kerja) {
+            const calculated = calculateMasaKerja(
+                employee.tmt_mulai_kerja,
+                employee.tmt_berakhir_kerja
+            );
+
+            // Debug logging
+            console.log("Masa Kerja Calculation Debug:", {
+                employee_id: employee.id,
+                employee_nik: employee.nik,
+                tmt_mulai_kerja: employee.tmt_mulai_kerja,
+                tmt_berakhir_kerja: employee.tmt_berakhir_kerja,
+                masa_kerja_db: employee.masa_kerja,
+                masa_kerja_calculated: calculated,
+            });
+
+            return calculated;
         }
 
-        let years = endDate.getFullYear() - startDate.getFullYear();
-        let months = endDate.getMonth() - startDate.getMonth();
-
-        // Adjust for negative months
-        if (months < 0) {
-            years--;
-            months += 12;
-        }
-
-        // Simple display: only years and months, no day calculation
-        if (years > 0 && months > 0) {
-            return `${years} tahun ${months} bulan`;
-        } else if (years > 0) {
-            return `${years} tahun`;
-        } else if (months > 0) {
-            return `${months} bulan`;
-        } else {
-            return "Kurang dari 1 bulan";
-        }
+        // Priority 3: Default fallback
+        return "-";
     };
 
     const getInitials = (name) => {
@@ -318,13 +381,7 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     />
                                     <FieldRow
                                         label="Masa Kerja"
-                                        value={
-                                            employee.masa_kerja ||
-                                            calculateMasaKerja(
-                                                employee.tmt_mulai_kerja,
-                                                employee.tmt_berakhir_kerja
-                                            )
-                                        }
+                                        value={getMasaKerja()}
                                     />
                                     <FieldRow
                                         label="TMT Pensiun"

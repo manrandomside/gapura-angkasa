@@ -66,11 +66,18 @@ class EmployeeController extends Controller
     ];
 
     /**
-     * HELPER: Calculate masa kerja between two dates - FIXED VERSION
+     * HELPER: Calculate masa kerja between two dates - PROPERLY FIXED VERSION
+     * CRITICAL FIX: Use DateTime diff() instead of Carbon diffInYears/diffInMonths
      */
     private function calculateMasaKerja($tmtMulaiKerja, $tmtBerakhirKerja = null)
     {
-        if (!$tmtMulaiKerja) return "";
+        if (!$tmtMulaiKerja || empty($tmtMulaiKerja)) {
+            Log::info('Calculate Masa Kerja: Empty tmt_mulai_kerja', [
+                'tmt_mulai_kerja' => $tmtMulaiKerja,
+                'tmt_berakhir_kerja' => $tmtBerakhirKerja
+            ]);
+            return "-";
+        }
 
         try {
             $startDate = Carbon::parse($tmtMulaiKerja);
@@ -78,38 +85,53 @@ class EmployeeController extends Controller
 
             // Validate dates
             if ($endDate < $startDate) {
+                Log::warning('Calculate Masa Kerja: End date before start date', [
+                    'tmt_mulai_kerja' => $tmtMulaiKerja,
+                    'tmt_berakhir_kerja' => $tmtBerakhirKerja
+                ]);
                 return "Tanggal berakhir sebelum tanggal mulai";
             }
 
-            // FIXED: More accurate calculation using Carbon's period calculation
-            $years = $startDate->diffInYears($endDate);
+            // FIXED: Use DateTime diff() method to get proper DateInterval
+            $interval = $startDate->diff($endDate);
             
-            // Calculate remaining months after removing full years
-            $startAfterYears = $startDate->copy()->addYears($years);
-            $months = $startAfterYears->diffInMonths($endDate);
+            $years = $interval->y;
+            $months = $interval->m;
+            $days = $interval->d;
 
             // Format output
             if ($years > 0 && $months > 0) {
-                return "{$years} tahun {$months} bulan";
+                $result = "{$years} tahun {$months} bulan";
             } else if ($years > 0) {
-                return "{$years} tahun";
+                $result = "{$years} tahun";
             } else if ($months > 0) {
-                return "{$months} bulan";
+                $result = "{$months} bulan";
             } else {
                 // Check if it's at least a few days
-                $days = $startDate->diffInDays($endDate);
                 if ($days > 0) {
-                    return "Kurang dari 1 bulan";
+                    $result = "Kurang dari 1 bulan";
                 } else {
-                    return "Belum ada masa kerja";
+                    $result = "Belum ada masa kerja";
                 }
             }
+
+            Log::info('Calculate Masa Kerja: Success', [
+                'tmt_mulai_kerja' => $tmtMulaiKerja,
+                'tmt_berakhir_kerja' => $tmtBerakhirKerja,
+                'calculated_masa_kerja' => $result,
+                'years' => $years,
+                'months' => $months,
+                'days' => $days
+            ]);
+
+            return $result;
 
         } catch (\Exception $e) {
             Log::error('Calculate Masa Kerja Error', [
                 'tmt_mulai_kerja' => $tmtMulaiKerja,
                 'tmt_berakhir_kerja' => $tmtBerakhirKerja,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return "Error dalam perhitungan";
         }
@@ -1369,7 +1391,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FIXED: Display the specified employee with masa kerja calculation
+     * CRITICAL FIX: Display the specified employee with enhanced masa kerja calculation
      * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
      */
     public function show(string $identifier)
@@ -1394,15 +1416,22 @@ class EmployeeController extends Controller
                 $employee->load('subUnit');
             }
 
-            // FIXED: Prepare employee data and ensure masa kerja is calculated
+            // CRITICAL FIX: Prepare employee data and ALWAYS calculate masa kerja
             $employeeData = $employee->toArray();
             
-            // CRITICAL FIX: Calculate masa kerja like in edit method
+            // ENHANCED: Always recalculate masa kerja to ensure it's current and accurate
+            $masaKerjaCalculated = null;
             if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
-                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                $masaKerjaCalculated = $this->calculateMasaKerja(
                     $employeeData['tmt_mulai_kerja'], 
                     $employeeData['tmt_berakhir_kerja'] ?? null
                 );
+                
+                // CRITICAL: Set the calculated value
+                $employeeData['masa_kerja'] = $masaKerjaCalculated;
+            } else {
+                // If no TMT Mulai Kerja, set fallback
+                $employeeData['masa_kerja'] = "-";
             }
 
             // Convert gender dari database format (L/P) ke display format jika perlu
@@ -1410,22 +1439,30 @@ class EmployeeController extends Controller
                 $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
             }
 
-            Log::info('Employee Show Data', [
+            // ENHANCED DEBUG LOGGING
+            Log::info('Employee Show Data - Comprehensive Debug', [
                 'employee_id' => $employee->id,
                 'employee_nik' => $employee->nik,
-                'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'] ?? 'null',
-                'tmt_berakhir_kerja' => $employeeData['tmt_berakhir_kerja'] ?? 'null',
-                'masa_kerja_calculated' => $employeeData['masa_kerja'] ?? 'null',
-                'masa_kerja_original' => $employee->masa_kerja ?? 'null'
+                'employee_name' => $employee->nama_lengkap,
+                'tmt_mulai_kerja_raw' => $employee->tmt_mulai_kerja,
+                'tmt_mulai_kerja_processed' => $employeeData['tmt_mulai_kerja'] ?? 'null',
+                'tmt_berakhir_kerja_raw' => $employee->tmt_berakhir_kerja,
+                'tmt_berakhir_kerja_processed' => $employeeData['tmt_berakhir_kerja'] ?? 'null',
+                'masa_kerja_from_db' => $employee->masa_kerja,
+                'masa_kerja_calculated' => $masaKerjaCalculated,
+                'masa_kerja_final' => $employeeData['masa_kerja'],
+                'has_tmt_mulai_kerja' => !empty($employee->tmt_mulai_kerja),
+                'has_tmt_berakhir_kerja' => !empty($employee->tmt_berakhir_kerja),
             ]);
             
             return Inertia::render('Employees/Show', [
-                'employee' => $employeeData, // Send processed data with calculated masa_kerja
+                'employee' => $employeeData, // Send processed data with guaranteed masa_kerja
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
                 'employee_identifier' => $identifier,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return redirect()->route('employees.index')
