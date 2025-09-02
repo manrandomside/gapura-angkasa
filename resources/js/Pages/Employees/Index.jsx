@@ -41,6 +41,7 @@ export default function Index({
     message = null,
     notification = null,
     alerts = [],
+    force_refresh = false,
     title = "Management Karyawan",
     subtitle = "Kelola data karyawan PT Gapura Angkasa - Bandar Udara Ngurah Rai",
     auth,
@@ -48,6 +49,17 @@ export default function Index({
     // State untuk history modal - UPDATED dengan key untuk force refresh
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyModalKey, setHistoryModalKey] = useState(0);
+
+    // FIXED: Delete confirmation state
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [deletingEmployeeId, setDeletingEmployeeId] = useState(null);
+
+    // FIXED: Notification state - menggunakan React state instead of localStorage
+    const [dismissedNotifications, setDismissedNotifications] = useState(
+        new Set()
+    );
+    const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
+    const [clickedEmployees, setClickedEmployees] = useState(new Set());
 
     // FIXED: Helper functions untuk notification management dengan pergantian hari
     const isCreatedToday = (employee) => {
@@ -70,59 +82,6 @@ export default function Index({
 
         // Return true jika dibuat hari ini
         return createdDay.getTime() === currentDay.getTime();
-    };
-
-    const getDismissedNotifications = () => {
-        try {
-            const dismissed = localStorage.getItem(
-                "dismissedEmployeeNotifications"
-            );
-            if (!dismissed) return new Set();
-
-            const parsed = JSON.parse(dismissed);
-            // Filter berdasarkan tanggal untuk auto-cleanup
-            const today = new Date().toDateString();
-            const validDismissals = parsed.filter((item) => {
-                const dismissedDate = new Date(item.date).toDateString();
-                return dismissedDate === today; // Hanya keep yang dismissed hari ini
-            });
-
-            // Save back the cleaned data
-            localStorage.setItem(
-                "dismissedEmployeeNotifications",
-                JSON.stringify(validDismissals)
-            );
-
-            return new Set(validDismissals.map((item) => item.employeeId));
-        } catch (error) {
-            console.error("Error loading dismissed notifications:", error);
-            return new Set();
-        }
-    };
-
-    const saveDismissedNotification = (employeeId) => {
-        try {
-            const existing = JSON.parse(
-                localStorage.getItem("dismissedEmployeeNotifications") || "[]"
-            );
-            const newDismissal = {
-                employeeId: employeeId,
-                date: new Date().toISOString(),
-            };
-
-            // Tambah ke existing, hindari duplikasi
-            const updated = existing.filter(
-                (item) => item.employeeId !== employeeId
-            );
-            updated.push(newDismissal);
-
-            localStorage.setItem(
-                "dismissedEmployeeNotifications",
-                JSON.stringify(updated)
-            );
-        } catch (error) {
-            console.error("Error saving dismissed notification:", error);
-        }
     };
 
     // State management
@@ -164,13 +123,6 @@ export default function Index({
 
     // Debounced search
     const [searchTimeout, setSearchTimeout] = useState(null);
-
-    // FIXED: Notification state dengan localStorage persistence
-    const [dismissedNotifications, setDismissedNotifications] = useState(() => {
-        return getDismissedNotifications();
-    });
-    const [newEmployeeIds, setNewEmployeeIds] = useState(new Set());
-    const [clickedEmployees, setClickedEmployees] = useState(new Set());
 
     // STATIC: Struktur organisasi lengkap sesuai dengan create employee
     const organizationStructure = {
@@ -420,26 +372,16 @@ export default function Index({
         }
     }, [unitIdFilter]);
 
-    // FIXED: Debug useEffect untuk monitoring search state
+    // FIXED: Effect untuk handle force refresh dari backend
     useEffect(() => {
-        console.log("Current filter state:", {
-            search: searchQuery,
-            status: statusFilter,
-            unitOrganisasi: unitFilter,
-            unit: unitIdFilter,
-            subUnit: subUnitIdFilter,
-            availableUnits,
-            availableSubUnits,
-        });
-    }, [
-        searchQuery,
-        statusFilter,
-        unitFilter,
-        unitIdFilter,
-        subUnitIdFilter,
-        availableUnits,
-        availableSubUnits,
-    ]);
+        if (force_refresh) {
+            console.log("Force refresh detected, refreshing page data");
+            // Force refresh history modal jika sedang terbuka
+            if (showHistoryModal) {
+                setHistoryModalKey((prev) => prev + 1);
+            }
+        }
+    }, [force_refresh, showHistoryModal]);
 
     // FIXED: Effect untuk handle karyawan baru
     useEffect(() => {
@@ -462,29 +404,18 @@ export default function Index({
         }
     }, [newEmployee]);
 
-    // FIXED: Cleanup notifications pada component mount
-    useEffect(() => {
-        const cleanup = () => {
-            const currentDismissed = getDismissedNotifications();
-            setDismissedNotifications(currentDismissed);
-        };
-
-        cleanup();
-    }, []);
-
     // Enhanced notification handling untuk backend notifications
     useEffect(() => {
         if (notification) {
-            // Handle notification dari backend (success, error, dll)
-            // Bisa ditambahkan toast notification sederhana di sini
+            console.log("Notification received:", notification);
         }
 
         if (success) {
-            // Handle success message
+            console.log("Success message:", success);
         }
 
         if (error) {
-            // Handle error message
+            console.log("Error message:", error);
         }
     }, [notification, success, error, message]);
 
@@ -554,9 +485,6 @@ export default function Index({
         event.stopPropagation();
 
         if (action === "hide-label") {
-            // Save ke localStorage
-            saveDismissedNotification(employeeId);
-
             // Update state
             setDismissedNotifications((prev) => {
                 const updated = new Set(prev);
@@ -581,9 +509,6 @@ export default function Index({
 
     // FIXED: Enhanced handleEmployeeClick dengan dismissal
     const handleEmployeeClick = (employeeId, action = "view") => {
-        // Save dismiss ke localStorage
-        saveDismissedNotification(employeeId);
-
         // Update dismissed notifications
         setDismissedNotifications((prev) => {
             const updated = new Set(prev);
@@ -618,6 +543,75 @@ export default function Index({
             }
         } else if (action === "edit") {
             router.visit(route("employees.edit", employeeId));
+        }
+    };
+
+    // FIXED: Enhanced delete employee function with proper error handling
+    const handleDeleteEmployee = async (employee) => {
+        // Set loading state
+        setDeleteLoading(true);
+        setDeletingEmployeeId(employee.id);
+
+        // Enhanced confirmation dialog
+        const confirmMessage = `KONFIRMASI PENGHAPUSAN KARYAWAN\n\nAnda akan menghapus:\n• Nama: ${employee.nama_lengkap}\n• NIK: ${employee.nik}\n• NIP: ${employee.nip}\n\nData yang dihapus TIDAK DAPAT dikembalikan!\n\nApakah Anda yakin ingin melanjutkan?`;
+
+        if (!confirm(confirmMessage)) {
+            setDeleteLoading(false);
+            setDeletingEmployeeId(null);
+            return;
+        }
+
+        try {
+            console.log(
+                `Deleting employee: ${employee.nama_lengkap} (ID: ${employee.id})`
+            );
+
+            // Call delete endpoint with proper error handling
+            router.delete(route("employees.destroy", employee.id), {
+                preserveState: false,
+                preserveScroll: false,
+                onStart: () => {
+                    console.log("Delete request started");
+                },
+                onSuccess: (page) => {
+                    console.log("Delete successful:", page);
+
+                    // Force refresh the page to update statistics
+                    router.reload({
+                        preserveState: false,
+                        preserveScroll: false,
+                        onFinish: () => {
+                            setDeleteLoading(false);
+                            setDeletingEmployeeId(null);
+                            console.log(
+                                "Page reloaded after successful delete"
+                            );
+                        },
+                    });
+                },
+                onError: (errors) => {
+                    console.error("Delete failed with errors:", errors);
+                    setDeleteLoading(false);
+                    setDeletingEmployeeId(null);
+
+                    // Show error message
+                    const errorMessage =
+                        errors.message ||
+                        errors.error ||
+                        "Terjadi kesalahan saat menghapus karyawan";
+                    alert(`Gagal menghapus karyawan!\n\n${errorMessage}`);
+                },
+                onFinish: () => {
+                    console.log("Delete request finished");
+                },
+            });
+        } catch (error) {
+            console.error("Delete error:", error);
+            setDeleteLoading(false);
+            setDeletingEmployeeId(null);
+            alert(
+                "Terjadi kesalahan sistem saat menghapus karyawan. Silakan coba lagi."
+            );
         }
     };
 
@@ -1113,6 +1107,12 @@ export default function Index({
                     
                     .animate-spin {
                         animation: spin 1s linear infinite;
+                    }
+
+                    /* Delete loading overlay */
+                    .delete-loading {
+                        opacity: 0.6;
+                        pointer-events: none;
                     }
                 `}</style>
             </Head>
@@ -1988,7 +1988,11 @@ export default function Index({
                 </div>
 
                 {/* UPDATED: Enhanced Employee Table dengan Status Pegawai Split dan Kelompok Jabatan - Compact */}
-                <div className="px-6 pb-6">
+                <div
+                    className={`px-6 pb-6 ${
+                        deleteLoading ? "delete-loading" : ""
+                    }`}
+                >
                     {employees.data && employees.data.length > 0 ? (
                         <div className="overflow-hidden bg-white border-2 border-gray-200 shadow-xl rounded-2xl">
                             <div
@@ -2029,6 +2033,11 @@ export default function Index({
                                                 const isNew =
                                                     isNewEmployee(employee);
 
+                                                // Check if this employee is being deleted
+                                                const isBeingDeleted =
+                                                    deletingEmployeeId ===
+                                                    employee.id;
+
                                                 return (
                                                     <tr
                                                         key={
@@ -2039,12 +2048,17 @@ export default function Index({
                                                         data-employee-id={
                                                             employee.id
                                                         }
-                                                        className="group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5"
+                                                        className={`group transition-all duration-300 hover:bg-gradient-to-r hover:from-[#439454]/5 hover:to-[#367a41]/5 ${
+                                                            isBeingDeleted
+                                                                ? "opacity-50 pointer-events-none"
+                                                                : ""
+                                                        }`}
                                                     >
                                                         {/* No Column */}
                                                         <td
                                                             className="px-6 py-5 text-sm font-bold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
                                                             onClick={(e) =>
+                                                                !isBeingDeleted &&
                                                                 handleEmployeeProfileClick(
                                                                     employee.id,
                                                                     e
@@ -2073,6 +2087,7 @@ export default function Index({
                                                                         onClick={(
                                                                             e
                                                                         ) =>
+                                                                            !isBeingDeleted &&
                                                                             handleEmployeeProfileClick(
                                                                                 employee.id,
                                                                                 e
@@ -2092,6 +2107,7 @@ export default function Index({
                                                                             onClick={(
                                                                                 e
                                                                             ) =>
+                                                                                !isBeingDeleted &&
                                                                                 handleEmployeeProfileClick(
                                                                                     employee.id,
                                                                                     e
@@ -2112,6 +2128,7 @@ export default function Index({
                                                             <div
                                                                 className="text-sm font-bold text-gray-900 group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
                                                                 onClick={(e) =>
+                                                                    !isBeingDeleted &&
                                                                     handleEmployeeProfileClick(
                                                                         employee.id,
                                                                         e
@@ -2125,6 +2142,7 @@ export default function Index({
                                                             <div
                                                                 className="text-sm font-medium text-gray-500 profile-clickable"
                                                                 onClick={(e) =>
+                                                                    !isBeingDeleted &&
                                                                     handleEmployeeProfileClick(
                                                                         employee.id,
                                                                         e
@@ -2157,6 +2175,7 @@ export default function Index({
                                                                         : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
                                                                 }`}
                                                                 onClick={(e) =>
+                                                                    !isBeingDeleted &&
                                                                     handleEmployeeProfileClick(
                                                                         employee.id,
                                                                         e
@@ -2191,6 +2210,7 @@ export default function Index({
                                                                         : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
                                                                 }`}
                                                                 onClick={(e) =>
+                                                                    !isBeingDeleted &&
                                                                     handleEmployeeProfileClick(
                                                                         employee.id,
                                                                         e
@@ -2206,6 +2226,7 @@ export default function Index({
                                                         <td
                                                             className="px-6 py-5 text-sm font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#439454] transition-colors duration-300 profile-clickable"
                                                             onClick={(e) =>
+                                                                !isBeingDeleted &&
                                                                 handleEmployeeProfileClick(
                                                                     employee.id,
                                                                     e
@@ -2217,58 +2238,87 @@ export default function Index({
                                                                 employee.tmt_mulai_jabatan
                                                             )}
                                                         </td>
+
+                                                        {/* FIXED: Action buttons dengan delete yang diperbaiki */}
                                                         <td className="px-6 py-5 text-sm font-medium whitespace-nowrap">
                                                             <div className="flex items-center justify-center gap-2">
+                                                                {/* View Button */}
                                                                 <button
                                                                     onClick={() =>
+                                                                        !isBeingDeleted &&
                                                                         showEmployeeDetails(
                                                                             employee
                                                                         )
                                                                     }
-                                                                    className="p-2 text-blue-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-blue-600 hover:shadow-lg hover:scale-110"
+                                                                    disabled={
+                                                                        isBeingDeleted
+                                                                    }
+                                                                    className={`p-2 transition-all duration-300 transform group/btn rounded-xl hover:shadow-lg hover:scale-110 ${
+                                                                        isBeingDeleted
+                                                                            ? "text-gray-400 cursor-not-allowed"
+                                                                            : "text-blue-600 hover:text-white hover:bg-blue-600"
+                                                                    }`}
                                                                     title="Lihat Detail Lengkap"
                                                                 >
                                                                     <Eye className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
                                                                 </button>
+
+                                                                {/* Edit Button */}
                                                                 <Link
                                                                     href={route(
                                                                         "employees.edit",
                                                                         employee.id
                                                                     )}
                                                                     onClick={() =>
+                                                                        !isBeingDeleted &&
                                                                         handleEmployeeClick(
                                                                             employee.id,
                                                                             "edit"
                                                                         )
                                                                     }
-                                                                    className="group/btn p-2 text-[#439454] transition-all duration-300 rounded-xl hover:text-white hover:bg-[#439454] hover:shadow-lg transform hover:scale-110"
+                                                                    className={`group/btn p-2 transition-all duration-300 rounded-xl hover:shadow-lg transform hover:scale-110 ${
+                                                                        isBeingDeleted
+                                                                            ? "text-gray-400 pointer-events-none"
+                                                                            : "text-[#439454] hover:text-white hover:bg-[#439454]"
+                                                                    }`}
                                                                     title="Edit Karyawan"
                                                                 >
                                                                     <Edit className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
                                                                 </Link>
+
+                                                                {/* FIXED: Delete Button dengan enhanced handler */}
                                                                 <button
                                                                     onClick={() => {
                                                                         if (
-                                                                            confirm(
-                                                                                `Apakah Anda yakin ingin menghapus karyawan ${employee.nama_lengkap}?`
-                                                                            )
+                                                                            !isBeingDeleted &&
+                                                                            !deleteLoading
                                                                         ) {
-                                                                            handleEmployeeClick(
-                                                                                employee.id,
-                                                                                "delete"
-                                                                            );
-                                                                            router.delete(
-                                                                                route(
-                                                                                    "employees.destroy",
-                                                                                    employee.id
-                                                                                )
+                                                                            handleDeleteEmployee(
+                                                                                employee
                                                                             );
                                                                         }
                                                                     }}
-                                                                    className="p-2 text-red-600 transition-all duration-300 transform group/btn rounded-xl hover:text-white hover:bg-red-600 hover:shadow-lg hover:scale-110"
-                                                                    title="Hapus Karyawan"
+                                                                    disabled={
+                                                                        isBeingDeleted ||
+                                                                        deleteLoading
+                                                                    }
+                                                                    className={`p-2 transition-all duration-300 transform group/btn rounded-xl hover:shadow-lg hover:scale-110 relative ${
+                                                                        isBeingDeleted ||
+                                                                        deleteLoading
+                                                                            ? "text-gray-400 cursor-not-allowed"
+                                                                            : "text-red-600 hover:text-white hover:bg-red-600"
+                                                                    }`}
+                                                                    title={
+                                                                        isBeingDeleted
+                                                                            ? "Sedang menghapus..."
+                                                                            : "Hapus Karyawan"
+                                                                    }
                                                                 >
-                                                                    <Trash2 className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
+                                                                    {isBeingDeleted ? (
+                                                                        <div className="w-4 h-4 border-2 border-gray-300 rounded-full border-t-red-500 animate-spin"></div>
+                                                                    ) : (
+                                                                        <Trash2 className="w-4 h-4 transition-transform duration-300 group-hover/btn:scale-110" />
+                                                                    )}
                                                                 </button>
                                                             </div>
                                                         </td>
@@ -2308,11 +2358,13 @@ export default function Index({
                                                 onClick={() => goToPage(1)}
                                                 disabled={
                                                     pagination.on_first_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                 }
                                                 className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
                                                     pagination.on_first_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                         ? "text-gray-400 cursor-not-allowed"
                                                         : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
                                                 }`}
@@ -2331,11 +2383,13 @@ export default function Index({
                                                 }
                                                 disabled={
                                                     pagination.on_first_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                 }
                                                 className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
                                                     pagination.on_first_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                         ? "text-gray-400 cursor-not-allowed"
                                                         : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
                                                 }`}
@@ -2364,12 +2418,16 @@ export default function Index({
                                                                     )
                                                                 }
                                                                 disabled={
-                                                                    loading
+                                                                    loading ||
+                                                                    deleteLoading
                                                                 }
                                                                 className={`group px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 transform hover:scale-110 ${
                                                                     page ===
                                                                     pagination.current_page
                                                                         ? "text-white bg-gradient-to-r from-[#439454] to-[#367a41] shadow-lg"
+                                                                        : loading ||
+                                                                          deleteLoading
+                                                                        ? "text-gray-400 cursor-not-allowed"
                                                                         : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
                                                                 }`}
                                                             >
@@ -2389,11 +2447,13 @@ export default function Index({
                                                 }
                                                 disabled={
                                                     pagination.on_last_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                 }
                                                 className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
                                                     pagination.on_last_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                         ? "text-gray-400 cursor-not-allowed"
                                                         : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
                                                 }`}
@@ -2411,11 +2471,13 @@ export default function Index({
                                                 }
                                                 disabled={
                                                     pagination.on_last_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                 }
                                                 className={`group p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
                                                     pagination.on_last_page ||
-                                                    loading
+                                                    loading ||
+                                                    deleteLoading
                                                         ? "text-gray-400 cursor-not-allowed"
                                                         : "text-gray-600 hover:text-[#439454] hover:bg-[#439454]/10"
                                                 }`}
@@ -2465,6 +2527,18 @@ export default function Index({
                         </div>
                     )}
                 </div>
+
+                {/* Delete Loading Overlay */}
+                {deleteLoading && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="flex items-center gap-4 px-8 py-6 bg-white shadow-2xl rounded-2xl">
+                            <div className="w-8 h-8 border-4 border-[#439454] border-t-transparent rounded-full animate-spin"></div>
+                            <div className="text-lg font-semibold text-gray-900">
+                                Sedang menghapus karyawan...
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* History Modal - UPDATED dengan key prop dan handler baru */}

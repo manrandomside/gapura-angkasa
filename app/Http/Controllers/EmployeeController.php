@@ -1937,64 +1937,143 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Remove the specified employee from storage
-     * FIXED: Parameter menggunakan flexible identifier
+     * FIXED: Remove the specified employee from storage with improved error handling and statistics refresh
+     * Parameter menggunakan flexible identifier
      */
     public function destroy(string $identifier)
     {
         try {
-            // FIXED: Find by flexible identifier
-            $employee = Employee::findByIdentifier($identifier)->first();
+            Log::info('Employee Delete Request Started', [
+                'identifier' => $identifier,
+                'request_ip' => request()->ip(),
+                'user_agent' => request()->header('User-Agent')
+            ]);
+
+            // FIXED: Find by flexible identifier with comprehensive search
+            $employee = null;
+            
+            // Try to find by ID first (if numeric)
+            if (is_numeric($identifier)) {
+                $employee = Employee::find($identifier);
+            }
+            
+            // If not found by ID, try by NIK
+            if (!$employee && strlen($identifier) == 16 && is_numeric($identifier)) {
+                $employee = Employee::where('nik', $identifier)->first();
+            }
+            
+            // If not found by NIK, try by NIP
+            if (!$employee && is_numeric($identifier) && strlen($identifier) >= 5) {
+                $employee = Employee::where('nip', $identifier)->first();
+            }
             
             if (!$employee) {
+                Log::warning('Employee Delete Failed: Employee Not Found', [
+                    'identifier' => $identifier,
+                    'search_attempts' => ['id', 'nik', 'nip']
+                ]);
+
                 return redirect()->route('employees.index')
-                    ->with('error', 'Employee tidak ditemukan.');
+                    ->with('error', 'Karyawan tidak ditemukan. Pastikan data yang akan dihapus masih ada di sistem.')
+                    ->with('notification', [
+                        'type' => 'error',
+                        'title' => 'Gagal Menghapus',
+                        'message' => 'Data karyawan tidak ditemukan di sistem.'
+                    ]);
             }
 
+            // Store employee info for logging and response
             $employeeName = $employee->nama_lengkap;
             $employeeNik = $employee->nik;
+            $employeeNip = $employee->nip;
+            $employeeId = $employee->id;
 
+            Log::info('Employee Found for Deletion', [
+                'employee_id' => $employeeId,
+                'employee_nik' => $employeeNik,
+                'employee_nip' => $employeeNip,
+                'employee_name' => $employeeName,
+                'unit_organisasi' => $employee->unit_organisasi,
+                'status_pegawai' => $employee->status_pegawai
+            ]);
+
+            // Start database transaction for safe deletion
             DB::beginTransaction();
             
             try {
-                $employee->delete();
+                // CRITICAL: Delete the employee record
+                $deleteResult = $employee->delete();
+                
+                if (!$deleteResult) {
+                    throw new \Exception('Failed to delete employee record from database');
+                }
+                
+                // Commit the transaction
                 DB::commit();
 
                 Log::info('Employee Deleted Successfully', [
-                    'employee_id' => $employee->id,
+                    'employee_id' => $employeeId,
                     'employee_nik' => $employeeNik,
-                    'employee_name' => $employeeName
+                    'employee_nip' => $employeeNip,
+                    'employee_name' => $employeeName,
+                    'deleted_at' => now()->format('Y-m-d H:i:s'),
+                    'delete_result' => $deleteResult
                 ]);
 
+                // FIXED: Return with success message and force statistics refresh
                 return redirect()->route('employees.index')
-                    ->with('success', "Karyawan {$employeeName} berhasil dihapus!")
+                    ->with('success', "Karyawan {$employeeName} (NIK: {$employeeNik}) berhasil dihapus dari sistem!")
                     ->with('notification', [
                         'type' => 'success',
-                        'title' => 'Berhasil!',
-                        'message' => "Data karyawan {$employeeName} berhasil dihapus dari sistem."
-                    ]);
+                        'title' => 'Berhasil Menghapus!',
+                        'message' => "Data karyawan {$employeeName} telah dihapus permanen dari sistem. Statistik telah diperbarui.",
+                        'deleted_employee' => [
+                            'id' => $employeeId,
+                            'nik' => $employeeNik,
+                            'nip' => $employeeNip,
+                            'nama_lengkap' => $employeeName,
+                            'deleted_at' => now()->format('d/m/Y H:i:s')
+                        ]
+                    ])
+                    ->with('force_refresh', true); // Force page refresh untuk update statistics
 
             } catch (\Exception $e) {
+                // Rollback transaction pada error
                 DB::rollBack();
                 
-                Log::error('Employee Delete Database Failed', [
-                    'employee_id' => $employee->id,
-                    'error' => $e->getMessage()
+                Log::error('Employee Delete Database Transaction Failed', [
+                    'employee_id' => $employeeId,
+                    'employee_nik' => $employeeNik,
+                    'employee_name' => $employeeName,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ]);
 
                 return redirect()->back()
-                    ->with('error', 'Terjadi kesalahan database saat menghapus data. Error: ' . $e->getMessage());
+                    ->with('error', 'Terjadi kesalahan database saat menghapus karyawan. Silakan coba lagi.')
+                    ->with('notification', [
+                        'type' => 'error',
+                        'title' => 'Gagal Menghapus',
+                        'message' => 'Terjadi kesalahan database. Data tidak dihapus. Error: ' . $e->getMessage()
+                    ]);
             }
 
         } catch (\Exception $e) {
-            Log::error('Employee Delete Failed', [
-                'employee_identifier' => $identifier,
+            Log::error('Employee Delete System Error', [
+                'identifier' => $identifier,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
 
             return redirect()->back()
-                ->with('error', 'Terjadi kesalahan saat menghapus data. Silakan coba lagi.');
+                ->with('error', 'Terjadi kesalahan sistem saat menghapus karyawan. Silakan hubungi administrator.')
+                ->with('notification', [
+                    'type' => 'error',
+                    'title' => 'Kesalahan Sistem',
+                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator jika masalah berlanjut.'
+                ]);
         }
     }
 
