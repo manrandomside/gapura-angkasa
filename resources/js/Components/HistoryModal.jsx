@@ -413,7 +413,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
         return "bg-gray-100 text-gray-600 border-gray-300";
     };
 
-    // ENHANCED: Position badge colors dengan kelompok jabatan mapping
+    // UPDATED: Enhanced position badge colors dengan kelompok jabatan mapping termasuk GENERAL MANAGER dan NON
     const getPositionBadgeColor = (position) => {
         if (!position || position === "Tidak tersedia") {
             return "bg-gray-100 text-gray-600 border-gray-300";
@@ -421,19 +421,25 @@ const HistoryModal = ({ isOpen, onClose }) => {
 
         const positionUpper = position.toUpperCase();
 
-        if (positionUpper.includes("SUPERVISOR")) {
-            return "bg-purple-100 text-purple-700 border-purple-300";
-        } else if (positionUpper.includes("MANAGER")) {
-            return "bg-indigo-100 text-indigo-700 border-indigo-300";
-        } else if (positionUpper.includes("STAFF")) {
-            return "bg-cyan-100 text-cyan-700 border-cyan-300";
-        } else if (positionUpper.includes("EXECUTIVE")) {
+        // UPDATED: Check for GENERAL MANAGER first before MANAGER (order matters!)
+        if (positionUpper.includes("GENERAL MANAGER")) {
+            return "bg-green-100 text-green-700 border-green-300";
+        } else if (positionUpper.includes("EXECUTIVE GENERAL MANAGER")) {
             return "bg-amber-100 text-amber-700 border-amber-300";
         } else if (
             positionUpper.includes("ACCOUNT EXECUTIVE") ||
             positionUpper.includes("AE")
         ) {
             return "bg-pink-100 text-pink-700 border-pink-300";
+        } else if (positionUpper.includes("MANAGER")) {
+            return "bg-indigo-100 text-indigo-700 border-indigo-300";
+        } else if (positionUpper.includes("SUPERVISOR")) {
+            return "bg-purple-100 text-purple-700 border-purple-300";
+        } else if (positionUpper.includes("STAFF")) {
+            return "bg-cyan-100 text-cyan-700 border-cyan-300";
+        } else if (positionUpper === "NON") {
+            // UPDATED: Added NON kelompok jabatan with distinct styling
+            return "bg-slate-100 text-slate-600 border-slate-300";
         }
 
         return "bg-gray-100 text-gray-600 border-gray-300";

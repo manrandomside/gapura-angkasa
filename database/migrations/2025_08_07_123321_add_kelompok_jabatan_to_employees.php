@@ -9,21 +9,35 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * Menambahkan field kelompok_jabatan untuk GAPURA ANGKASA SDM System
+     * UPDATED: Menambahkan field kelompok_jabatan dengan GENERAL MANAGER dan NON untuk GAPURA ANGKASA SDM System
      */
     public function up(): void
     {
         Schema::table('employees', function (Blueprint $table) {
             // Cek apakah kolom kelompok_jabatan sudah ada
             if (!Schema::hasColumn('employees', 'kelompok_jabatan')) {
-                // Jika belum ada, tambahkan sebagai enum
+                // UPDATED: Tambahkan enum dengan GENERAL MANAGER dan NON
                 $table->enum('kelompok_jabatan', [
-                    'SUPERVISOR', 
-                    'STAFF', 
-                    'MANAGER', 
-                    'EXECUTIVE GENERAL MANAGER', 
-                    'ACCOUNT EXECUTIVE/AE'
+                    'ACCOUNT EXECUTIVE/AE',
+                    'EXECUTIVE GENERAL MANAGER',
+                    'GENERAL MANAGER',
+                    'MANAGER',
+                    'STAFF',
+                    'SUPERVISOR',
+                    'NON'
                 ])->nullable()->after('status_pegawai');
+            } else {
+                // Jika kolom sudah ada, alter enum untuk menambahkan nilai baru
+                // CRITICAL: Backup data sebelum alter enum
+                DB::statement("ALTER TABLE employees MODIFY COLUMN kelompok_jabatan ENUM(
+                    'ACCOUNT EXECUTIVE/AE',
+                    'EXECUTIVE GENERAL MANAGER', 
+                    'GENERAL MANAGER',
+                    'MANAGER',
+                    'STAFF',
+                    'SUPERVISOR',
+                    'NON'
+                )");
             }
 
             // Update status_pegawai untuk menambahkan TAD Split
@@ -57,13 +71,24 @@ return new class extends Migration
 
     /**
      * Reverse the migrations.
+     * UPDATED: Rollback untuk enum yang sudah diupdate
      */
     public function down(): void
     {
         Schema::table('employees', function (Blueprint $table) {
             // Drop kelompok_jabatan jika ada
             if (Schema::hasColumn('employees', 'kelompok_jabatan')) {
-                $table->dropColumn('kelompok_jabatan');
+                // Sebelum drop, set values yang tidak valid ke null atau default value
+                DB::statement("UPDATE employees SET kelompok_jabatan = NULL WHERE kelompok_jabatan IN ('GENERAL MANAGER', 'NON')");
+                
+                // Kembalikan ke enum original
+                DB::statement("ALTER TABLE employees MODIFY COLUMN kelompok_jabatan ENUM(
+                    'SUPERVISOR', 
+                    'STAFF', 
+                    'MANAGER', 
+                    'EXECUTIVE GENERAL MANAGER', 
+                    'ACCOUNT EXECUTIVE/AE'
+                )");
             }
 
             // Revert status_pegawai back to original enum
