@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     X,
     User,
@@ -20,9 +20,21 @@ import {
     Weight,
     Heart,
     Building,
+    Trash2,
+    AlertTriangle,
+    Loader2,
 } from "lucide-react";
+import axios from "axios";
 
-const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
+const EmployeeDetailModal = ({
+    employee,
+    isOpen,
+    onClose,
+    onEmployeeDeleted,
+}) => {
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+
     if (!isOpen || !employee) return null;
 
     // Helper function untuk get unit name dari relasi database
@@ -312,6 +324,90 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
         }
     };
 
+    // Handle delete employee
+    const handleDeleteEmployee = async () => {
+        if (!employee?.id) {
+            console.error("No employee ID available for deletion");
+            return;
+        }
+
+        setDeleteLoading(true);
+
+        try {
+            console.log("Attempting to delete employee:", {
+                id: employee.id,
+                nik: employee.nik,
+                nama: employee.nama_lengkap,
+            });
+
+            // Send DELETE request to Laravel backend
+            const response = await axios.delete(`/employees/${employee.id}`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            });
+
+            console.log("Delete response:", response);
+
+            if (response.status === 200 || response.status === 204) {
+                // Success - close modals and notify parent
+                setShowDeleteConfirm(false);
+                onClose();
+
+                // Call parent callback to refresh data and update statistics
+                if (onEmployeeDeleted) {
+                    onEmployeeDeleted({
+                        success: true,
+                        message: `Data karyawan ${employee.nama_lengkap} berhasil dihapus`,
+                        deletedEmployee: employee,
+                    });
+                }
+
+                console.log("Employee deleted successfully");
+            } else {
+                throw new Error(
+                    `Unexpected response status: ${response.status}`
+                );
+            }
+        } catch (error) {
+            console.error("Delete employee error:", error);
+
+            let errorMessage = "Terjadi kesalahan saat menghapus data karyawan";
+
+            if (error.response) {
+                // Server responded with error status
+                console.error("Delete error response:", error.response);
+                if (error.response.data?.message) {
+                    errorMessage = error.response.data.message;
+                } else if (error.response.status === 404) {
+                    errorMessage = "Data karyawan tidak ditemukan";
+                } else if (error.response.status === 403) {
+                    errorMessage =
+                        "Anda tidak memiliki izin untuk menghapus data ini";
+                } else if (error.response.status >= 500) {
+                    errorMessage =
+                        "Terjadi kesalahan server. Silakan coba lagi.";
+                }
+            } else if (error.request) {
+                // Request was made but no response received
+                errorMessage =
+                    "Tidak dapat menghubungi server. Periksa koneksi internet Anda.";
+            }
+
+            // Call parent callback to show error
+            if (onEmployeeDeleted) {
+                onEmployeeDeleted({
+                    success: false,
+                    message: errorMessage,
+                    error: error,
+                });
+            }
+        } finally {
+            setDeleteLoading(false);
+        }
+    };
+
     const DetailCard = ({ title, icon: Icon, children, className = "" }) => (
         <div
             className={`p-6 space-y-5 transition-shadow duration-300 border border-gray-200 shadow-lg rounded-2xl bg-gradient-to-br from-white to-gray-50 hover:shadow-xl ${className}`}
@@ -348,349 +444,473 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
         masa_kerja: masaKerjaResult,
     });
 
-    return (
-        <div
-            className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn"
-            onClick={handleBackdropClick}
-        >
-            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                <div
-                    className="fixed inset-0 transition-all duration-300 bg-black/50 backdrop-blur-sm"
-                    aria-hidden="true"
-                ></div>
+    // Delete Confirmation Modal
+    const DeleteConfirmationModal = () => {
+        if (!showDeleteConfirm) return null;
 
-                <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white shadow-2xl rounded-2xl sm:my-8 sm:align-middle sm:max-w-7xl sm:w-full animate-scaleIn">
-                    {/* Header dengan informasi utama */}
-                    <div className="relative px-8 py-6 bg-gradient-to-r from-[#439454] via-[#4a9f5e] to-[#367a41] text-white overflow-hidden">
-                        <div className="absolute inset-0 bg-black/10"></div>
-                        <div className="relative flex items-center justify-between">
-                            <div className="flex items-center space-x-6">
-                                <div className="relative">
-                                    <div className="flex items-center justify-center w-20 h-20 border shadow-2xl bg-white/20 backdrop-blur-sm rounded-2xl border-white/30">
-                                        <span className="text-2xl font-bold text-white">
+        return (
+            <div className="fixed inset-0 overflow-y-auto z-60 animate-fadeIn">
+                <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                    <div
+                        className="fixed inset-0 transition-opacity bg-black/60 backdrop-blur-sm"
+                        aria-hidden="true"
+                    ></div>
+
+                    <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white shadow-2xl rounded-2xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full animate-scaleIn">
+                        {/* Header */}
+                        <div className="px-6 py-4 bg-gradient-to-r from-red-500 to-red-600">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2 rounded-lg bg-white/20">
+                                    <AlertTriangle className="w-6 h-6 text-white" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Konfirmasi Hapus Data
+                                </h3>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="px-6 py-4">
+                            <p className="mb-4 text-sm text-gray-600">
+                                Apakah Anda yakin ingin menghapus data karyawan
+                                berikut?
+                            </p>
+
+                            <div className="p-4 border border-gray-200 bg-gray-50 rounded-xl">
+                                <div className="flex items-center space-x-3">
+                                    <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#439454] to-[#367a41] rounded-lg shadow-lg">
+                                        <span className="text-lg font-bold text-white">
                                             {getInitials(employee.nama_lengkap)}
                                         </span>
                                     </div>
-                                    <div className="absolute w-6 h-6 bg-green-400 border-2 border-white rounded-full -bottom-1 -right-1"></div>
-                                </div>
-                                <div className="space-y-2">
-                                    <h3 className="text-3xl font-bold text-white">
-                                        {employee.nama_lengkap || "-"}
-                                    </h3>
-                                    <p className="text-xl font-medium text-white/90">
-                                        NIP: {employee.nip || "-"}
-                                    </p>
-
-                                    {/* Breakdown detail struktur organisasi */}
-                                    <div className="flex flex-wrap gap-2 text-sm">
-                                        {employee.unit_organisasi && (
-                                            <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
-                                                {employee.unit_organisasi}
-                                            </span>
-                                        )}
-                                        {getUnitName() !== "-" && (
-                                            <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
-                                                Unit: {getUnitName()}
-                                            </span>
-                                        )}
-                                        {getSubUnitName() !== "-" &&
-                                            !["EGM", "GM"].includes(
-                                                employee.unit_organisasi
-                                            ) && (
-                                                <span className="inline-block px-3 py-1 font-semibold text-purple-100 rounded-full bg-white/20">
-                                                    Sub Unit: {getSubUnitName()}
-                                                </span>
-                                            )}
+                                    <div>
+                                        <p className="font-semibold text-gray-900">
+                                            {employee.nama_lengkap}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            NIP: {employee.nip || "-"}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            {employee.unit_organisasi || "-"}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="p-3 mt-4 border border-red-200 rounded-lg bg-red-50">
+                                <p className="text-sm font-medium text-red-800">
+                                    Perhatian: Data yang sudah dihapus tidak
+                                    dapat dikembalikan!
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex justify-end px-6 py-4 space-x-3 border-t border-gray-200 bg-gray-50">
                             <button
-                                onClick={onClose}
-                                className="p-3 transition-all duration-300 group rounded-xl hover:bg-white/20 hover:rotate-90 backdrop-blur-sm"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deleteLoading}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <X className="w-6 h-6 text-white transition-transform duration-300 group-hover:scale-110" />
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleDeleteEmployee}
+                                disabled={deleteLoading}
+                                className="flex items-center px-4 py-2 space-x-2 text-sm font-medium text-white transition-all duration-200 rounded-lg shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl"
+                            >
+                                {deleteLoading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Menghapus...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        <span>Hapus Data</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
-
-                    {/* Content */}
-                    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 px-8 py-8 max-h-[80vh] overflow-y-auto">
-                        <div className="space-y-8">
-                            {/* 1. Data Pekerjaan - PALING ATAS dengan urutan yang diminta */}
-                            <DetailCard title="Data Pekerjaan" icon={Building2}>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    {/* Urutan sesuai permintaan */}
-                                    <FieldRow
-                                        label="Unit Organisasi"
-                                        value={employee.unit_organisasi}
-                                    />
-                                    <FieldRow
-                                        label="Unit"
-                                        value={getUnitName()}
-                                    />
-                                    <FieldRow
-                                        label="Sub Unit"
-                                        value={getSubUnitName()}
-                                    />
-                                    <FieldRow
-                                        label="Nama Jabatan"
-                                        value={employee.nama_jabatan}
-                                    />
-                                    <FieldRow
-                                        label="Status Pegawai"
-                                        value={employee.status_pegawai}
-                                    />
-                                    <FieldRow
-                                        label="Kelompok Jabatan"
-                                        value={employee.kelompok_jabatan}
-                                    />
-                                    <FieldRow
-                                        label="Provider"
-                                        value={employee.provider}
-                                    />
-                                    <FieldRow
-                                        label="TMT Mulai Kerja"
-                                        value={formatDate(
-                                            employee.tmt_mulai_kerja
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Berakhir Kerja"
-                                        value={formatDate(
-                                            employee.tmt_berakhir_kerja
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Mulai Jabatan"
-                                        value={formatDate(
-                                            employee.tmt_mulai_jabatan
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="TMT Akhir Jabatan"
-                                        value={formatDate(
-                                            employee.tmt_akhir_jabatan ||
-                                                employee.tmt_berakhir_jabatan
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="Status Kerja"
-                                        value={employee.status_kerja}
-                                    />
-                                    <FieldRow
-                                        label="Unit Kerja Sesuai Kontrak"
-                                        value={employee.unit_kerja_kontrak}
-                                    />
-                                    <FieldRow
-                                        label="Grade"
-                                        value={employee.grade}
-                                    />
-                                    <FieldRow
-                                        label="Lokasi Kerja"
-                                        value={employee.lokasi_kerja}
-                                    />
-                                    <FieldRow
-                                        label="Cabang"
-                                        value={employee.cabang}
-                                    />
-                                    <FieldRow
-                                        label="Masa Kerja"
-                                        value={masaKerjaResult}
-                                    />
-                                    <FieldRow
-                                        label="TMT Pensiun"
-                                        value={formatDate(employee.tmt_pensiun)}
-                                    />
-                                </div>
-                            </DetailCard>
-
-                            {/* 2. Data Pribadi */}
-                            <DetailCard title="Data Pribadi" icon={User}>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    <FieldRow
-                                        label="NIK"
-                                        value={employee.nik}
-                                    />
-                                    <FieldRow
-                                        label="NIP"
-                                        value={employee.nip}
-                                    />
-                                    <FieldRow
-                                        label="Nama Lengkap"
-                                        value={employee.nama_lengkap}
-                                    />
-                                    <FieldRow
-                                        label="Jenis Kelamin"
-                                        value={formatGender(
-                                            employee.jenis_kelamin
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="Tempat Lahir"
-                                        value={employee.tempat_lahir}
-                                    />
-                                    <FieldRow
-                                        label="Tanggal Lahir"
-                                        value={formatDate(
-                                            employee.tanggal_lahir
-                                        )}
-                                    />
-                                    <FieldRow
-                                        label="Usia"
-                                        value={
-                                            employee.usia
-                                                ? `${employee.usia} tahun`
-                                                : "-"
-                                        }
-                                    />
-                                    <FieldRow
-                                        label="Kota Domisili"
-                                        value={employee.kota_domisili}
-                                    />
-                                    <FieldRow
-                                        label="Alamat Lengkap"
-                                        value={
-                                            employee.alamat_lengkap ||
-                                            employee.alamat
-                                        }
-                                        colSpan={3}
-                                    />
-                                    <FieldRow
-                                        label="Handphone"
-                                        value={
-                                            employee.handphone ||
-                                            employee.no_telepon
-                                        }
-                                    />
-                                    <FieldRow
-                                        label="Email"
-                                        value={employee.email}
-                                    />
-                                    <FieldRow
-                                        label="No. BPJS Kesehatan"
-                                        value={employee.no_bpjs_kesehatan}
-                                    />
-                                    <FieldRow
-                                        label="No. BPJS Ketenagakerjaan"
-                                        value={employee.no_bpjs_ketenagakerjaan}
-                                    />
-                                    <FieldRow
-                                        label="Tinggi Badan"
-                                        value={
-                                            employee.height
-                                                ? `${employee.height} cm`
-                                                : "-"
-                                        }
-                                    />
-                                    <FieldRow
-                                        label="Berat Badan"
-                                        value={
-                                            employee.weight
-                                                ? `${employee.weight} kg`
-                                                : "-"
-                                        }
-                                    />
-                                </div>
-                            </DetailCard>
-
-                            {/* 3. Data Pendidikan */}
-                            <DetailCard
-                                title="Data Pendidikan"
-                                icon={GraduationCap}
-                            >
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    <FieldRow
-                                        label="Pendidikan Terakhir"
-                                        value={
-                                            employee.pendidikan_terakhir ||
-                                            employee.tingkat_pendidikan
-                                        }
-                                    />
-                                    <FieldRow
-                                        label="Instansi Pendidikan"
-                                        value={employee.instansi_pendidikan}
-                                    />
-                                    <FieldRow
-                                        label="Jurusan"
-                                        value={employee.jurusan}
-                                    />
-                                    <FieldRow
-                                        label="Tahun Lulus"
-                                        value={employee.tahun_lulus}
-                                    />
-                                </div>
-                            </DetailCard>
-
-                            {/* 4. Data Tambahan */}
-                            <DetailCard title="Data Tambahan" icon={FileText}>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    <FieldRow
-                                        label="Seragam"
-                                        value={employee.seragam}
-                                    />
-                                    <FieldRow
-                                        label="Jenis Sepatu"
-                                        value={employee.jenis_sepatu}
-                                    />
-                                    <FieldRow
-                                        label="Ukuran Sepatu"
-                                        value={employee.ukuran_sepatu}
-                                    />
-                                </div>
-                            </DetailCard>
-                        </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex justify-end px-8 py-6 space-x-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                        <button
-                            onClick={onClose}
-                            className="group px-6 py-3 bg-white border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-                        >
-                            Tutup
-                        </button>
-                        {employee.id && (
-                            <a
-                                href={`/employees/${employee.id}/edit`}
-                                className="group px-6 py-3 bg-gradient-to-r from-[#439454] to-[#367a41] border-2 border-transparent rounded-xl text-sm font-semibold text-white hover:from-[#367a41] hover:to-[#2d6435] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                            >
-                                Edit Karyawan
-                            </a>
-                        )}
-                    </div>
                 </div>
             </div>
+        );
+    };
 
-            <style jsx>{`
-                @keyframes fadeIn {
-                    from {
-                        opacity: 0;
-                    }
-                    to {
-                        opacity: 1;
-                    }
-                }
+    return (
+        <>
+            <div
+                className="fixed inset-0 z-50 overflow-y-auto animate-fadeIn"
+                onClick={handleBackdropClick}
+            >
+                <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                    <div
+                        className="fixed inset-0 transition-all duration-300 bg-black/50 backdrop-blur-sm"
+                        aria-hidden="true"
+                    ></div>
 
-                @keyframes scaleIn {
-                    from {
-                        opacity: 0;
-                        transform: scale(0.9) translateY(20px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: scale(1) translateY(0);
-                    }
-                }
+                    <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white shadow-2xl rounded-2xl sm:my-8 sm:align-middle sm:max-w-7xl sm:w-full animate-scaleIn">
+                        {/* Header dengan informasi utama */}
+                        <div className="relative px-8 py-6 bg-gradient-to-r from-[#439454] via-[#4a9f5e] to-[#367a41] text-white overflow-hidden">
+                            <div className="absolute inset-0 bg-black/10"></div>
+                            <div className="relative flex items-center justify-between">
+                                <div className="flex items-center space-x-6">
+                                    <div className="relative">
+                                        <div className="flex items-center justify-center w-20 h-20 border shadow-2xl bg-white/20 backdrop-blur-sm rounded-2xl border-white/30">
+                                            <span className="text-2xl font-bold text-white">
+                                                {getInitials(
+                                                    employee.nama_lengkap
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className="absolute w-6 h-6 bg-green-400 border-2 border-white rounded-full -bottom-1 -right-1"></div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-3xl font-bold text-white">
+                                            {employee.nama_lengkap || "-"}
+                                        </h3>
+                                        <p className="text-xl font-medium text-white/90">
+                                            NIP: {employee.nip || "-"}
+                                        </p>
 
-                .animate-fadeIn {
-                    animation: fadeIn 0.3s ease-out;
-                }
+                                        {/* Breakdown detail struktur organisasi */}
+                                        <div className="flex flex-wrap gap-2 text-sm">
+                                            {employee.unit_organisasi && (
+                                                <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
+                                                    {employee.unit_organisasi}
+                                                </span>
+                                            )}
+                                            {getUnitName() !== "-" && (
+                                                <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
+                                                    Unit: {getUnitName()}
+                                                </span>
+                                            )}
+                                            {getSubUnitName() !== "-" &&
+                                                !["EGM", "GM"].includes(
+                                                    employee.unit_organisasi
+                                                ) && (
+                                                    <span className="inline-block px-3 py-1 font-semibold text-purple-100 rounded-full bg-white/20">
+                                                        Sub Unit:{" "}
+                                                        {getSubUnitName()}
+                                                    </span>
+                                                )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={onClose}
+                                    className="p-3 transition-all duration-300 group rounded-xl hover:bg-white/20 hover:rotate-90 backdrop-blur-sm"
+                                >
+                                    <X className="w-6 h-6 text-white transition-transform duration-300 group-hover:scale-110" />
+                                </button>
+                            </div>
+                        </div>
 
-                .animate-scaleIn {
-                    animation: scaleIn 0.4s ease-out;
-                }
-            `}</style>
-        </div>
+                        {/* Content */}
+                        <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 px-8 py-8 max-h-[80vh] overflow-y-auto">
+                            <div className="space-y-8">
+                                {/* 1. Data Pekerjaan - PALING ATAS dengan urutan yang diminta */}
+                                <DetailCard
+                                    title="Data Pekerjaan"
+                                    icon={Building2}
+                                >
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        {/* Urutan sesuai permintaan */}
+                                        <FieldRow
+                                            label="Unit Organisasi"
+                                            value={employee.unit_organisasi}
+                                        />
+                                        <FieldRow
+                                            label="Unit"
+                                            value={getUnitName()}
+                                        />
+                                        <FieldRow
+                                            label="Sub Unit"
+                                            value={getSubUnitName()}
+                                        />
+                                        <FieldRow
+                                            label="Nama Jabatan"
+                                            value={employee.nama_jabatan}
+                                        />
+                                        <FieldRow
+                                            label="Status Pegawai"
+                                            value={employee.status_pegawai}
+                                        />
+                                        <FieldRow
+                                            label="Kelompok Jabatan"
+                                            value={employee.kelompok_jabatan}
+                                        />
+                                        <FieldRow
+                                            label="Provider"
+                                            value={employee.provider}
+                                        />
+                                        <FieldRow
+                                            label="TMT Mulai Kerja"
+                                            value={formatDate(
+                                                employee.tmt_mulai_kerja
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="TMT Berakhir Kerja"
+                                            value={formatDate(
+                                                employee.tmt_berakhir_kerja
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="TMT Mulai Jabatan"
+                                            value={formatDate(
+                                                employee.tmt_mulai_jabatan
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="TMT Akhir Jabatan"
+                                            value={formatDate(
+                                                employee.tmt_akhir_jabatan ||
+                                                    employee.tmt_berakhir_jabatan
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="Status Kerja"
+                                            value={employee.status_kerja}
+                                        />
+                                        <FieldRow
+                                            label="Unit Kerja Sesuai Kontrak"
+                                            value={employee.unit_kerja_kontrak}
+                                        />
+                                        <FieldRow
+                                            label="Grade"
+                                            value={employee.grade}
+                                        />
+                                        <FieldRow
+                                            label="Lokasi Kerja"
+                                            value={employee.lokasi_kerja}
+                                        />
+                                        <FieldRow
+                                            label="Cabang"
+                                            value={employee.cabang}
+                                        />
+                                        <FieldRow
+                                            label="Masa Kerja"
+                                            value={masaKerjaResult}
+                                        />
+                                        <FieldRow
+                                            label="TMT Pensiun"
+                                            value={formatDate(
+                                                employee.tmt_pensiun
+                                            )}
+                                        />
+                                    </div>
+                                </DetailCard>
+
+                                {/* 2. Data Pribadi */}
+                                <DetailCard title="Data Pribadi" icon={User}>
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <FieldRow
+                                            label="NIK"
+                                            value={employee.nik}
+                                        />
+                                        <FieldRow
+                                            label="NIP"
+                                            value={employee.nip}
+                                        />
+                                        <FieldRow
+                                            label="Nama Lengkap"
+                                            value={employee.nama_lengkap}
+                                        />
+                                        <FieldRow
+                                            label="Jenis Kelamin"
+                                            value={formatGender(
+                                                employee.jenis_kelamin
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="Tempat Lahir"
+                                            value={employee.tempat_lahir}
+                                        />
+                                        <FieldRow
+                                            label="Tanggal Lahir"
+                                            value={formatDate(
+                                                employee.tanggal_lahir
+                                            )}
+                                        />
+                                        <FieldRow
+                                            label="Usia"
+                                            value={
+                                                employee.usia
+                                                    ? `${employee.usia} tahun`
+                                                    : "-"
+                                            }
+                                        />
+                                        <FieldRow
+                                            label="Kota Domisili"
+                                            value={employee.kota_domisili}
+                                        />
+                                        <FieldRow
+                                            label="Alamat Lengkap"
+                                            value={
+                                                employee.alamat_lengkap ||
+                                                employee.alamat
+                                            }
+                                            colSpan={3}
+                                        />
+                                        <FieldRow
+                                            label="Handphone"
+                                            value={
+                                                employee.handphone ||
+                                                employee.no_telepon
+                                            }
+                                        />
+                                        <FieldRow
+                                            label="Email"
+                                            value={employee.email}
+                                        />
+                                        <FieldRow
+                                            label="No. BPJS Kesehatan"
+                                            value={employee.no_bpjs_kesehatan}
+                                        />
+                                        <FieldRow
+                                            label="No. BPJS Ketenagakerjaan"
+                                            value={
+                                                employee.no_bpjs_ketenagakerjaan
+                                            }
+                                        />
+                                        <FieldRow
+                                            label="Tinggi Badan"
+                                            value={
+                                                employee.height
+                                                    ? `${employee.height} cm`
+                                                    : "-"
+                                            }
+                                        />
+                                        <FieldRow
+                                            label="Berat Badan"
+                                            value={
+                                                employee.weight
+                                                    ? `${employee.weight} kg`
+                                                    : "-"
+                                            }
+                                        />
+                                    </div>
+                                </DetailCard>
+
+                                {/* 3. Data Pendidikan */}
+                                <DetailCard
+                                    title="Data Pendidikan"
+                                    icon={GraduationCap}
+                                >
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <FieldRow
+                                            label="Pendidikan Terakhir"
+                                            value={
+                                                employee.pendidikan_terakhir ||
+                                                employee.tingkat_pendidikan
+                                            }
+                                        />
+                                        <FieldRow
+                                            label="Instansi Pendidikan"
+                                            value={employee.instansi_pendidikan}
+                                        />
+                                        <FieldRow
+                                            label="Jurusan"
+                                            value={employee.jurusan}
+                                        />
+                                        <FieldRow
+                                            label="Tahun Lulus"
+                                            value={employee.tahun_lulus}
+                                        />
+                                    </div>
+                                </DetailCard>
+
+                                {/* 4. Data Tambahan */}
+                                <DetailCard
+                                    title="Data Tambahan"
+                                    icon={FileText}
+                                >
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <FieldRow
+                                            label="Seragam"
+                                            value={employee.seragam}
+                                        />
+                                        <FieldRow
+                                            label="Jenis Sepatu"
+                                            value={employee.jenis_sepatu}
+                                        />
+                                        <FieldRow
+                                            label="Ukuran Sepatu"
+                                            value={employee.ukuran_sepatu}
+                                        />
+                                    </div>
+                                </DetailCard>
+                            </div>
+                        </div>
+
+                        {/* Footer dengan tombol aksi */}
+                        <div className="flex justify-between px-8 py-6 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                            {/* Left side - Delete button */}
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="group px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 border-2 border-transparent rounded-xl text-sm font-semibold text-white hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center space-x-2"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>Hapus Data</span>
+                            </button>
+
+                            {/* Right side - Close and Edit buttons */}
+                            <div className="flex space-x-4">
+                                <button
+                                    onClick={onClose}
+                                    className="group px-6 py-3 bg-white border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-[#439454] hover:text-[#439454] transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                                >
+                                    Tutup
+                                </button>
+                                {employee.id && (
+                                    <a
+                                        href={`/employees/${employee.id}/edit`}
+                                        className="group px-6 py-3 bg-gradient-to-r from-[#439454] to-[#367a41] border-2 border-transparent rounded-xl text-sm font-semibold text-white hover:from-[#367a41] hover:to-[#2d6435] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                    >
+                                        Edit Karyawan
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <style jsx>{`
+                    @keyframes fadeIn {
+                        from {
+                            opacity: 0;
+                        }
+                        to {
+                            opacity: 1;
+                        }
+                    }
+
+                    @keyframes scaleIn {
+                        from {
+                            opacity: 0;
+                            transform: scale(0.9) translateY(20px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: scale(1) translateY(0);
+                        }
+                    }
+
+                    .animate-fadeIn {
+                        animation: fadeIn 0.3s ease-out;
+                    }
+
+                    .animate-scaleIn {
+                        animation: scaleIn 0.4s ease-out;
+                    }
+                `}</style>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmationModal />
+        </>
     );
 };
 
