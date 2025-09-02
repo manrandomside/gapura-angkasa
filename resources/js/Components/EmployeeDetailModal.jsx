@@ -79,36 +79,95 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
         }
     };
 
-    // FIXED: Fungsi calculateMasaKerja yang lebih robust dan konsisten dengan Edit.jsx
+    // ENHANCED: Fungsi calculateMasaKerja yang lebih robust dengan timezone support
     const calculateMasaKerja = (tmtMulaiKerja, tmtBerakhirKerja = null) => {
-        if (!tmtMulaiKerja) return "-";
+        if (!tmtMulaiKerja || tmtMulaiKerja === "" || tmtMulaiKerja === null) {
+            console.log(
+                "calculateMasaKerja: Empty or null tmt_mulai_kerja",
+                tmtMulaiKerja
+            );
+            return "-";
+        }
 
         try {
-            // Parse dates with better error handling
-            const startDate = new Date(tmtMulaiKerja);
-            const endDate = tmtBerakhirKerja
-                ? new Date(tmtBerakhirKerja)
-                : new Date();
+            // Enhanced date parsing dengan multiple format support
+            let startDate, endDate;
 
-            // Validate dates
+            // Parse start date dengan berbagai format
+            if (typeof tmtMulaiKerja === "string") {
+                // Normalize date string format
+                const normalizedStart = tmtMulaiKerja.includes("T")
+                    ? tmtMulaiKerja.split("T")[0]
+                    : tmtMulaiKerja;
+                startDate = new Date(normalizedStart + "T00:00:00.000Z");
+            } else {
+                startDate = new Date(tmtMulaiKerja);
+            }
+
+            // Parse end date atau gunakan tanggal sekarang dengan timezone WITA
+            if (
+                tmtBerakhirKerja &&
+                tmtBerakhirKerja !== "" &&
+                tmtBerakhirKerja !== null
+            ) {
+                if (typeof tmtBerakhirKerja === "string") {
+                    const normalizedEnd = tmtBerakhirKerja.includes("T")
+                        ? tmtBerakhirKerja.split("T")[0]
+                        : tmtBerakhirKerja;
+                    endDate = new Date(normalizedEnd + "T00:00:00.000Z");
+                } else {
+                    endDate = new Date(tmtBerakhirKerja);
+                }
+            } else {
+                // Gunakan tanggal sekarang dengan timezone Asia/Makassar (WITA)
+                const now = new Date();
+                const witaOffset = 8 * 60; // WITA = UTC+8
+                const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+                endDate = new Date(utc + witaOffset * 60000);
+            }
+
+            // Validate parsed dates
             if (isNaN(startDate.getTime())) {
-                console.warn("Invalid start date:", tmtMulaiKerja);
+                console.warn("calculateMasaKerja: Invalid start date", {
+                    original: tmtMulaiKerja,
+                    parsed: startDate,
+                });
                 return "Tanggal mulai tidak valid";
             }
 
             if (isNaN(endDate.getTime())) {
-                console.warn("Invalid end date:", tmtBerakhirKerja);
+                console.warn("calculateMasaKerja: Invalid end date", {
+                    original: tmtBerakhirKerja,
+                    parsed: endDate,
+                });
                 return "Tanggal berakhir tidak valid";
             }
 
-            // If end date is before start date, show error
+            // Check if end date is before start date
             if (endDate < startDate) {
+                console.warn("calculateMasaKerja: End date before start date", {
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString(),
+                });
                 return "Tanggal berakhir sebelum tanggal mulai";
             }
 
-            // More accurate calculation using months difference
+            // ENHANCED: Calculate using more accurate method
             let years = endDate.getFullYear() - startDate.getFullYear();
             let months = endDate.getMonth() - startDate.getMonth();
+            let days = endDate.getDate() - startDate.getDate();
+
+            // Adjust for negative days
+            if (days < 0) {
+                months--;
+                // Get days in previous month
+                const prevMonth = new Date(
+                    endDate.getFullYear(),
+                    endDate.getMonth(),
+                    0
+                );
+                days += prevMonth.getDate();
+            }
 
             // Adjust for negative months
             if (months < 0) {
@@ -116,16 +175,20 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                 months += 12;
             }
 
-            // Day adjustment for more accuracy
-            if (endDate.getDate() < startDate.getDate()) {
-                months--;
-                if (months < 0) {
-                    months += 12;
-                    years--;
-                }
-            }
+            // Enhanced debug logging
+            console.log("calculateMasaKerja: Calculation details", {
+                employee_nik: employee?.nik,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                years,
+                months,
+                days,
+                totalDays: Math.floor(
+                    (endDate - startDate) / (1000 * 60 * 60 * 24)
+                ),
+            });
 
-            // Return formatted result
+            // Return formatted result dengan logika yang lebih baik
             if (years > 0 && months > 0) {
                 return `${years} tahun ${months} bulan`;
             } else if (years > 0) {
@@ -133,52 +196,96 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
             } else if (months > 0) {
                 return `${months} bulan`;
             } else {
-                // Check if at least some days
+                // Check if at least some days exist
                 const daysDiff = Math.floor(
                     (endDate - startDate) / (1000 * 60 * 60 * 24)
                 );
-                return daysDiff > 0
-                    ? "Kurang dari 1 bulan"
-                    : "Belum ada masa kerja";
+
+                console.log("calculateMasaKerja: Less than 1 month", {
+                    daysDiff,
+                    startDate: startDate.toDateString(),
+                    endDate: endDate.toDateString(),
+                });
+
+                if (daysDiff > 0) {
+                    return "Kurang dari 1 bulan";
+                } else {
+                    return "Belum ada masa kerja";
+                }
             }
         } catch (error) {
-            console.error("Error calculating masa kerja:", error);
+            console.error("calculateMasaKerja: Error in calculation", {
+                error: error.message,
+                tmtMulaiKerja,
+                tmtBerakhirKerja,
+                employee_nik: employee?.nik,
+            });
             return "Error dalam perhitungan";
         }
     };
 
-    // ENHANCED: Function untuk mendapatkan masa kerja dengan multiple fallback
+    // ENHANCED: Function untuk mendapatkan masa kerja dengan comprehensive fallback dan debugging
     const getMasaKerja = () => {
+        // Enhanced debug logging untuk troubleshooting
+        const debugData = {
+            employee_id: employee?.id,
+            employee_nik: employee?.nik,
+            employee_name: employee?.nama_lengkap,
+            masa_kerja_from_db: employee?.masa_kerja,
+            tmt_mulai_kerja: employee?.tmt_mulai_kerja,
+            tmt_berakhir_kerja: employee?.tmt_berakhir_kerja,
+            masa_kerja_type: typeof employee?.masa_kerja,
+            tmt_mulai_kerja_type: typeof employee?.tmt_mulai_kerja,
+        };
+
+        console.log("getMasaKerja: Debug data", debugData);
+
         // Priority 1: Use pre-calculated masa_kerja from database/controller
         if (
-            employee.masa_kerja &&
+            employee?.masa_kerja &&
             employee.masa_kerja !== "" &&
-            employee.masa_kerja !== "-"
+            employee.masa_kerja !== "-" &&
+            employee.masa_kerja !== null &&
+            employee.masa_kerja !== undefined
         ) {
+            console.log(
+                "getMasaKerja: Using database masa_kerja",
+                employee.masa_kerja
+            );
             return employee.masa_kerja;
         }
 
         // Priority 2: Calculate from TMT dates
-        if (employee.tmt_mulai_kerja) {
+        if (
+            employee?.tmt_mulai_kerja &&
+            employee.tmt_mulai_kerja !== "" &&
+            employee.tmt_mulai_kerja !== null &&
+            employee.tmt_mulai_kerja !== undefined
+        ) {
             const calculated = calculateMasaKerja(
                 employee.tmt_mulai_kerja,
                 employee.tmt_berakhir_kerja
             );
 
-            // Debug logging
-            console.log("Masa Kerja Calculation Debug:", {
-                employee_id: employee.id,
-                employee_nik: employee.nik,
+            console.log("getMasaKerja: Calculated from TMT dates", {
+                calculated,
                 tmt_mulai_kerja: employee.tmt_mulai_kerja,
                 tmt_berakhir_kerja: employee.tmt_berakhir_kerja,
-                masa_kerja_db: employee.masa_kerja,
-                masa_kerja_calculated: calculated,
             });
 
             return calculated;
         }
 
-        // Priority 3: Default fallback
+        // Priority 3: Debug why no masa kerja available
+        console.warn("getMasaKerja: No masa kerja available", {
+            reason: !employee?.tmt_mulai_kerja
+                ? "No TMT Mulai Kerja"
+                : "Unknown",
+            employee_data_keys: employee
+                ? Object.keys(employee)
+                : "No employee data",
+        });
+
         return "-";
     };
 
@@ -233,6 +340,13 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
             </p>
         </div>
     );
+
+    // Enhanced: Execute getMasaKerja dan log hasilnya untuk debugging
+    const masaKerjaResult = getMasaKerja();
+    console.log("EmployeeDetailModal: Final masa kerja result", {
+        employee_nik: employee?.nik,
+        masa_kerja: masaKerjaResult,
+    });
 
     return (
         <div
@@ -381,7 +495,7 @@ const EmployeeDetailModal = ({ employee, isOpen, onClose }) => {
                                     />
                                     <FieldRow
                                         label="Masa Kerja"
-                                        value={getMasaKerja()}
+                                        value={masaKerjaResult}
                                     />
                                     <FieldRow
                                         label="TMT Pensiun"

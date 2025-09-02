@@ -582,7 +582,7 @@ class EmployeeController extends Controller
     // =====================================================
 
     /**
-     * ENHANCED: Index method dengan search/filter functionality yang sempurna
+     * CRITICAL FIX: Enhanced Index method dengan masa_kerja calculation untuk setiap employee
      */
     public function index(Request $request)
     {
@@ -780,6 +780,50 @@ class EmployeeController extends Controller
                              ->paginate($perPage)
                              ->withQueryString();
 
+            // CRITICAL FIX: Process setiap employee untuk memastikan masa_kerja dihitung dengan benar
+            $employees->getCollection()->transform(function ($employee) {
+                // Convert to array untuk manipulasi
+                $employeeData = $employee->toArray();
+                
+                // CRITICAL: Always recalculate masa_kerja untuk setiap employee
+                if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                    $calculatedMasaKerja = $this->calculateMasaKerja(
+                        $employeeData['tmt_mulai_kerja'], 
+                        $employeeData['tmt_berakhir_kerja'] ?? null
+                    );
+                    
+                    // Set the calculated value
+                    $employeeData['masa_kerja'] = $calculatedMasaKerja;
+                    
+                    // DEBUG LOG untuk troubleshooting
+                    Log::info('Employee Index - Masa Kerja Calculated', [
+                        'employee_id' => $employee->id,
+                        'employee_nik' => $employee->nik,
+                        'employee_name' => $employee->nama_lengkap,
+                        'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'],
+                        'tmt_berakhir_kerja' => $employeeData['tmt_berakhir_kerja'] ?? null,
+                        'masa_kerja_db' => $employee->masa_kerja,
+                        'masa_kerja_calculated' => $calculatedMasaKerja
+                    ]);
+                } else {
+                    $employeeData['masa_kerja'] = "-";
+                    
+                    Log::info('Employee Index - No TMT Mulai Kerja', [
+                        'employee_id' => $employee->id,
+                        'employee_nik' => $employee->nik,
+                        'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'] ?? 'null'
+                    ]);
+                }
+                
+                // Convert gender dari database format (L/P) ke display format untuk consistency
+                if (isset($employeeData['jenis_kelamin'])) {
+                    $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+                }
+                
+                // Return employee sebagai object dengan data yang sudah diupdate
+                return (object) $employeeData;
+            });
+
             // Calculate statistics with applied filters
             $statistics = $this->getEnhancedStatistics($filterConditions);
 
@@ -801,11 +845,18 @@ class EmployeeController extends Controller
             $timeInfo = $this->getTimeBasedGreeting();
             $businessHours = $this->getBusinessHoursStatus();
 
-            // Log results untuk debugging
-            Log::info('Employee Index Results', [
+            // ENHANCED DEBUG LOG: Log final results
+            Log::info('Employee Index - Final Results', [
                 'total_found' => $employees->total(),
                 'current_page' => $employees->currentPage(),
-                'active_filters' => count(array_filter($filterConditions))
+                'active_filters' => count(array_filter($filterConditions)),
+                'employees_with_masa_kerja' => $employees->getCollection()->filter(function($emp) {
+                    return isset($emp->masa_kerja) && $emp->masa_kerja !== '-' && $emp->masa_kerja !== null;
+                })->count(),
+                'sample_employee_masa_kerja' => $employees->getCollection()->first() ? [
+                    'nik' => $employees->getCollection()->first()->nik ?? 'unknown',
+                    'masa_kerja' => $employees->getCollection()->first()->masa_kerja ?? 'not_set'
+                ] : 'no_employees'
             ]);
 
             return Inertia::render('Employees/Index', [
@@ -944,6 +995,26 @@ class EmployeeController extends Controller
                              ->orderBy('nama_lengkap', 'asc')
                              ->paginate($perPage)
                              ->withQueryString();
+
+            // CRITICAL: Apply same masa_kerja calculation as index method
+            $employees->getCollection()->transform(function ($employee) {
+                $employeeData = $employee->toArray();
+                
+                if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                    $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                        $employeeData['tmt_mulai_kerja'], 
+                        $employeeData['tmt_berakhir_kerja'] ?? null
+                    );
+                } else {
+                    $employeeData['masa_kerja'] = "-";
+                }
+                
+                if (isset($employeeData['jenis_kelamin'])) {
+                    $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+                }
+                
+                return (object) $employeeData;
+            });
 
             // Return JSON response untuk AJAX calls
             if ($request->expectsJson()) {
