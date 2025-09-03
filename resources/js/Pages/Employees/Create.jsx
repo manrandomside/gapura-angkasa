@@ -1514,11 +1514,13 @@ export default function Create({
                             kelompokJabatanOptions.length > 0
                                 ? kelompokJabatanOptions
                                 : [
-                                      "SUPERVISOR",
-                                      "STAFF",
-                                      "MANAGER",
-                                      "EXECUTIVE GENERAL MANAGER",
                                       "ACCOUNT EXECUTIVE/AE",
+                                      "EXECUTIVE GENERAL MANAGER",
+                                      "GENERAL MANAGER",
+                                      "MANAGER",
+                                      "STAFF",
+                                      "SUPERVISOR",
+                                      "NON",
                                   ]
                         }
                         icon={Users}

@@ -29,14 +29,16 @@ class EmployeeController extends Controller
     ];
 
     /**
-     * KELOMPOK JABATAN CONSTANTS - FITUR BARU
+     * KELOMPOK JABATAN CONSTANTS - UPDATED WITH GENERAL MANAGER AND NON
      */
     const KELOMPOK_JABATAN_OPTIONS = [
-        'SUPERVISOR',
-        'STAFF', 
-        'MANAGER',
+        'ACCOUNT EXECUTIVE/AE',
         'EXECUTIVE GENERAL MANAGER',
-        'ACCOUNT EXECUTIVE/AE'
+        'GENERAL MANAGER',
+        'MANAGER',
+        'STAFF',
+        'SUPERVISOR',
+        'NON'
     ];
 
     /**
@@ -1192,7 +1194,7 @@ class EmployeeController extends Controller
                 'kelompok_jabatan' => [
                     'required',
                     'string',
-                    Rule::in(['SUPERVISOR', 'STAFF', 'MANAGER', 'EXECUTIVE GENERAL MANAGER', 'ACCOUNT EXECUTIVE/AE'])
+                    Rule::in(self::KELOMPOK_JABATAN_OPTIONS)
                 ],
                 'status_pegawai' => [
                     'required',
@@ -2244,8 +2246,10 @@ class EmployeeController extends Controller
                     'supervisor' => Employee::where('kelompok_jabatan', 'SUPERVISOR')->count(),
                     'staff' => Employee::where('kelompok_jabatan', 'STAFF')->count(),
                     'manager' => Employee::where('kelompok_jabatan', 'MANAGER')->count(),
+                    'general_manager' => Employee::where('kelompok_jabatan', 'GENERAL MANAGER')->count(),
                     'executive_gm' => Employee::where('kelompok_jabatan', 'EXECUTIVE GENERAL MANAGER')->count(),
                     'account_executive' => Employee::where('kelompok_jabatan', 'ACCOUNT EXECUTIVE/AE')->count(),
+                    'non' => Employee::where('kelompok_jabatan', 'NON')->count(),
                 ],
                 // UPDATED: Enhanced status kerja statistics
                 'status_kerja' => [
@@ -2780,3 +2784,4 @@ class EmployeeController extends Controller
         ];
     }
 }
+                    

@@ -49,7 +49,7 @@ class DashboardController extends Controller
 
     /**
      * Get dashboard statistics (API endpoint)
-     * UPDATED: Include TAD Split dan Kelompok Jabatan
+     * UPDATED: Include TAD Split dan Kelompok Jabatan dengan GENERAL MANAGER & NON
      */
     public function getStatistics()
     {
@@ -73,7 +73,7 @@ class DashboardController extends Controller
 
     /**
      * Get chart data for dashboard
-     * UPDATED: Include TAD breakdown dan Kelompok Jabatan
+     * UPDATED: Include TAD breakdown dan Kelompok Jabatan dengan GENERAL MANAGER & NON
      */
     public function getChartData()
     {
@@ -513,7 +513,8 @@ class DashboardController extends Controller
                     'chart_data' => true,
                     'recent_activities' => true,
                     'organizational_structure' => $unitModelAvailable && $subUnitModelAvailable,
-                    'history_3_periods_only' => true  // New feature flag
+                    'history_3_periods_only' => true,  // New feature flag
+                    'kelompok_jabatan_extended' => true  // NEW: Support for GENERAL MANAGER & NON
                 ],
                 'history_methods' => [
                     'getEmployeeHistory' => method_exists($this, 'getEmployeeHistory'),
@@ -926,7 +927,7 @@ class DashboardController extends Controller
 
     /**
      * Private method to get statistics data
-     * UPDATED: Include TAD Split, PKWT, dan Kelompok Jabatan statistics
+     * UPDATED: Include TAD Split, PKWT, dan Kelompok Jabatan statistics dengan GENERAL MANAGER & NON
      */
     private function getStatisticsData()
     {
@@ -965,7 +966,7 @@ class DashboardController extends Controller
                       ->orWhere('jenis_kelamin', 'Perempuan');
             })->count();
 
-            // Kelompok Jabatan statistics - FITUR BARU
+            // UPDATED: Kelompok Jabatan statistics - INCLUDE GENERAL MANAGER & NON
             $kelompokJabatanQuery = Employee::select('kelompok_jabatan', DB::raw('COUNT(*) as count'))
                 ->whereNotNull('kelompok_jabatan');
                 
@@ -1035,13 +1036,15 @@ class DashboardController extends Controller
                 'male_employees' => $maleEmployees,
                 'female_employees' => $femaleEmployees,
                 
-                // Kelompok Jabatan breakdown - FITUR BARU
+                // UPDATED: Kelompok Jabatan breakdown - INCLUDE GENERAL MANAGER & NON
                 'kelompok_jabatan' => [
                     'supervisor' => $kelompokJabatanStats['SUPERVISOR'] ?? 0,
                     'staff' => $kelompokJabatanStats['STAFF'] ?? 0,
                     'manager' => $kelompokJabatanStats['MANAGER'] ?? 0,
+                    'general_manager' => $kelompokJabatanStats['GENERAL MANAGER'] ?? 0,
                     'executive_gm' => $kelompokJabatanStats['EXECUTIVE GENERAL MANAGER'] ?? 0,
                     'account_executive' => $kelompokJabatanStats['ACCOUNT EXECUTIVE/AE'] ?? 0,
+                    'non' => $kelompokJabatanStats['NON'] ?? 0,
                 ],
                 
                 // Additional stats
@@ -1158,7 +1161,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get employees by kelompok jabatan - FITUR BARU
+     * Get employees by kelompok jabatan - AUTO SUPPORT GENERAL MANAGER & NON
      */
     private function getEmployeesByKelompokJabatan()
     {
@@ -1326,7 +1329,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get color for kelompok jabatan - FITUR BARU
+     * UPDATED: Get color for kelompok jabatan - INCLUDE GENERAL MANAGER & NON
      */
     private function getKelompokJabatanColor($kelompok)
     {
@@ -1334,9 +1337,11 @@ class DashboardController extends Controller
             'SUPERVISOR' => '#8B5CF6',
             'STAFF' => '#06B6D4', 
             'MANAGER' => '#10B981',
+            'GENERAL MANAGER' => '#F97316',      // NEW: Orange color for GENERAL MANAGER
             'EXECUTIVE GENERAL MANAGER' => '#F59E0B',
             'ACCOUNT EXECUTIVE/AE' => '#EF4444',
-            default => '#6B7280',
+            'NON' => '#6B7280',                  // NEW: Gray color for NON
+            default => '#9CA3AF',                // Default fallback color
         };
     }
 
@@ -1366,8 +1371,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get default statistics (fallback)
-     * UPDATED: Include TAD Split fields
+     * UPDATED: Get default statistics (fallback) - INCLUDE GENERAL MANAGER & NON
      */
     private function getDefaultStatistics()
     {
@@ -1387,8 +1391,10 @@ class DashboardController extends Controller
                 'supervisor' => 0,
                 'staff' => 0,
                 'manager' => 0,
+                'general_manager' => 0,        // NEW: Default for GENERAL MANAGER
                 'executive_gm' => 0,
                 'account_executive' => 0,
+                'non' => 0,                    // NEW: Default for NON
             ],
             'total_organizations' => 0,
             'recent_hires' => 0,
@@ -1416,7 +1422,7 @@ class DashboardController extends Controller
 
     /**
      * Export to CSV
-     * UPDATED: Include TAD Split dan Kelompok Jabatan data
+     * UPDATED: Include TAD Split dan Kelompok Jabatan data dengan GENERAL MANAGER & NON
      */
     private function exportToCsv($statistics, $organizationData)
     {
@@ -1445,7 +1451,13 @@ class DashboardController extends Controller
                 if ($key === 'kelompok_jabatan' && is_array($value)) {
                     fputcsv($file, ['=== KELOMPOK JABATAN ===', '']);
                     foreach ($value as $jabatan => $count) {
-                        $label = ucwords(str_replace('_', ' ', $jabatan));
+                        $label = match($jabatan) {
+                            'general_manager' => 'General Manager',
+                            'executive_gm' => 'Executive General Manager',
+                            'account_executive' => 'Account Executive/AE',
+                            'non' => 'NON',
+                            default => ucwords(str_replace('_', ' ', $jabatan))
+                        };
                         fputcsv($file, [$label, $count]);
                     }
                 } else {
