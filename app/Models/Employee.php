@@ -179,14 +179,16 @@ class Employee extends Model
     // =====================================================
 
     /**
-     * KELOMPOK JABATAN CONSTANTS
+     * UPDATED: KELOMPOK JABATAN CONSTANTS - Added GENERAL MANAGER and NON
      */
     const KELOMPOK_JABATAN = [
-        'SUPERVISOR',
-        'STAFF', 
-        'MANAGER',
+        'ACCOUNT EXECUTIVE/AE',
         'EXECUTIVE GENERAL MANAGER',
-        'ACCOUNT EXECUTIVE/AE'
+        'GENERAL MANAGER',
+        'MANAGER',
+        'STAFF',
+        'SUPERVISOR',
+        'NON'
     ];
 
     /**
