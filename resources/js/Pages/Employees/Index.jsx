@@ -1446,21 +1446,25 @@ export default function Index({
                                                 <option value="all">
                                                     Semua Kelompok
                                                 </option>
+                                                <option value="EXECUTIVE GENERAL MANAGER">
+                                                    Executive General Manager
+                                                </option>
+                                                <option value="GENERAL MANAGER">
+                                                    General Manager
+                                                </option>
+                                                <option value="MANAGER">
+                                                    Manager
+                                                </option>
                                                 <option value="SUPERVISOR">
                                                     Supervisor
                                                 </option>
                                                 <option value="STAFF">
                                                     Staff
                                                 </option>
-                                                <option value="MANAGER">
-                                                    Manager
-                                                </option>
-                                                <option value="EXECUTIVE GENERAL MANAGER">
-                                                    Executive General Manager
-                                                </option>
                                                 <option value="ACCOUNT EXECUTIVE/AE">
                                                     Account Executive/AE
                                                 </option>
+                                                <option value="NON">NON</option>
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-[#439454] transition-all duration-300 pointer-events-none group-hover:scale-110" />
                                         </div>
@@ -1987,7 +1991,7 @@ export default function Index({
                     )}
                 </div>
 
-                {/* UPDATED: Enhanced Employee Table dengan Status Pegawai Split dan Kelompok Jabatan - Compact */}
+                {/* UPDATED: Enhanced Employee Table dengan Status Pegawai Selaras dengan HistoryModal */}
                 <div
                     className={`px-6 pb-6 ${
                         deleteLoading ? "delete-loading" : ""
@@ -2156,23 +2160,23 @@ export default function Index({
                                                             </div>
                                                         </td>
 
-                                                        {/* UPDATED: Status Pegawai Column dengan TAD Split */}
+                                                        {/* UPDATED: Status Pegawai Column - SELARAS DENGAN HISTORY MODAL */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <span
-                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
+                                                                className={`inline-flex px-3 py-1 text-xs font-medium rounded-full border profile-clickable ${
                                                                     employee.status_pegawai ===
                                                                     "PEGAWAI TETAP"
-                                                                        ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
+                                                                        ? "bg-green-100 text-green-800 border-green-300"
                                                                         : employee.status_pegawai ===
                                                                           "PKWT"
-                                                                        ? "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300"
+                                                                        ? "bg-blue-100 text-blue-800 border-blue-300"
                                                                         : employee.status_pegawai ===
                                                                           "TAD PAKET SDM"
-                                                                        ? "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300"
+                                                                        ? "bg-yellow-100 text-yellow-800 border-yellow-300"
                                                                         : employee.status_pegawai ===
                                                                           "TAD PAKET PEKERJAAN"
-                                                                        ? "bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-300"
-                                                                        : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
+                                                                        ? "bg-orange-100 text-orange-800 border-orange-300"
+                                                                        : "bg-gray-100 text-gray-800 border-gray-300"
                                                                 }`}
                                                                 onClick={(e) =>
                                                                     !isBeingDeleted &&
@@ -2188,26 +2192,36 @@ export default function Index({
                                                             </span>
                                                         </td>
 
-                                                        {/* FITUR BARU: Kelompok Jabatan Column */}
+                                                        {/* UPDATED: Kelompok Jabatan Column - SELARAS DENGAN HISTORY MODAL */}
                                                         <td className="px-6 py-5 whitespace-nowrap">
                                                             <span
-                                                                className={`inline-flex px-3 py-2 text-xs font-bold rounded-full shadow-sm transition-all duration-300 group-hover:scale-105 profile-clickable ${
+                                                                className={`inline-flex px-3 py-1 text-xs font-medium rounded-full border profile-clickable ${
                                                                     employee.kelompok_jabatan ===
-                                                                    "MANAGER"
-                                                                        ? "bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 border border-purple-300"
+                                                                    "EXECUTIVE GENERAL MANAGER"
+                                                                        ? "bg-red-100 text-red-800 border-red-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "GENERAL MANAGER"
+                                                                        ? "bg-teal-100 text-teal-800 border-teal-300"
+                                                                        : employee.kelompok_jabatan?.includes(
+                                                                              "ACCOUNT EXECUTIVE"
+                                                                          ) ||
+                                                                          employee.kelompok_jabatan?.includes(
+                                                                              "AE"
+                                                                          )
+                                                                        ? "bg-green-100 text-green-800 border-green-300"
+                                                                        : employee.kelompok_jabatan ===
+                                                                          "MANAGER"
+                                                                        ? "bg-purple-100 text-purple-800 border-purple-300"
                                                                         : employee.kelompok_jabatan ===
                                                                           "SUPERVISOR"
-                                                                        ? "bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 border border-indigo-300"
+                                                                        ? "bg-indigo-100 text-indigo-800 border-indigo-300"
                                                                         : employee.kelompok_jabatan ===
                                                                           "STAFF"
-                                                                        ? "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300"
+                                                                        ? "bg-blue-100 text-blue-800 border-blue-300"
                                                                         : employee.kelompok_jabatan ===
-                                                                          "EXECUTIVE GENERAL MANAGER"
-                                                                        ? "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300"
-                                                                        : employee.kelompok_jabatan ===
-                                                                          "ACCOUNT EXECUTIVE/AE"
-                                                                        ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300"
-                                                                        : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300"
+                                                                          "NON"
+                                                                        ? "bg-gray-100 text-gray-800 border-gray-300"
+                                                                        : "bg-gray-100 text-gray-800 border-gray-300"
                                                                 }`}
                                                                 onClick={(e) =>
                                                                     !isBeingDeleted &&

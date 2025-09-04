@@ -413,7 +413,7 @@ const HistoryModal = ({ isOpen, onClose }) => {
         return "bg-gray-100 text-gray-800 border-gray-300";
     };
 
-    // UPDATED: Position badge colors - SYNCHRONIZED with Index.jsx including GENERAL MANAGER and NON
+    // FIXED: Position badge colors - SYNCHRONIZED with Index.jsx dengan urutan yang benar
     const getPositionBadgeColor = (position) => {
         if (!position || position === "Tidak tersedia") {
             return "bg-gray-100 text-gray-800 border-gray-300";
@@ -421,11 +421,11 @@ const HistoryModal = ({ isOpen, onClose }) => {
 
         const positionUpper = position.toUpperCase();
 
-        // UPDATED: Check for GENERAL MANAGER first before MANAGER (order matters!)
-        if (positionUpper.includes("GENERAL MANAGER")) {
-            return "bg-teal-100 text-teal-800 border-teal-300";
-        } else if (positionUpper.includes("EXECUTIVE GENERAL MANAGER")) {
+        // FIXED: Check EXECUTIVE GENERAL MANAGER first before GENERAL MANAGER (order matters!)
+        if (positionUpper.includes("EXECUTIVE GENERAL MANAGER")) {
             return "bg-red-100 text-red-800 border-red-300";
+        } else if (positionUpper.includes("GENERAL MANAGER")) {
+            return "bg-teal-100 text-teal-800 border-teal-300";
         } else if (
             positionUpper.includes("ACCOUNT EXECUTIVE") ||
             positionUpper.includes("AE")
@@ -438,7 +438,6 @@ const HistoryModal = ({ isOpen, onClose }) => {
         } else if (positionUpper.includes("STAFF")) {
             return "bg-blue-100 text-blue-800 border-blue-300";
         } else if (positionUpper === "NON") {
-            // UPDATED: Added NON kelompok jabatan - same as default gray
             return "bg-gray-100 text-gray-800 border-gray-300";
         }
 
