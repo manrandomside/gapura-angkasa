@@ -387,10 +387,10 @@ const HistoryModal = ({ isOpen, onClose }) => {
         }
     };
 
-    // ENHANCED: Status badge colors dengan comprehensive mapping
+    // UPDATED: Status badge colors - SYNCHRONIZED with Index.jsx
     const getStatusBadgeColor = (status) => {
         if (!status || status === "Tidak tersedia") {
-            return "bg-gray-100 text-gray-600 border-gray-300";
+            return "bg-gray-100 text-gray-800 border-gray-300";
         }
 
         const statusUpper = status.toUpperCase();
@@ -399,50 +399,50 @@ const HistoryModal = ({ isOpen, onClose }) => {
             statusUpper.includes("PEGAWAI TETAP") ||
             statusUpper.includes("TETAP")
         ) {
-            return "bg-green-100 text-green-700 border-green-300";
+            return "bg-green-100 text-green-800 border-green-300";
         } else if (statusUpper.includes("PKWT")) {
-            return "bg-blue-100 text-blue-700 border-blue-300";
+            return "bg-blue-100 text-blue-800 border-blue-300";
         } else if (statusUpper.includes("TAD PAKET SDM")) {
-            return "bg-orange-100 text-orange-700 border-orange-300";
+            return "bg-yellow-100 text-yellow-800 border-yellow-300";
         } else if (statusUpper.includes("TAD PAKET PEKERJAAN")) {
-            return "bg-red-100 text-red-700 border-red-300";
+            return "bg-orange-100 text-orange-800 border-orange-300";
         } else if (statusUpper.includes("TAD")) {
-            return "bg-yellow-100 text-yellow-700 border-yellow-300";
+            return "bg-yellow-100 text-yellow-800 border-yellow-300";
         }
 
-        return "bg-gray-100 text-gray-600 border-gray-300";
+        return "bg-gray-100 text-gray-800 border-gray-300";
     };
 
-    // UPDATED: Enhanced position badge colors dengan kelompok jabatan mapping termasuk GENERAL MANAGER dan NON
+    // UPDATED: Position badge colors - SYNCHRONIZED with Index.jsx including GENERAL MANAGER and NON
     const getPositionBadgeColor = (position) => {
         if (!position || position === "Tidak tersedia") {
-            return "bg-gray-100 text-gray-600 border-gray-300";
+            return "bg-gray-100 text-gray-800 border-gray-300";
         }
 
         const positionUpper = position.toUpperCase();
 
         // UPDATED: Check for GENERAL MANAGER first before MANAGER (order matters!)
         if (positionUpper.includes("GENERAL MANAGER")) {
-            return "bg-green-100 text-green-700 border-green-300";
+            return "bg-teal-100 text-teal-800 border-teal-300";
         } else if (positionUpper.includes("EXECUTIVE GENERAL MANAGER")) {
-            return "bg-amber-100 text-amber-700 border-amber-300";
+            return "bg-red-100 text-red-800 border-red-300";
         } else if (
             positionUpper.includes("ACCOUNT EXECUTIVE") ||
             positionUpper.includes("AE")
         ) {
-            return "bg-pink-100 text-pink-700 border-pink-300";
+            return "bg-green-100 text-green-800 border-green-300";
         } else if (positionUpper.includes("MANAGER")) {
-            return "bg-indigo-100 text-indigo-700 border-indigo-300";
+            return "bg-purple-100 text-purple-800 border-purple-300";
         } else if (positionUpper.includes("SUPERVISOR")) {
-            return "bg-purple-100 text-purple-700 border-purple-300";
+            return "bg-indigo-100 text-indigo-800 border-indigo-300";
         } else if (positionUpper.includes("STAFF")) {
-            return "bg-cyan-100 text-cyan-700 border-cyan-300";
+            return "bg-blue-100 text-blue-800 border-blue-300";
         } else if (positionUpper === "NON") {
-            // UPDATED: Added NON kelompok jabatan with distinct styling
-            return "bg-slate-100 text-slate-600 border-slate-300";
+            // UPDATED: Added NON kelompok jabatan - same as default gray
+            return "bg-gray-100 text-gray-800 border-gray-300";
         }
 
-        return "bg-gray-100 text-gray-600 border-gray-300";
+        return "bg-gray-100 text-gray-800 border-gray-300";
     };
 
     // Close modal handler
