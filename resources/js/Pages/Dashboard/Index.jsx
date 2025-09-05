@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Head } from "@inertiajs/react";
 import DashboardLayout from "../../Layouts/DashboardLayout";
 
@@ -7,127 +7,220 @@ export default function Index({ statistics = {} }) {
         total_employees: 0,
         active_employees: 0,
         pegawai_tetap: 0,
-        tad: 0,
+        pkwt: 0,
+        tad_total: 0,
+        tad_paket_sdm: 0,
+        tad_paket_pekerjaan: 0,
         ...statistics,
     });
+    const [chartData, setChartData] = useState({
+        gender: [],
+        status: [],
+        unit: [],
+        provider: [],
+        age: [],
+        jabatan: [],
+    });
     const [loading, setLoading] = useState(true);
+    const [lastUpdate, setLastUpdate] = useState(Date.now());
 
-    useEffect(() => {
-        fetchStatistics();
-    }, []);
+    const BASE_COLOR = "#439454";
 
-    const fetchStatistics = async () => {
+    const fetchStatistics = useCallback(async () => {
         try {
             const response = await fetch("/api/dashboard/statistics");
             if (response.ok) {
                 const data = await response.json();
-                setStats(data);
+                setStats((prevStats) => ({
+                    ...prevStats,
+                    ...data,
+                }));
             }
         } catch (error) {
             console.error("Error fetching statistics:", error);
+        }
+    }, []);
+
+    const fetchChartData = useCallback(async () => {
+        try {
+            const response = await fetch("/api/dashboard/charts");
+            if (response.ok) {
+                const data = await response.json();
+                setChartData(data);
+            }
+        } catch (error) {
+            console.error("Error fetching chart data:", error);
+        }
+    }, []);
+
+    const fetchAllData = useCallback(async () => {
+        setLoading(true);
+        try {
+            await Promise.all([fetchStatistics(), fetchChartData()]);
+            setLastUpdate(Date.now());
+        } catch (error) {
+            console.error("Error fetching data:", error);
         } finally {
             setLoading(false);
         }
+    }, [fetchStatistics, fetchChartData]);
+
+    useEffect(() => {
+        fetchAllData();
+
+        // Real-time polling setiap 30 detik
+        const interval = setInterval(fetchAllData, 30000);
+
+        return () => clearInterval(interval);
+    }, [fetchAllData]);
+
+    // Simple Bar Chart Component
+    const SimpleBarChart = ({ data, title, description }) => {
+        if (!data || data.length === 0) {
+            return (
+                <div className="flex items-center justify-center h-80">
+                    <p className="text-gray-500">Tidak ada data</p>
+                </div>
+            );
+        }
+
+        const maxValue = Math.max(...data.map((item) => item.value));
+
+        return (
+            <div className="h-80">
+                <div className="mb-6">
+                    <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                        {title}
+                    </h3>
+                    <p className="text-gray-600">{description}</p>
+                </div>
+                <div className="flex items-end justify-between h-64 gap-2 px-4">
+                    {data.map((item, index) => (
+                        <div
+                            key={index}
+                            className="flex flex-col items-center flex-1 max-w-16"
+                        >
+                            <div className="relative w-full">
+                                <div
+                                    className="w-full transition-all duration-1000 ease-out rounded-t-lg cursor-pointer hover:opacity-80"
+                                    style={{
+                                        height: `${
+                                            (item.value / maxValue) * 200
+                                        }px`,
+                                        backgroundColor: BASE_COLOR,
+                                        minHeight:
+                                            item.value > 0 ? "4px" : "0px",
+                                    }}
+                                    title={`${item.name}: ${item.value}`}
+                                >
+                                    <div className="absolute text-sm font-semibold text-gray-700 transition-opacity transform -translate-x-1/2 opacity-0 -top-8 left-1/2 hover:opacity-100">
+                                        {item.value}
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="max-w-full mt-2 text-xs leading-tight text-center text-gray-600 break-words">
+                                {item.name}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
     };
 
-    const quickActions = [
-        {
-            title: "Management Karyawan",
-            description: "Kelola data karyawan GAPURA ANGKASA",
-            icon: (
-                <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                </svg>
-            ),
-            gradient: "from-blue-500 to-blue-600",
-            href: "/employees",
-        },
-        {
-            title: "Tambah Karyawan",
-            description: "Tambah data karyawan baru",
-            icon: (
-                <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                </svg>
-            ),
-            gradient: "from-green-500 to-green-600",
-            href: "/employees/create",
-        },
-        {
-            title: "Laporan",
-            description: "Lihat laporan dan statistik",
-            icon: (
-                <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                </svg>
-            ),
-            gradient: "from-pink-500 to-pink-600",
-            href: "/laporan",
-        },
-        {
-            title: "Pengaturan",
-            description: "Kelola pengaturan sistem",
-            icon: (
-                <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                </svg>
-            ),
-            gradient: "from-indigo-500 to-indigo-600",
-            href: "/pengaturan",
-        },
-    ];
+    // Simple Pie Chart Component (using CSS)
+    const SimplePieChart = ({ data, title, description }) => {
+        if (!data || data.length === 0) {
+            return (
+                <div className="flex items-center justify-center h-80">
+                    <p className="text-gray-500">Tidak ada data</p>
+                </div>
+            );
+        }
+
+        const total = data.reduce((sum, item) => sum + item.value, 0);
+        let currentAngle = 0;
+
+        return (
+            <div className="h-80">
+                <div className="mb-6">
+                    <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                        {title}
+                    </h3>
+                    <p className="text-gray-600">{description}</p>
+                </div>
+                <div className="flex items-center justify-center h-64">
+                    <div className="relative">
+                        {/* Simple Pie using CSS */}
+                        <div className="relative w-40 h-40 overflow-hidden border-8 border-gray-200 rounded-full">
+                            {data.map((item, index) => {
+                                const percentage =
+                                    total > 0 ? (item.value / total) * 100 : 0;
+                                const color =
+                                    index === 0 ? BASE_COLOR : "#8bc981";
+
+                                return (
+                                    <div
+                                        key={index}
+                                        className="absolute top-0 left-0 w-full h-full"
+                                        style={{
+                                            background: `conic-gradient(${color} ${currentAngle}deg, ${color} ${
+                                                currentAngle + percentage * 3.6
+                                            }deg, transparent ${
+                                                currentAngle + percentage * 3.6
+                                            }deg)`,
+                                            transform: `rotate(${currentAngle}deg)`,
+                                        }}
+                                        title={`${item.name}: ${
+                                            item.value
+                                        } (${percentage.toFixed(1)}%)`}
+                                    ></div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Legend */}
+                        <div className="absolute top-0 space-y-3 left-48">
+                            {data.map((item, index) => {
+                                const percentage =
+                                    total > 0 ? (item.value / total) * 100 : 0;
+                                const color =
+                                    index === 0 ? BASE_COLOR : "#8bc981";
+
+                                return (
+                                    <div
+                                        key={index}
+                                        className="flex items-center"
+                                    >
+                                        <div
+                                            className="w-4 h-4 mr-3 rounded-full"
+                                            style={{ backgroundColor: color }}
+                                        ></div>
+                                        <div className="text-sm">
+                                            <span className="font-medium">
+                                                {item.name}
+                                            </span>
+                                            <span className="ml-2 text-gray-500">
+                                                {item.value} (
+                                                {percentage.toFixed(1)}%)
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <DashboardLayout title="Dashboard SDM">
             <Head title="Dashboard SDM GAPURA ANGKASA" />
 
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+                {/* Header Section */}
                 <div className="relative overflow-hidden bg-white shadow-sm">
                     <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent"></div>
                     <div className="relative px-8 py-10">
@@ -164,14 +257,18 @@ export default function Index({ statistics = {} }) {
                     </div>
                 </div>
 
+                {/* Statistics Cards */}
                 <div className="px-8 pb-8 -mt-4">
                     <div className="relative z-10 grid grid-cols-1 gap-8 mb-12 md:grid-cols-2 lg:grid-cols-4">
+                        {/* Total Karyawan */}
                         <div className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-4 hover:scale-105">
                             <div className="absolute inset-0 transition-all duration-700 opacity-0 bg-gradient-to-br from-blue-500/10 to-blue-600/20 group-hover:opacity-100"></div>
-                            <div className="absolute inset-0 transition-opacity duration-700 opacity-0 bg-gradient-to-r from-blue-400/20 via-transparent to-blue-600/20 group-hover:opacity-100 animate-pulse"></div>
                             <div className="relative p-8">
                                 <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-blue-500/50">
+                                    <div
+                                        style={{ backgroundColor: BASE_COLOR }}
+                                        className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 rounded-3xl group-hover:scale-125 group-hover:rotate-6"
+                                    >
                                         <svg
                                             className="text-white transition-all duration-700 w-9 h-9 group-hover:scale-110"
                                             fill="none"
@@ -187,30 +284,33 @@ export default function Index({ statistics = {} }) {
                                         </svg>
                                     </div>
                                 </div>
-                                <div className="transition-all duration-700 group-hover:transform group-hover:translate-x-2">
-                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700 group-hover:text-blue-600 group-hover:scale-110">
+                                <div className="transition-all duration-700">
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700">
                                         {loading ? (
                                             <div className="w-20 h-12 bg-gray-200 rounded animate-pulse"></div>
                                         ) : (
                                             stats.total_employees
                                         )}
                                     </p>
-                                    <p className="mb-2 text-lg font-semibold text-gray-600 transition-all duration-700 group-hover:text-blue-700">
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
                                         Total Karyawan
                                     </p>
-                                    <p className="inline-block px-3 py-1 text-sm font-medium text-blue-600 transition-all duration-700 rounded-full bg-blue-50 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-105">
+                                    <p
+                                        className="inline-block px-3 py-1 text-sm font-medium text-white rounded-full"
+                                        style={{ backgroundColor: BASE_COLOR }}
+                                    >
                                         Seluruh karyawan
                                     </p>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Pegawai Aktif */}
                         <div className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-4 hover:scale-105">
                             <div className="absolute inset-0 transition-all duration-700 opacity-0 bg-gradient-to-br from-green-500/10 to-green-600/20 group-hover:opacity-100"></div>
-                            <div className="absolute inset-0 transition-opacity duration-700 opacity-0 bg-gradient-to-r from-green-400/20 via-transparent to-green-600/20 group-hover:opacity-100 animate-pulse"></div>
                             <div className="relative p-8">
                                 <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-green-500 to-green-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-green-500/50">
+                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-green-500 to-green-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6">
                                         <svg
                                             className="text-white transition-all duration-700 w-9 h-9 group-hover:scale-110"
                                             fill="none"
@@ -226,30 +326,30 @@ export default function Index({ statistics = {} }) {
                                         </svg>
                                     </div>
                                 </div>
-                                <div className="transition-all duration-700 group-hover:transform group-hover:translate-x-2">
-                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700 group-hover:text-green-600 group-hover:scale-110">
+                                <div className="transition-all duration-700">
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700">
                                         {loading ? (
                                             <div className="w-20 h-12 bg-gray-200 rounded animate-pulse"></div>
                                         ) : (
                                             stats.active_employees
                                         )}
                                     </p>
-                                    <p className="mb-2 text-lg font-semibold text-gray-600 transition-all duration-700 group-hover:text-green-700">
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
                                         Pegawai Aktif
                                     </p>
-                                    <p className="inline-block px-3 py-1 text-sm font-medium text-green-600 transition-all duration-700 rounded-full bg-green-50 group-hover:bg-green-600 group-hover:text-white group-hover:scale-105">
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-green-600 rounded-full bg-green-50">
                                         Status aktif
                                     </p>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Pegawai Tetap */}
                         <div className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-4 hover:scale-105">
                             <div className="absolute inset-0 transition-all duration-700 opacity-0 bg-gradient-to-br from-orange-500/10 to-orange-600/20 group-hover:opacity-100"></div>
-                            <div className="absolute inset-0 transition-opacity duration-700 opacity-0 bg-gradient-to-r from-orange-400/20 via-transparent to-orange-600/20 group-hover:opacity-100 animate-pulse"></div>
                             <div className="relative p-8">
                                 <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-orange-500 to-orange-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-orange-500/50">
+                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-orange-500 to-orange-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6">
                                         <svg
                                             className="text-white transition-all duration-700 w-9 h-9 group-hover:scale-110"
                                             fill="none"
@@ -265,30 +365,30 @@ export default function Index({ statistics = {} }) {
                                         </svg>
                                     </div>
                                 </div>
-                                <div className="transition-all duration-700 group-hover:transform group-hover:translate-x-2">
-                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700 group-hover:text-orange-600 group-hover:scale-110">
+                                <div className="transition-all duration-700">
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700">
                                         {loading ? (
                                             <div className="w-20 h-12 bg-gray-200 rounded animate-pulse"></div>
                                         ) : (
                                             stats.pegawai_tetap
                                         )}
                                     </p>
-                                    <p className="mb-2 text-lg font-semibold text-gray-600 transition-all duration-700 group-hover:text-orange-700">
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
                                         Pegawai Tetap
                                     </p>
-                                    <p className="inline-block px-3 py-1 text-sm font-medium text-orange-600 transition-all duration-700 rounded-full bg-orange-50 group-hover:bg-orange-600 group-hover:text-white group-hover:scale-105">
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-orange-600 rounded-full bg-orange-50">
                                         Pegawai tetap
                                     </p>
                                 </div>
                             </div>
                         </div>
 
+                        {/* TAD */}
                         <div className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl stats-card group rounded-3xl hover:shadow-2xl hover:-translate-y-4 hover:scale-105">
                             <div className="absolute inset-0 transition-all duration-700 opacity-0 bg-gradient-to-br from-purple-500/10 to-purple-600/20 group-hover:opacity-100"></div>
-                            <div className="absolute inset-0 transition-opacity duration-700 opacity-0 bg-gradient-to-r from-purple-400/20 via-transparent to-purple-600/20 group-hover:opacity-100 animate-pulse"></div>
                             <div className="relative p-8">
                                 <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-purple-500/50">
+                                    <div className="flex items-center justify-center transition-all duration-700 shadow-2xl w-18 h-18 bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl group-hover:scale-125 group-hover:rotate-6">
                                         <svg
                                             className="text-white transition-all duration-700 w-9 h-9 group-hover:scale-110"
                                             fill="none"
@@ -304,18 +404,18 @@ export default function Index({ statistics = {} }) {
                                         </svg>
                                     </div>
                                 </div>
-                                <div className="transition-all duration-700 group-hover:transform group-hover:translate-x-2">
-                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700 group-hover:text-purple-600 group-hover:scale-110">
+                                <div className="transition-all duration-700">
+                                    <p className="mb-3 text-4xl font-bold text-gray-900 transition-all duration-700">
                                         {loading ? (
                                             <div className="w-20 h-12 bg-gray-200 rounded animate-pulse"></div>
                                         ) : (
-                                            stats.tad
+                                            stats.tad_total
                                         )}
                                     </p>
-                                    <p className="mb-2 text-lg font-semibold text-gray-600 transition-all duration-700 group-hover:text-purple-700">
+                                    <p className="mb-2 text-lg font-semibold text-gray-600">
                                         TAD
                                     </p>
-                                    <p className="inline-block px-3 py-1 text-sm font-medium text-purple-600 transition-all duration-700 rounded-full bg-purple-50 group-hover:bg-purple-600 group-hover:text-white group-hover:scale-105">
+                                    <p className="inline-block px-3 py-1 text-sm font-medium text-purple-600 rounded-full bg-purple-50">
                                         Tenaga Alih Daya
                                     </p>
                                 </div>
@@ -323,151 +423,133 @@ export default function Index({ statistics = {} }) {
                         </div>
                     </div>
 
-                    <div className="mb-10">
-                        <div className="mb-8 text-center">
-                            <h2 className="mb-3 text-3xl font-bold text-gray-900">
-                                Aksi Cepat
-                            </h2>
-                            <p className="text-lg text-gray-600">
-                                Akses cepat ke fitur utama sistem
-                            </p>
+                    {/* Charts Section */}
+                    <div className="space-y-8">
+                        {/* Chart Row 1: Gender & Status */}
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                            {/* Jenis Kelamin Chart */}
+                            <div className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp">
+                                <SimplePieChart
+                                    data={chartData.gender}
+                                    title="Jenis Kelamin"
+                                    description="Distribusi berdasarkan jenis kelamin"
+                                />
+                            </div>
+
+                            {/* Status Pegawai Chart */}
+                            <div
+                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                style={{ animationDelay: "0.1s" }}
+                            >
+                                <SimpleBarChart
+                                    data={chartData.status}
+                                    title="Status Pegawai"
+                                    description="Distribusi berdasarkan status pegawai"
+                                />
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-8 mx-auto md:grid-cols-2 lg:grid-cols-4 max-w-7xl">
-                            {quickActions.map((action, index) => (
-                                <a
-                                    key={index}
-                                    href={action.href}
-                                    className="relative overflow-hidden transition-all duration-700 transform bg-white border border-gray-100 shadow-xl quick-action-card group rounded-3xl hover:shadow-2xl hover:-translate-y-6 hover:scale-105"
-                                >
-                                    <div
-                                        className={`absolute inset-0 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-100 transition-all duration-700`}
-                                    ></div>
-                                    <div className="absolute inset-0 transition-all duration-700 opacity-0 bg-gradient-to-r from-white/20 via-transparent to-white/20 group-hover:opacity-100 group-hover:animate-pulse"></div>
-                                    <div className="relative p-10">
-                                        <div className="flex flex-col items-center text-center">
-                                            <div
-                                                className={`flex items-center justify-center w-24 h-24 bg-gradient-to-br ${action.gradient} rounded-3xl shadow-2xl mb-8 group-hover:scale-125 group-hover:rotate-12 transition-all duration-700 group-hover:shadow-xl`}
-                                            >
-                                                <div className="text-white transition-all duration-700 group-hover:scale-110">
-                                                    {action.icon}
-                                                </div>
-                                            </div>
-                                            <h3 className="mb-3 text-2xl font-bold text-gray-900 transition-all duration-700 group-hover:text-white group-hover:scale-105 group-hover:transform group-hover:-translate-y-1">
-                                                {action.title}
-                                            </h3>
-                                            <p className="text-lg leading-relaxed text-gray-600 transition-all duration-700 group-hover:text-white/90 group-hover:transform group-hover:translate-y-1">
-                                                {action.description}
-                                            </p>
-                                            <div className="mt-6 transition-all duration-700 transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-110">
-                                                <div className="flex items-center px-4 py-2 rounded-full text-white/90 bg-white/20 backdrop-blur-sm">
-                                                    <svg
-                                                        className="w-4 h-4 mr-2 transition-transform duration-700 group-hover:translate-x-1"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M13 7l5 5m0 0l-5 5m5-5H6"
-                                                        />
-                                                    </svg>
-                                                    <span className="font-medium">
-                                                        Akses sekarang
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="absolute w-2 h-2 transition-all duration-700 rounded-full opacity-0 top-4 right-4 bg-white/30 group-hover:opacity-100 group-hover:animate-bounce"></div>
-                                    <div
-                                        className="absolute w-1 h-1 transition-all duration-700 rounded-full opacity-0 bottom-4 left-4 bg-white/40 group-hover:opacity-100 group-hover:animate-ping"
-                                        style={{ animationDelay: "0.5s" }}
-                                    ></div>
-                                    <div
-                                        className="absolute top-1/2 left-8 w-1.5 h-1.5 bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-700 group-hover:animate-pulse"
-                                        style={{ animationDelay: "1s" }}
-                                    ></div>
-                                </a>
-                            ))}
+
+                        {/* Chart Row 2: Unit & Provider */}
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                            {/* Per Unit Chart */}
+                            <div
+                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                style={{ animationDelay: "0.2s" }}
+                            >
+                                <SimpleBarChart
+                                    data={chartData.unit}
+                                    title="SDM per Unit"
+                                    description="Distribusi berdasarkan unit organisasi"
+                                />
+                            </div>
+
+                            {/* Per Provider Chart */}
+                            <div
+                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                style={{ animationDelay: "0.3s" }}
+                            >
+                                <SimpleBarChart
+                                    data={chartData.provider}
+                                    title="SDM per Provider"
+                                    description="Distribusi berdasarkan perusahaan provider"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Chart Row 3: Age & Position */}
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                            {/* Komposisi Usia Chart */}
+                            <div
+                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                style={{ animationDelay: "0.4s" }}
+                            >
+                                <SimpleBarChart
+                                    data={chartData.age}
+                                    title="Komposisi Usia SDM"
+                                    description="Distribusi berdasarkan kelompok usia"
+                                />
+                            </div>
+
+                            {/* Kelompok Jabatan Chart */}
+                            <div
+                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                style={{ animationDelay: "0.5s" }}
+                            >
+                                <SimpleBarChart
+                                    data={chartData.jabatan}
+                                    title="Kelompok Jabatan"
+                                    description="Distribusi berdasarkan kelompok jabatan"
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="relative overflow-hidden bg-gradient-to-br from-green-600 to-green-800 rounded-3xl shadow-2xl group hover:shadow-green-600/25 transition-all duration-700 hover:scale-[1.02]">
-                        <div className="absolute inset-0 transition-all duration-700 bg-black/20 group-hover:bg-black/10"></div>
-                        <div className="absolute inset-0 transition-all duration-700 opacity-20 bg-gradient-to-r from-white/10 via-transparent to-white/10 group-hover:opacity-30"></div>
-
-                        <div className="absolute w-3 h-3 rounded-full top-8 left-8 bg-white/30 animate-pulse"></div>
-                        <div
-                            className="absolute w-2 h-2 rounded-full top-16 right-16 bg-white/20 animate-bounce"
-                            style={{ animationDelay: "1s" }}
-                        ></div>
-                        <div
-                            className="absolute bottom-12 left-24 w-1.5 h-1.5 bg-white/40 rounded-full animate-ping"
-                            style={{ animationDelay: "2s" }}
-                        ></div>
-                        <div
-                            className="absolute w-4 h-4 rounded-full bottom-8 right-8 bg-white/10 animate-pulse"
-                            style={{ animationDelay: "0.5s" }}
-                        ></div>
-
-                        <div className="relative p-12 text-center text-white">
-                            <div className="transition-all duration-700 group-hover:transform group-hover:scale-105">
-                                <h3 className="mb-4 text-3xl font-bold transition-all duration-700 group-hover:scale-110">
-                                    Sistem Siap Digunakan
-                                </h3>
-                                <p className="max-w-4xl mx-auto text-lg leading-relaxed transition-all duration-700 text-white/90 group-hover:text-white">
-                                    Sistem manajemen SDM GAPURA ANGKASA siap
-                                    membantu Anda mengelola sumber daya manusia
-                                    dengan efisien. Gunakan menu navigasi di
-                                    sebelah kiri untuk mengakses berbagai fitur
-                                    yang tersedia.
-                                </p>
-                            </div>
-                            <div className="flex items-center justify-center mt-8 space-x-8 transition-all duration-700 group-hover:scale-105">
-                                <div className="flex items-center transition-all duration-700 hover:scale-110">
-                                    <div className="w-3 h-3 mr-3 transition-all duration-700 bg-white rounded-full animate-pulse"></div>
-                                    <span className="font-medium transition-all duration-700 text-white/90 group-hover:text-white">
-                                        Sistem Online
-                                    </span>
-                                </div>
-                                <div className="flex items-center transition-all duration-700 hover:scale-110">
-                                    <div className="w-3 h-3 mr-3 transition-all duration-700 bg-white rounded-full"></div>
-                                    <span className="font-medium transition-all duration-700 text-white/90 group-hover:text-white">
-                                        Data Tersinkronisasi
-                                    </span>
-                                </div>
-                                <div className="flex items-center transition-all duration-700 hover:scale-110">
-                                    <div className="w-3 h-3 mr-3 transition-all duration-700 bg-white rounded-full"></div>
-                                    <span className="font-medium transition-all duration-700 text-white/90 group-hover:text-white">
-                                        Keamanan Aktif
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="mt-8 transition-all duration-700 transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0">
-                                <div className="inline-flex items-center px-6 py-3 font-medium text-white transition-all duration-300 rounded-full cursor-pointer bg-white/20 backdrop-blur-sm hover:bg-white/30">
-                                    <svg
-                                        className="w-5 h-5 mr-2 animate-spin"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                        />
-                                    </svg>
-                                    Sistem Aktif & Terpantau
-                                </div>
-                            </div>
+                    {/* Last Update Indicator */}
+                    <div className="flex items-center justify-center mt-8">
+                        <div className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-full shadow-sm">
+                            <div className="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span>
+                                Terakhir diperbarui:{" "}
+                                {new Date(lastUpdate).toLocaleString("id-ID", {
+                                    timeZone: "Asia/Makassar",
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })}{" "}
+                                WITA
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <style jsx>{`
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                .animate-fadeInUp {
+                    animation: fadeInUp 0.8s ease-out forwards;
+                }
+
+                .stats-card {
+                    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .stats-card:hover {
+                    transform: translateY(-8px) scale(1.02);
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+            `}</style>
         </DashboardLayout>
     );
 }
