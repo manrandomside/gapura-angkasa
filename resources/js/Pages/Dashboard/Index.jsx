@@ -27,21 +27,20 @@ export default function Index({ statistics = {} }) {
 
     const BASE_COLOR = "#439454";
 
-    // Enhanced color palette for charts
+    // Enhanced color palette for charts - Excel-like colors with required green
     const CHART_COLORS = {
-        primary: "#439454",
-        secondary: "#5ba85f",
-        accent1: "#6db56f",
-        accent2: "#7fc380",
-        accent3: "#91d091",
-        accent4: "#a3dea3",
-        complementary: "#f39c12",
-        blue: "#3498db",
-        purple: "#9b59b6",
-        orange: "#e67e22",
-        red: "#e74c3c",
-        teal: "#1abc9c",
-        indigo: "#6c5ce7",
+        primary: "#439454", // Required green color
+        blue: "#5470C6", // Excel blue
+        orange: "#FF9500", // Excel orange
+        gray: "#91A7BA", // Excel gray
+        yellow: "#FFD93D", // Excel yellow
+        lightBlue: "#6FB7F0", // Excel light blue
+        green: "#4A9B6E", // Excel alternative green
+        purple: "#9A60B4", // Excel purple
+        red: "#EA4335", // Excel red
+        teal: "#0F9D58", // Excel teal
+        amber: "#F4B942", // Excel amber
+        indigo: "#4285F4", // Excel indigo
     };
 
     const fetchStatistics = useCallback(async () => {
@@ -213,7 +212,7 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // Enhanced 3D Bar Chart Component - Excel-like design with custom intervals
+    // Enhanced 3D Bar Chart Component - Excel-like design with improved text positioning
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         if (!data || data.length === 0) {
             return (
@@ -251,15 +250,12 @@ export default function Index({ statistics = {} }) {
 
         return (
             <div className="h-80">
-                <div className="mb-6">
-                    <h3 className="flex items-center mb-2 text-2xl font-bold text-gray-900">
-                        <div className="w-1 h-6 mr-3 rounded-full bg-gradient-to-b from-green-400 to-green-600"></div>
+                {/* Title and description positioned like Excel charts */}
+                <div className="mb-4 text-center">
+                    <h3 className="mb-1 text-xl font-bold text-gray-900">
                         {title}
                     </h3>
-                    <p className="text-gray-600 ml-7">{description}</p>
-                    <p className="mt-1 text-sm text-gray-500 ml-7">
-                        Jumlah SDM
-                    </p>
+                    <p className="text-sm text-gray-600">{description}</p>
                 </div>
 
                 <div className="relative">
@@ -284,8 +280,13 @@ export default function Index({ statistics = {} }) {
                         {data.map((item, index) => {
                             const heightPercent =
                                 max > 0 ? (item.value / max) * 100 : 0;
+                            // Ensure first bar uses green color (#439454), then use other colors
                             const barColor =
-                                colorArray[index % colorArray.length];
+                                index === 0
+                                    ? CHART_COLORS.primary
+                                    : colorArray[
+                                          (index + 1) % colorArray.length
+                                      ];
 
                             return (
                                 <div
@@ -293,6 +294,24 @@ export default function Index({ statistics = {} }) {
                                     className="flex flex-col items-center flex-1 max-w-20 group"
                                 >
                                     <div className="relative flex items-end w-full h-52">
+                                        {/* Value Display - Positioned like Excel charts (directly above bar) */}
+                                        {item.value > 0 && (
+                                            <div
+                                                className="absolute z-10 transform -translate-x-1/2 left-1/2"
+                                                style={{
+                                                    top: `${
+                                                        200 -
+                                                        heightPercent * 2 -
+                                                        25
+                                                    }px`,
+                                                }}
+                                            >
+                                                <div className="px-2 py-1 text-sm font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-sm">
+                                                    {item.value}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* 3D Effect Base */}
                                         <div className="relative w-full">
                                             {/* Shadow */}
@@ -348,20 +367,11 @@ export default function Index({ statistics = {} }) {
                                                                 : "none",
                                                     }}
                                                 ></div>
-
-                                                {/* Value Display - Always Visible */}
-                                                {item.value > 0 && (
-                                                    <div className="absolute transform -translate-x-1/2 -top-8 left-1/2">
-                                                        <div className="px-2 py-1 text-xs font-bold text-white bg-gray-900 rounded whitespace-nowrap">
-                                                            {item.value}
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Label */}
+                                    {/* Label positioned like Excel charts */}
                                     <p className="mt-3 text-xs font-medium leading-tight text-center text-gray-700 break-words">
                                         {item.name}
                                     </p>
@@ -369,12 +379,19 @@ export default function Index({ statistics = {} }) {
                             );
                         })}
                     </div>
+
+                    {/* Y-axis label */}
+                    <div className="absolute left-0 transform -rotate-90 -translate-x-6 -translate-y-1/2 top-1/2">
+                        <p className="text-xs font-medium text-gray-600">
+                            Jumlah SDM
+                        </p>
+                    </div>
                 </div>
             </div>
         );
     };
 
-    // Enhanced 3D Pie Chart Component - Excel-like design
+    // Enhanced 3D Pie Chart Component - Excel-like design with varied colors
     const Enhanced3DPieChart = ({ data, title, description }) => {
         if (!data || data.length === 0) {
             return (
@@ -413,24 +430,22 @@ export default function Index({ statistics = {} }) {
         }
 
         const total = data.reduce((sum, item) => sum + item.value, 0);
+        // Use varied colors with green as first color
         const colors = [
-            CHART_COLORS.primary,
-            CHART_COLORS.complementary,
-            CHART_COLORS.blue,
-            CHART_COLORS.purple,
+            CHART_COLORS.primary, // Green #439454
+            CHART_COLORS.blue, // Blue
+            CHART_COLORS.orange, // Orange
+            CHART_COLORS.purple, // Purple
         ];
 
         return (
             <div className="h-80">
-                <div className="mb-6">
-                    <h3 className="flex items-center mb-2 text-2xl font-bold text-gray-900">
-                        <div className="w-1 h-6 mr-3 rounded-full bg-gradient-to-b from-green-400 to-green-600"></div>
+                {/* Title positioned like Excel charts */}
+                <div className="mb-4 text-center">
+                    <h3 className="mb-1 text-xl font-bold text-gray-900">
                         {title}
                     </h3>
-                    <p className="text-gray-600 ml-7">{description}</p>
-                    <p className="mt-1 text-sm text-gray-500 ml-7">
-                        Jumlah SDM
-                    </p>
+                    <p className="text-sm text-gray-600">{description}</p>
                 </div>
 
                 <div className="flex items-center justify-center h-64">
@@ -799,6 +814,36 @@ export default function Index({ statistics = {} }) {
                                     <p className="inline-block px-3 py-1 text-sm font-medium text-purple-600 rounded-full bg-purple-50">
                                         Tenaga Alih Daya
                                     </p>
+                                    {/* TAD Breakdown */}
+                                    <div className="pt-4 mt-4 border-t border-gray-100">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-600">
+                                                    Paket SDM:
+                                                </span>
+                                                <span className="font-semibold text-gray-900">
+                                                    {loading ? (
+                                                        <div className="w-8 h-4 bg-gray-200 rounded animate-pulse"></div>
+                                                    ) : (
+                                                        stats.tad_paket_sdm || 0
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-600">
+                                                    Paket Pekerjaan:
+                                                </span>
+                                                <span className="font-semibold text-gray-900">
+                                                    {loading ? (
+                                                        <div className="w-8 h-4 bg-gray-200 rounded animate-pulse"></div>
+                                                    ) : (
+                                                        stats.tad_paket_pekerjaan ||
+                                                        0
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

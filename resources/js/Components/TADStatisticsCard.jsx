@@ -31,6 +31,11 @@ const TADStatisticsCard = ({ statistics = {} }) => {
                             {tad_total}
                         </div>
                         <div className="text-sm text-orange-100">Total</div>
+                        {/* Total breakdown in header */}
+                        <div className="mt-2 text-xs text-orange-100">
+                            <div>Paket SDM: {tad_paket_sdm}</div>
+                            <div>Paket Pekerjaan: {tad_paket_pekerjaan}</div>
+                        </div>
                     </div>
                 </div>
             </div>
