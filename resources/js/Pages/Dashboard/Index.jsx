@@ -30,17 +30,17 @@ export default function Index({ statistics = {} }) {
     // Enhanced color palette for charts - Excel-like colors with required green
     const CHART_COLORS = {
         primary: "#439454", // Required green color
-        blue: "#5470C6", // Excel blue
-        orange: "#FF9500", // Excel orange
-        gray: "#91A7BA", // Excel gray
-        yellow: "#FFD93D", // Excel yellow
-        lightBlue: "#6FB7F0", // Excel light blue
-        green: "#4A9B6E", // Excel alternative green
-        purple: "#9A60B4", // Excel purple
-        red: "#EA4335", // Excel red
-        teal: "#0F9D58", // Excel teal
+        blue: "#5B9BD5", // Excel blue
+        orange: "#F79646", // Excel orange
+        gray: "#A5A5A5", // Excel gray
+        yellow: "#FFC000", // Excel yellow
+        lightBlue: "#8DB4E2", // Excel light blue
+        green: "#70AD47", // Excel alternative green
+        purple: "#B26FB1", // Excel purple
+        red: "#E15759", // Excel red
+        teal: "#4BACC6", // Excel teal
         amber: "#F4B942", // Excel amber
-        indigo: "#4285F4", // Excel indigo
+        indigo: "#4472C4", // Excel indigo
     };
 
     const fetchStatistics = useCallback(async () => {
@@ -212,8 +212,8 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // Enhanced 3D Bar Chart Component - Excel-like design with improved text positioning
-    const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
+    // Enhanced Bar Chart Component - Excel-like design without 3D effects
+    const EnhancedBarChart = ({ data, title, description, chartType }) => {
         if (!data || data.length === 0) {
             return (
                 <div className="flex items-center justify-center h-80">
@@ -249,150 +249,128 @@ export default function Index({ statistics = {} }) {
         const colorArray = Object.values(CHART_COLORS);
 
         return (
-            <div className="h-80">
+            <div className="h-96">
                 {/* Title and description positioned like Excel charts */}
-                <div className="mb-4 text-center">
-                    <h3 className="mb-1 text-xl font-bold text-gray-900">
+                <div className="mb-6 text-center">
+                    <h3 className="mb-2 text-xl font-bold text-gray-900">
                         {title}
                     </h3>
-                    <p className="text-sm text-gray-600">{description}</p>
+                    <p className="text-sm font-medium text-gray-600">
+                        {description}
+                    </p>
                 </div>
 
-                <div className="relative">
-                    {/* Grid background with custom intervals */}
-                    <div className="absolute inset-0 pointer-events-none">
-                        {intervals.map((value) => (
-                            <div
-                                key={value}
-                                className="absolute w-full border-t border-gray-100"
-                                style={{
-                                    bottom: `${(value / max) * 200 + 40}px`,
-                                }}
-                            >
-                                <span className="absolute text-xs text-gray-400 transform -translate-y-1/2 -left-8">
-                                    {value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex items-end justify-between h-64 gap-2 px-4 py-4">
-                        {data.map((item, index) => {
-                            const heightPercent =
-                                max > 0 ? (item.value / max) * 100 : 0;
-                            // Ensure first bar uses green color (#439454), then use other colors
-                            const barColor =
-                                index === 0
-                                    ? CHART_COLORS.primary
-                                    : colorArray[
-                                          (index + 1) % colorArray.length
-                                      ];
-
-                            return (
+                <div className="relative bg-white">
+                    {/* Chart container with proper spacing */}
+                    <div className="relative pl-12 pr-6">
+                        {/* Grid lines and Y-axis labels */}
+                        <div className="relative h-72">
+                            {intervals.map((value) => (
                                 <div
-                                    key={index}
-                                    className="flex flex-col items-center flex-1 max-w-20 group"
+                                    key={value}
+                                    className="absolute flex items-center w-full"
+                                    style={{
+                                        bottom: `${(value / max) * 70 + 20}%`,
+                                    }}
                                 >
-                                    <div className="relative flex items-end w-full h-52">
-                                        {/* Value Display - Positioned like Excel charts (directly above bar) */}
-                                        {item.value > 0 && (
-                                            <div
-                                                className="absolute z-10 transform -translate-x-1/2 left-1/2"
-                                                style={{
-                                                    top: `${
-                                                        200 -
-                                                        heightPercent * 2 -
-                                                        25
-                                                    }px`,
-                                                }}
-                                            >
-                                                <div className="px-2 py-1 text-sm font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-sm">
+                                    <span className="absolute w-6 text-xs text-right text-gray-500 -left-8">
+                                        {value}
+                                    </span>
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                            ))}
+
+                            {/* Bars container */}
+                            <div
+                                className="absolute inset-0 flex items-end justify-center gap-4 pt-8"
+                                style={{ paddingBottom: "20%" }}
+                            >
+                                {data.map((item, index) => {
+                                    const heightPercent =
+                                        max > 0 ? (item.value / max) * 70 : 0;
+                                    // Ensure first bar uses green color, others use different colors
+                                    const barColor =
+                                        index === 0
+                                            ? CHART_COLORS.primary
+                                            : colorArray[
+                                                  index % colorArray.length
+                                              ];
+
+                                    return (
+                                        <div
+                                            key={index}
+                                            className="flex flex-col items-center group"
+                                            style={{
+                                                width: `${Math.max(
+                                                    (100 / data.length) * 0.8,
+                                                    60
+                                                )}px`,
+                                                minWidth: "60px",
+                                            }}
+                                        >
+                                            {/* Value label above bar */}
+                                            <div className="mb-2">
+                                                <span className="px-2 py-1 text-sm font-bold text-gray-900 bg-white border rounded shadow-sm">
                                                     {item.value}
-                                                </div>
+                                                </span>
                                             </div>
-                                        )}
 
-                                        {/* 3D Effect Base */}
-                                        <div className="relative w-full">
-                                            {/* Shadow */}
+                                            {/* Bar */}
                                             <div
-                                                className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-10"
+                                                className="w-full transition-all duration-300 rounded-t cursor-pointer hover:brightness-110"
                                                 style={{
-                                                    height: `${
-                                                        heightPercent * 2
-                                                    }px`,
+                                                    height: `${heightPercent}%`,
+                                                    backgroundColor: barColor,
                                                     minHeight:
                                                         item.value > 0
                                                             ? "6px"
                                                             : "0px",
-                                                }}
-                                            ></div>
-
-                                            {/* Main Bar */}
-                                            <div
-                                                className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
-                                                style={{
-                                                    height: `${
-                                                        heightPercent * 2
-                                                    }px`,
-                                                    background: `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
-                                                    minHeight:
-                                                        item.value > 0
-                                                            ? "6px"
-                                                            : "0px",
-                                                    boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
                                                 }}
                                                 title={`${item.name}: ${item.value}`}
-                                            >
-                                                {/* 3D Top */}
-                                                <div
-                                                    className="absolute left-0 w-full h-2 transform -skew-x-12 rounded-t-lg -top-1"
-                                                    style={{
-                                                        background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
-                                                        display:
-                                                            item.value > 0
-                                                                ? "block"
-                                                                : "none",
-                                                    }}
-                                                ></div>
-
-                                                {/* 3D Right Side */}
-                                                <div
-                                                    className="absolute top-0 w-2 h-full transform skew-y-12 rounded-r-lg -right-1"
-                                                    style={{
-                                                        background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
-                                                        display:
-                                                            item.value > 0
-                                                                ? "block"
-                                                                : "none",
-                                                    }}
-                                                ></div>
-                                            </div>
+                                            ></div>
                                         </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Separator line */}
+                            <div
+                                className="absolute bottom-0 left-0 w-full border-t-2 border-gray-300"
+                                style={{ bottom: "20%" }}
+                            ></div>
+
+                            {/* X-axis labels section - separated from chart */}
+                            <div
+                                className="absolute bottom-0 left-0 flex justify-center w-full gap-4 pt-4"
+                                style={{ height: "20%" }}
+                            >
+                                {data.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-center justify-center text-center"
+                                        style={{
+                                            width: `${Math.max(
+                                                (100 / data.length) * 0.8,
+                                                60
+                                            )}px`,
+                                            minWidth: "60px",
+                                        }}
+                                    >
+                                        <p className="px-1 text-xs font-medium leading-tight text-gray-700 break-words">
+                                            {item.name}
+                                        </p>
                                     </div>
-
-                                    {/* Label positioned like Excel charts */}
-                                    <p className="mt-3 text-xs font-medium leading-tight text-center text-gray-700 break-words">
-                                        {item.name}
-                                    </p>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Y-axis label */}
-                    <div className="absolute left-0 transform -rotate-90 -translate-x-6 -translate-y-1/2 top-1/2">
-                        <p className="text-xs font-medium text-gray-600">
-                            Jumlah SDM
-                        </p>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         );
     };
 
-    // Enhanced 3D Pie Chart Component - Excel-like design with varied colors
-    const Enhanced3DPieChart = ({ data, title, description }) => {
+    // Enhanced Pie Chart Component - Excel-like design with varied colors
+    const EnhancedPieChart = ({ data, title, description }) => {
         if (!data || data.length === 0) {
             return (
                 <div className="flex items-center justify-center h-80">
@@ -441,22 +419,21 @@ export default function Index({ statistics = {} }) {
         return (
             <div className="h-80">
                 {/* Title positioned like Excel charts */}
-                <div className="mb-4 text-center">
-                    <h3 className="mb-1 text-xl font-bold text-gray-900">
+                <div className="mb-6 text-center">
+                    <h3 className="mb-2 text-xl font-bold text-gray-900">
                         {title}
                     </h3>
-                    <p className="text-sm text-gray-600">{description}</p>
+                    <p className="text-sm font-medium text-gray-600">
+                        {description}
+                    </p>
                 </div>
 
                 <div className="flex items-center justify-center h-64">
                     <div className="relative flex items-center">
-                        {/* 3D Pie Chart Container */}
+                        {/* Pie Chart Container */}
                         <div className="relative">
-                            {/* Shadow */}
-                            <div className="absolute w-40 h-40 bg-black rounded-full top-2 left-2 opacity-20 blur-md"></div>
-
                             {/* Main Pie */}
-                            <div className="relative w-40 h-40 overflow-hidden border-4 border-white rounded-full shadow-2xl">
+                            <div className="relative w-40 h-40 overflow-hidden border-4 border-white rounded-full shadow-lg">
                                 <svg
                                     viewBox="0 0 42 42"
                                     className="w-full h-full transform -rotate-90"
@@ -495,10 +472,7 @@ export default function Index({ statistics = {} }) {
                                                     100 - percentage
                                                 }`}
                                                 strokeDashoffset={-offset}
-                                                className="transition-all duration-1000 cursor-pointer hover:stroke-8"
-                                                style={{
-                                                    filter: `drop-shadow(0 2px 4px ${color}40)`,
-                                                }}
+                                                className="transition-all duration-300 cursor-pointer hover:opacity-80"
                                             >
                                                 <title>{`${item.name}: ${
                                                     item.value
@@ -510,7 +484,7 @@ export default function Index({ statistics = {} }) {
                                     })}
                                 </svg>
 
-                                {/* Center Circle with Total - Like Reference Image */}
+                                {/* Center Circle with Total */}
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="flex items-center justify-center w-20 h-20 bg-white border-2 border-gray-100 rounded-full shadow-inner">
                                         <div className="text-center">
@@ -526,7 +500,7 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Enhanced Legend with Values and Percentages */}
+                        {/* Legend with Values and Percentages */}
                         <div className="ml-8 space-y-3">
                             {data.map((item, index) => {
                                 const percentage =
@@ -540,13 +514,7 @@ export default function Index({ statistics = {} }) {
                                     >
                                         <div className="relative">
                                             <div
-                                                className="w-5 h-5 transition-transform border-2 border-white rounded-full shadow-lg group-hover:scale-110"
-                                                style={{
-                                                    backgroundColor: color,
-                                                }}
-                                            ></div>
-                                            <div
-                                                className="absolute inset-0 w-5 h-5 rounded-full opacity-30"
+                                                className="w-5 h-5 transition-transform border-2 border-white rounded-full shadow-sm group-hover:scale-110"
                                                 style={{
                                                     backgroundColor: color,
                                                 }}
@@ -866,7 +834,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DPieChart
+                                    <EnhancedPieChart
                                         data={chartData.gender}
                                         title="Jenis Kelamin"
                                         description="Distribusi berdasarkan jenis kelamin"
@@ -890,7 +858,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
+                                    <EnhancedBarChart
                                         data={chartData.status}
                                         title="Status Pegawai"
                                         description="Distribusi berdasarkan status pegawai"
@@ -900,16 +868,15 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Chart Row 2: Unit & Provider */}
-                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                            {/* Per Unit Chart */}
+                        {/* Chart Row 2: Unit (Full Width) */}
+                        <div className="w-full">
                             <div
                                 className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.2s" }}
                             >
                                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600"></div>
                                 {loading ? (
-                                    <div className="flex items-center justify-center h-80">
+                                    <div className="flex items-center justify-center h-96">
                                         <div className="text-center">
                                             <div className="inline-block w-12 h-12 border-4 border-purple-200 rounded-full border-t-purple-600 animate-spin"></div>
                                             <p className="mt-4 text-gray-500">
@@ -918,7 +885,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
+                                    <EnhancedBarChart
                                         data={chartData.unit}
                                         title="SDM per Unit"
                                         description="Distribusi berdasarkan unit organisasi"
@@ -926,15 +893,17 @@ export default function Index({ statistics = {} }) {
                                     />
                                 )}
                             </div>
+                        </div>
 
-                            {/* Per Provider Chart */}
+                        {/* Chart Row 3: Provider (Full Width) */}
+                        <div className="w-full">
                             <div
                                 className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.3s" }}
                             >
                                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600"></div>
                                 {loading ? (
-                                    <div className="flex items-center justify-center h-80">
+                                    <div className="flex items-center justify-center h-96">
                                         <div className="text-center">
                                             <div className="inline-block w-12 h-12 border-4 border-orange-200 rounded-full border-t-orange-600 animate-spin"></div>
                                             <p className="mt-4 text-gray-500">
@@ -943,7 +912,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
+                                    <EnhancedBarChart
                                         data={chartData.provider}
                                         title="SDM per Provider"
                                         description="Distribusi berdasarkan perusahaan provider"
@@ -953,7 +922,7 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Chart Row 3: Age & Position */}
+                        {/* Chart Row 4: Age & Position */}
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                             {/* Komposisi Usia Chart */}
                             <div
@@ -971,7 +940,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
+                                    <EnhancedBarChart
                                         data={chartData.age}
                                         title="Komposisi Usia SDM"
                                         description="Distribusi berdasarkan kelompok usia"
@@ -996,7 +965,7 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
+                                    <EnhancedBarChart
                                         data={chartData.jabatan}
                                         title="Kelompok Jabatan"
                                         description="Distribusi berdasarkan kelompok jabatan"
