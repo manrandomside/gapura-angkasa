@@ -23,8 +23,26 @@ export default function Index({ statistics = {} }) {
     });
     const [loading, setLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState(Date.now());
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const BASE_COLOR = "#439454";
+
+    // Enhanced color palette for charts
+    const CHART_COLORS = {
+        primary: "#439454",
+        secondary: "#5ba85f",
+        accent1: "#6db56f",
+        accent2: "#7fc380",
+        accent3: "#91d091",
+        accent4: "#a3dea3",
+        complementary: "#f39c12",
+        blue: "#3498db",
+        purple: "#9b59b6",
+        orange: "#e67e22",
+        red: "#e74c3c",
+        teal: "#1abc9c",
+        indigo: "#6c5ce7",
+    };
 
     const fetchStatistics = useCallback(async () => {
         try {
@@ -65,145 +83,472 @@ export default function Index({ statistics = {} }) {
         }
     }, [fetchStatistics, fetchChartData]);
 
+    // Manual refresh function for real-time updates
+    const manualRefresh = useCallback(async () => {
+        if (isRefreshing) return;
+
+        setIsRefreshing(true);
+        try {
+            await Promise.all([fetchStatistics(), fetchChartData()]);
+            setLastUpdate(Date.now());
+        } catch (error) {
+            console.error("Error refreshing data:", error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [fetchStatistics, fetchChartData, isRefreshing]);
+
+    // Expose refresh function globally for trigger from other components
+    useEffect(() => {
+        // Make refresh function available globally
+        window.dashboardRefresh = manualRefresh;
+
+        // Cleanup function
+        return () => {
+            if (window.dashboardRefresh) {
+                delete window.dashboardRefresh;
+            }
+        };
+    }, [manualRefresh]);
+
+    // Listen for window focus to refresh data (when user returns to tab)
+    useEffect(() => {
+        const handleFocus = () => {
+            // Optional: refresh when user returns to tab
+            // manualRefresh();
+        };
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                // Optional: refresh when tab becomes visible
+                // manualRefresh();
+            }
+        };
+
+        window.addEventListener("focus", handleFocus);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener("focus", handleFocus);
+            document.removeEventListener(
+                "visibilitychange",
+                handleVisibilityChange
+            );
+        };
+    }, [manualRefresh]);
+
+    // Listen for custom events for real-time updates
+    useEffect(() => {
+        const handleEmployeeDataChange = () => {
+            console.log("Employee data changed, refreshing dashboard...");
+            manualRefresh();
+        };
+
+        // Listen for custom events that indicate data changes
+        window.addEventListener("employee-added", handleEmployeeDataChange);
+        window.addEventListener("employee-updated", handleEmployeeDataChange);
+        window.addEventListener("employee-deleted", handleEmployeeDataChange);
+        window.addEventListener("dashboard-refresh", handleEmployeeDataChange);
+
+        return () => {
+            window.removeEventListener(
+                "employee-added",
+                handleEmployeeDataChange
+            );
+            window.removeEventListener(
+                "employee-updated",
+                handleEmployeeDataChange
+            );
+            window.removeEventListener(
+                "employee-deleted",
+                handleEmployeeDataChange
+            );
+            window.removeEventListener(
+                "dashboard-refresh",
+                handleEmployeeDataChange
+            );
+        };
+    }, [manualRefresh]);
+
+    // Initial data load only
     useEffect(() => {
         fetchAllData();
+    }, []);
 
-        // Real-time polling setiap 30 detik
-        const interval = setInterval(fetchAllData, 30000);
+    // Get chart-specific grid intervals
+    const getGridIntervals = (chartType, maxValue) => {
+        let interval, max;
 
-        return () => clearInterval(interval);
-    }, [fetchAllData]);
+        switch (chartType) {
+            case "status":
+                interval = 100;
+                max = Math.ceil(maxValue / 100) * 100;
+                break;
+            case "unit":
+                interval = 20;
+                max = Math.ceil(maxValue / 20) * 20;
+                break;
+            case "provider":
+                interval = 50;
+                max = Math.ceil(maxValue / 50) * 50;
+                break;
+            case "age":
+                interval = 50;
+                max = Math.ceil(maxValue / 50) * 50;
+                break;
+            case "jabatan":
+                interval = 25;
+                max = Math.ceil(maxValue / 25) * 25;
+                break;
+            default:
+                interval = 25;
+                max = Math.ceil(maxValue / 25) * 25;
+        }
 
-    // Simple Bar Chart Component
-    const SimpleBarChart = ({ data, title, description }) => {
+        const intervals = [];
+        for (let i = 0; i <= max; i += interval) {
+            intervals.push(i);
+        }
+
+        return { intervals, max, interval };
+    };
+
+    // Enhanced 3D Bar Chart Component - Excel-like design with custom intervals
+    const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         if (!data || data.length === 0) {
             return (
                 <div className="flex items-center justify-center h-80">
-                    <p className="text-gray-500">Tidak ada data</p>
+                    <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gray-100 rounded-full">
+                            <svg
+                                className="w-8 h-8 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+                                />
+                            </svg>
+                        </div>
+                        <p className="font-medium text-gray-500">
+                            Tidak ada data tersedia
+                        </p>
+                        <p className="mt-1 text-sm text-gray-400">
+                            Data akan muncul setelah ada karyawan
+                        </p>
+                    </div>
                 </div>
             );
         }
 
         const maxValue = Math.max(...data.map((item) => item.value));
+        const { intervals, max } = getGridIntervals(chartType, maxValue);
+        const colorArray = Object.values(CHART_COLORS);
 
         return (
             <div className="h-80">
                 <div className="mb-6">
-                    <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                    <h3 className="flex items-center mb-2 text-2xl font-bold text-gray-900">
+                        <div className="w-1 h-6 mr-3 rounded-full bg-gradient-to-b from-green-400 to-green-600"></div>
                         {title}
                     </h3>
-                    <p className="text-gray-600">{description}</p>
+                    <p className="text-gray-600 ml-7">{description}</p>
+                    <p className="mt-1 text-sm text-gray-500 ml-7">
+                        Jumlah SDM
+                    </p>
                 </div>
-                <div className="flex items-end justify-between h-64 gap-2 px-4">
-                    {data.map((item, index) => (
-                        <div
-                            key={index}
-                            className="flex flex-col items-center flex-1 max-w-16"
-                        >
-                            <div className="relative w-full">
-                                <div
-                                    className="w-full transition-all duration-1000 ease-out rounded-t-lg cursor-pointer hover:opacity-80"
-                                    style={{
-                                        height: `${
-                                            (item.value / maxValue) * 200
-                                        }px`,
-                                        backgroundColor: BASE_COLOR,
-                                        minHeight:
-                                            item.value > 0 ? "4px" : "0px",
-                                    }}
-                                    title={`${item.name}: ${item.value}`}
-                                >
-                                    <div className="absolute text-sm font-semibold text-gray-700 transition-opacity transform -translate-x-1/2 opacity-0 -top-8 left-1/2 hover:opacity-100">
-                                        {item.value}
-                                    </div>
-                                </div>
+
+                <div className="relative">
+                    {/* Grid background with custom intervals */}
+                    <div className="absolute inset-0 pointer-events-none">
+                        {intervals.map((value) => (
+                            <div
+                                key={value}
+                                className="absolute w-full border-t border-gray-100"
+                                style={{
+                                    bottom: `${(value / max) * 200 + 40}px`,
+                                }}
+                            >
+                                <span className="absolute text-xs text-gray-400 transform -translate-y-1/2 -left-8">
+                                    {value}
+                                </span>
                             </div>
-                            <p className="max-w-full mt-2 text-xs leading-tight text-center text-gray-600 break-words">
-                                {item.name}
-                            </p>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+
+                    <div className="flex items-end justify-between h-64 gap-2 px-4 py-4">
+                        {data.map((item, index) => {
+                            const heightPercent =
+                                max > 0 ? (item.value / max) * 100 : 0;
+                            const barColor =
+                                colorArray[index % colorArray.length];
+
+                            return (
+                                <div
+                                    key={index}
+                                    className="flex flex-col items-center flex-1 max-w-20 group"
+                                >
+                                    <div className="relative flex items-end w-full h-52">
+                                        {/* 3D Effect Base */}
+                                        <div className="relative w-full">
+                                            {/* Shadow */}
+                                            <div
+                                                className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-10"
+                                                style={{
+                                                    height: `${
+                                                        heightPercent * 2
+                                                    }px`,
+                                                    minHeight:
+                                                        item.value > 0
+                                                            ? "6px"
+                                                            : "0px",
+                                                }}
+                                            ></div>
+
+                                            {/* Main Bar */}
+                                            <div
+                                                className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
+                                                style={{
+                                                    height: `${
+                                                        heightPercent * 2
+                                                    }px`,
+                                                    background: `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
+                                                    minHeight:
+                                                        item.value > 0
+                                                            ? "6px"
+                                                            : "0px",
+                                                    boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                                                }}
+                                                title={`${item.name}: ${item.value}`}
+                                            >
+                                                {/* 3D Top */}
+                                                <div
+                                                    className="absolute left-0 w-full h-2 transform -skew-x-12 rounded-t-lg -top-1"
+                                                    style={{
+                                                        background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
+                                                        display:
+                                                            item.value > 0
+                                                                ? "block"
+                                                                : "none",
+                                                    }}
+                                                ></div>
+
+                                                {/* 3D Right Side */}
+                                                <div
+                                                    className="absolute top-0 w-2 h-full transform skew-y-12 rounded-r-lg -right-1"
+                                                    style={{
+                                                        background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
+                                                        display:
+                                                            item.value > 0
+                                                                ? "block"
+                                                                : "none",
+                                                    }}
+                                                ></div>
+
+                                                {/* Value Display - Always Visible */}
+                                                {item.value > 0 && (
+                                                    <div className="absolute transform -translate-x-1/2 -top-8 left-1/2">
+                                                        <div className="px-2 py-1 text-xs font-bold text-white bg-gray-900 rounded whitespace-nowrap">
+                                                            {item.value}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Label */}
+                                    <p className="mt-3 text-xs font-medium leading-tight text-center text-gray-700 break-words">
+                                        {item.name}
+                                    </p>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         );
     };
 
-    // Simple Pie Chart Component (using CSS)
-    const SimplePieChart = ({ data, title, description }) => {
+    // Enhanced 3D Pie Chart Component - Excel-like design
+    const Enhanced3DPieChart = ({ data, title, description }) => {
         if (!data || data.length === 0) {
             return (
                 <div className="flex items-center justify-center h-80">
-                    <p className="text-gray-500">Tidak ada data</p>
+                    <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gray-100 rounded-full">
+                            <svg
+                                className="w-8 h-8 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"
+                                />
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"
+                                />
+                            </svg>
+                        </div>
+                        <p className="font-medium text-gray-500">
+                            Tidak ada data tersedia
+                        </p>
+                        <p className="mt-1 text-sm text-gray-400">
+                            Data akan muncul setelah ada karyawan
+                        </p>
+                    </div>
                 </div>
             );
         }
 
         const total = data.reduce((sum, item) => sum + item.value, 0);
-        let currentAngle = 0;
+        const colors = [
+            CHART_COLORS.primary,
+            CHART_COLORS.complementary,
+            CHART_COLORS.blue,
+            CHART_COLORS.purple,
+        ];
 
         return (
             <div className="h-80">
                 <div className="mb-6">
-                    <h3 className="mb-2 text-2xl font-bold text-gray-900">
+                    <h3 className="flex items-center mb-2 text-2xl font-bold text-gray-900">
+                        <div className="w-1 h-6 mr-3 rounded-full bg-gradient-to-b from-green-400 to-green-600"></div>
                         {title}
                     </h3>
-                    <p className="text-gray-600">{description}</p>
+                    <p className="text-gray-600 ml-7">{description}</p>
+                    <p className="mt-1 text-sm text-gray-500 ml-7">
+                        Jumlah SDM
+                    </p>
                 </div>
-                <div className="flex items-center justify-center h-64">
-                    <div className="relative">
-                        {/* Simple Pie using CSS */}
-                        <div className="relative w-40 h-40 overflow-hidden border-8 border-gray-200 rounded-full">
-                            {data.map((item, index) => {
-                                const percentage =
-                                    total > 0 ? (item.value / total) * 100 : 0;
-                                const color =
-                                    index === 0 ? BASE_COLOR : "#8bc981";
 
-                                return (
-                                    <div
-                                        key={index}
-                                        className="absolute top-0 left-0 w-full h-full"
-                                        style={{
-                                            background: `conic-gradient(${color} ${currentAngle}deg, ${color} ${
-                                                currentAngle + percentage * 3.6
-                                            }deg, transparent ${
-                                                currentAngle + percentage * 3.6
-                                            }deg)`,
-                                            transform: `rotate(${currentAngle}deg)`,
-                                        }}
-                                        title={`${item.name}: ${
-                                            item.value
-                                        } (${percentage.toFixed(1)}%)`}
-                                    ></div>
-                                );
-                            })}
+                <div className="flex items-center justify-center h-64">
+                    <div className="relative flex items-center">
+                        {/* 3D Pie Chart Container */}
+                        <div className="relative">
+                            {/* Shadow */}
+                            <div className="absolute w-40 h-40 bg-black rounded-full top-2 left-2 opacity-20 blur-md"></div>
+
+                            {/* Main Pie */}
+                            <div className="relative w-40 h-40 overflow-hidden border-4 border-white rounded-full shadow-2xl">
+                                <svg
+                                    viewBox="0 0 42 42"
+                                    className="w-full h-full transform -rotate-90"
+                                >
+                                    {data.map((item, index) => {
+                                        const percentage =
+                                            total > 0
+                                                ? (item.value / total) * 100
+                                                : 0;
+                                        const offset = data
+                                            .slice(0, index)
+                                            .reduce(
+                                                (acc, curr) =>
+                                                    acc +
+                                                    (total > 0
+                                                        ? (curr.value / total) *
+                                                          100
+                                                        : 0),
+                                                0
+                                            );
+                                        const color =
+                                            colors[index % colors.length];
+
+                                        if (percentage === 0) return null;
+
+                                        return (
+                                            <circle
+                                                key={index}
+                                                cx="21"
+                                                cy="21"
+                                                r="15.91549430918954"
+                                                fill="transparent"
+                                                stroke={color}
+                                                strokeWidth="3"
+                                                strokeDasharray={`${percentage} ${
+                                                    100 - percentage
+                                                }`}
+                                                strokeDashoffset={-offset}
+                                                className="transition-all duration-1000 cursor-pointer hover:stroke-8"
+                                                style={{
+                                                    filter: `drop-shadow(0 2px 4px ${color}40)`,
+                                                }}
+                                            >
+                                                <title>{`${item.name}: ${
+                                                    item.value
+                                                } (${percentage.toFixed(
+                                                    1
+                                                )}%)`}</title>
+                                            </circle>
+                                        );
+                                    })}
+                                </svg>
+
+                                {/* Center Circle with Total - Like Reference Image */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="flex items-center justify-center w-20 h-20 bg-white border-2 border-gray-100 rounded-full shadow-inner">
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-gray-900">
+                                                {total}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                Total
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Legend */}
-                        <div className="absolute top-0 space-y-3 left-48">
+                        {/* Enhanced Legend with Values and Percentages */}
+                        <div className="ml-8 space-y-3">
                             {data.map((item, index) => {
                                 const percentage =
                                     total > 0 ? (item.value / total) * 100 : 0;
-                                const color =
-                                    index === 0 ? BASE_COLOR : "#8bc981";
+                                const color = colors[index % colors.length];
 
                                 return (
                                     <div
                                         key={index}
-                                        className="flex items-center"
+                                        className="flex items-center cursor-pointer group"
                                     >
-                                        <div
-                                            className="w-4 h-4 mr-3 rounded-full"
-                                            style={{ backgroundColor: color }}
-                                        ></div>
-                                        <div className="text-sm">
-                                            <span className="font-medium">
+                                        <div className="relative">
+                                            <div
+                                                className="w-5 h-5 transition-transform border-2 border-white rounded-full shadow-lg group-hover:scale-110"
+                                                style={{
+                                                    backgroundColor: color,
+                                                }}
+                                            ></div>
+                                            <div
+                                                className="absolute inset-0 w-5 h-5 rounded-full opacity-30"
+                                                style={{
+                                                    backgroundColor: color,
+                                                }}
+                                            ></div>
+                                        </div>
+                                        <div className="ml-3">
+                                            <div className="text-sm font-semibold text-gray-900 transition-colors group-hover:text-green-600">
                                                 {item.name}
-                                            </span>
-                                            <span className="ml-2 text-gray-500">
-                                                {item.value} (
-                                                {percentage.toFixed(1)}%)
-                                            </span>
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                                <span className="text-lg font-bold">
+                                                    {item.value}
+                                                </span>
+                                                <span className="ml-1">
+                                                    ({percentage.toFixed(1)}%)
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -225,13 +570,48 @@ export default function Index({ statistics = {} }) {
                     <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent"></div>
                     <div className="relative px-8 py-10">
                         <div className="max-w-4xl">
-                            <h1 className="mb-3 text-4xl font-bold text-gray-900">
-                                Dashboard SDM GAPURA ANGKASA
-                            </h1>
-                            <p className="mb-6 text-lg text-gray-600">
-                                Sistem Manajemen Sumber Daya Manusia Bandar
-                                Udara Ngurah Rai
-                            </p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="mb-3 text-4xl font-bold text-gray-900">
+                                        Dashboard SDM GAPURA ANGKASA
+                                    </h1>
+                                    <p className="mb-6 text-lg text-gray-600">
+                                        Sistem Manajemen Sumber Daya Manusia
+                                        Bandar Udara Ngurah Rai
+                                    </p>
+                                </div>
+
+                                {/* Manual Refresh Button */}
+                                <div className="flex items-center space-x-4">
+                                    <button
+                                        onClick={manualRefresh}
+                                        disabled={isRefreshing}
+                                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 rounded-lg shadow-sm bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <svg
+                                            className={`w-4 h-4 mr-2 ${
+                                                isRefreshing
+                                                    ? "animate-spin"
+                                                    : ""
+                                            }`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                            />
+                                        </svg>
+                                        {isRefreshing
+                                            ? "Memperbarui..."
+                                            : "Perbarui Data"}
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="inline-flex items-center px-4 py-3 border border-orange-200 shadow-sm bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl">
                                 <div className="flex items-center justify-center w-8 h-8 mr-3 bg-orange-500 rounded-full">
                                     <svg
@@ -249,8 +629,9 @@ export default function Index({ statistics = {} }) {
                                     </svg>
                                 </div>
                                 <span className="font-medium text-orange-800">
-                                    Informasi Akses: Anda sebagai Super Admin
-                                    memiliki akses penuh ke semua fitur sistem.
+                                    Dashboard Real-time: Data akan diperbarui
+                                    otomatis saat ada perubahan karyawan atau
+                                    klik tombol "Perbarui Data"
                                 </span>
                             </div>
                         </div>
@@ -423,29 +804,54 @@ export default function Index({ statistics = {} }) {
                         </div>
                     </div>
 
-                    {/* Charts Section */}
-                    <div className="space-y-8">
+                    {/* Enhanced Charts Section */}
+                    <div className="space-y-12">
                         {/* Chart Row 1: Gender & Status */}
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                             {/* Jenis Kelamin Chart */}
-                            <div className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp">
-                                <SimplePieChart
-                                    data={chartData.gender}
-                                    title="Jenis Kelamin"
-                                    description="Distribusi berdasarkan jenis kelamin"
-                                />
+                            <div className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp">
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 via-green-500 to-green-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-green-200 rounded-full border-t-green-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data jenis kelamin...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DPieChart
+                                        data={chartData.gender}
+                                        title="Jenis Kelamin"
+                                        description="Distribusi berdasarkan jenis kelamin"
+                                    />
+                                )}
                             </div>
 
                             {/* Status Pegawai Chart */}
                             <div
-                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.1s" }}
                             >
-                                <SimpleBarChart
-                                    data={chartData.status}
-                                    title="Status Pegawai"
-                                    description="Distribusi berdasarkan status pegawai"
-                                />
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-blue-200 rounded-full border-t-blue-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data status pegawai...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DBarChart
+                                        data={chartData.status}
+                                        title="Status Pegawai"
+                                        description="Distribusi berdasarkan status pegawai"
+                                        chartType="status"
+                                    />
+                                )}
                             </div>
                         </div>
 
@@ -453,26 +859,52 @@ export default function Index({ statistics = {} }) {
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                             {/* Per Unit Chart */}
                             <div
-                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.2s" }}
                             >
-                                <SimpleBarChart
-                                    data={chartData.unit}
-                                    title="SDM per Unit"
-                                    description="Distribusi berdasarkan unit organisasi"
-                                />
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-purple-200 rounded-full border-t-purple-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data per unit...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DBarChart
+                                        data={chartData.unit}
+                                        title="SDM per Unit"
+                                        description="Distribusi berdasarkan unit organisasi"
+                                        chartType="unit"
+                                    />
+                                )}
                             </div>
 
                             {/* Per Provider Chart */}
                             <div
-                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.3s" }}
                             >
-                                <SimpleBarChart
-                                    data={chartData.provider}
-                                    title="SDM per Provider"
-                                    description="Distribusi berdasarkan perusahaan provider"
-                                />
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-orange-200 rounded-full border-t-orange-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data per provider...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DBarChart
+                                        data={chartData.provider}
+                                        title="SDM per Provider"
+                                        description="Distribusi berdasarkan perusahaan provider"
+                                        chartType="provider"
+                                    />
+                                )}
                             </div>
                         </div>
 
@@ -480,34 +912,68 @@ export default function Index({ statistics = {} }) {
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                             {/* Komposisi Usia Chart */}
                             <div
-                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.4s" }}
                             >
-                                <SimpleBarChart
-                                    data={chartData.age}
-                                    title="Komposisi Usia SDM"
-                                    description="Distribusi berdasarkan kelompok usia"
-                                />
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 via-teal-500 to-teal-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-teal-200 rounded-full border-t-teal-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data komposisi usia...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DBarChart
+                                        data={chartData.age}
+                                        title="Komposisi Usia SDM"
+                                        description="Distribusi berdasarkan kelompok usia"
+                                        chartType="age"
+                                    />
+                                )}
                             </div>
 
                             {/* Kelompok Jabatan Chart */}
                             <div
-                                className="p-6 transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
+                                className="relative p-8 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
                                 style={{ animationDelay: "0.5s" }}
                             >
-                                <SimpleBarChart
-                                    data={chartData.jabatan}
-                                    title="Kelompok Jabatan"
-                                    description="Distribusi berdasarkan kelompok jabatan"
-                                />
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-400 via-indigo-500 to-indigo-600"></div>
+                                {loading ? (
+                                    <div className="flex items-center justify-center h-80">
+                                        <div className="text-center">
+                                            <div className="inline-block w-12 h-12 border-4 border-indigo-200 rounded-full border-t-indigo-600 animate-spin"></div>
+                                            <p className="mt-4 text-gray-500">
+                                                Memuat data kelompok jabatan...
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Enhanced3DBarChart
+                                        data={chartData.jabatan}
+                                        title="Kelompok Jabatan"
+                                        description="Distribusi berdasarkan kelompok jabatan"
+                                        chartType="jabatan"
+                                    />
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Last Update Indicator */}
-                    <div className="flex items-center justify-center mt-8">
-                        <div className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-full shadow-sm">
-                            <div className="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></div>
+                    {/* Enhanced Last Update Indicator */}
+                    <div className="flex items-center justify-center mt-12">
+                        <div className="inline-flex items-center px-6 py-3 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-full shadow-lg">
+                            <div className="flex items-center mr-3">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <div className="w-2 h-2 ml-1 bg-green-300 rounded-full"></div>
+                                <div className="w-1 h-1 ml-1 bg-green-200 rounded-full"></div>
+                            </div>
+                            <span className="font-semibold">
+                                Real-time Data
+                            </span>
+                            <span className="mx-2 text-gray-400">•</span>
                             <span>
                                 Terakhir diperbarui:{" "}
                                 {new Date(lastUpdate).toLocaleString("id-ID", {
@@ -517,6 +983,7 @@ export default function Index({ statistics = {} }) {
                                     day: "numeric",
                                     hour: "2-digit",
                                     minute: "2-digit",
+                                    second: "2-digit",
                                 })}{" "}
                                 WITA
                             </span>
@@ -548,6 +1015,21 @@ export default function Index({ statistics = {} }) {
                 .stats-card:hover {
                     transform: translateY(-8px) scale(1.02);
                     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+
+                @keyframes chartLoad {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.8);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                }
+
+                .chart-container {
+                    animation: chartLoad 0.6s ease-out forwards;
                 }
             `}</style>
         </DashboardLayout>

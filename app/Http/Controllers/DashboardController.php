@@ -72,7 +72,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get chart data for dashboard - UPDATED for 6 Charts
+     * Get chart data for dashboard - UPDATED for 6 Charts Real-time
      * NEW: Restructured for new dashboard with 6 specific charts
      */
     public function getChartData()
@@ -399,7 +399,7 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // UPDATED CHART DATA METHODS FOR 6 CHARTS
+    // UPDATED CHART DATA METHODS FOR 6 CHARTS - REAL TIME
     // =====================================================
 
     /**
@@ -408,7 +408,9 @@ class DashboardController extends Controller
     private function getChartDataArray()
     {
         try {
-            return [
+            Log::info('CHART DATA: Generating real-time chart data for 6 charts');
+            
+            $chartData = [
                 'gender' => $this->getGenderChartData(),
                 'status' => $this->getStatusChartData(),
                 'unit' => $this->getUnitChartData(),
@@ -416,6 +418,18 @@ class DashboardController extends Controller
                 'age' => $this->getAgeChartData(),
                 'jabatan' => $this->getJabatanChartData()
             ];
+            
+            Log::info('CHART DATA: Successfully generated all chart data', [
+                'gender_count' => count($chartData['gender']),
+                'status_count' => count($chartData['status']),
+                'unit_count' => count($chartData['unit']),
+                'provider_count' => count($chartData['provider']),
+                'age_count' => count($chartData['age']),
+                'jabatan_count' => count($chartData['jabatan']),
+                'timestamp' => Carbon::now('Asia/Makassar')->toISOString()
+            ]);
+            
+            return $chartData;
         } catch (\Exception $e) {
             Log::error('Chart Data Array Error: ' . $e->getMessage());
             return [
@@ -430,14 +444,16 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get gender chart data (for pie chart)
+     * NEW: Get gender chart data (Jenis Kelamin) - REAL TIME
+     * Chart Type: Pie Chart
      */
     private function getGenderChartData()
     {
         try {
             $maleCount = Employee::where(function ($query) {
                 $query->where('jenis_kelamin', 'L')
-                      ->orWhere('jenis_kelamin', 'Laki-laki');
+                      ->orWhere('jenis_kelamin', 'Laki-laki')
+                      ->orWhere('jenis_kelamin', 'LAKI-LAKI');
             })
             ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                 return $query->where('status', 'active');
@@ -446,7 +462,8 @@ class DashboardController extends Controller
             
             $femaleCount = Employee::where(function ($query) {
                 $query->where('jenis_kelamin', 'P')
-                      ->orWhere('jenis_kelamin', 'Perempuan');
+                      ->orWhere('jenis_kelamin', 'Perempuan')
+                      ->orWhere('jenis_kelamin', 'PEREMPUAN');
             })
             ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                 return $query->where('status', 'active');
@@ -455,16 +472,24 @@ class DashboardController extends Controller
 
             $total = $maleCount + $femaleCount;
             
+            Log::debug('GENDER CHART: Generated data', [
+                'male_count' => $maleCount,
+                'female_count' => $femaleCount,
+                'total' => $total
+            ]);
+            
             return [
                 [
                     'name' => 'Laki-laki',
                     'value' => $maleCount,
-                    'percentage' => $total > 0 ? round(($maleCount / $total) * 100, 1) : 0
+                    'percentage' => $total > 0 ? round(($maleCount / $total) * 100, 1) : 0,
+                    'label' => $maleCount . ' (' . ($total > 0 ? round(($maleCount / $total) * 100, 1) : 0) . '%)'
                 ],
                 [
                     'name' => 'Perempuan',
                     'value' => $femaleCount,
-                    'percentage' => $total > 0 ? round(($femaleCount / $total) * 100, 1) : 0
+                    'percentage' => $total > 0 ? round(($femaleCount / $total) * 100, 1) : 0,
+                    'label' => $femaleCount . ' (' . ($total > 0 ? round(($femaleCount / $total) * 100, 1) : 0) . '%)'
                 ]
             ];
         } catch (\Exception $e) {
@@ -474,33 +499,91 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get status chart data (for bar chart)
+     * NEW: Get status chart data (Status Pegawai) - REAL TIME
+     * Chart Type: Bar Chart
+     * Include: PEGAWAI TETAP, TAD (with breakdown), PKWT
      */
     private function getStatusChartData()
     {
         try {
             $query = Employee::select('status_pegawai', DB::raw('count(*) as total'))
                 ->whereNotNull('status_pegawai')
+                ->where('status_pegawai', '!=', '')
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
                 ->groupBy('status_pegawai')
-                ->orderByRaw("CASE 
-                    WHEN status_pegawai = 'PEGAWAI TETAP' THEN 1
-                    WHEN status_pegawai = 'PKWT' THEN 2  
-                    WHEN status_pegawai = 'TAD PAKET SDM' THEN 3
-                    WHEN status_pegawai = 'TAD PAKET PEKERJAAN' THEN 4
-                    WHEN status_pegawai = 'TAD' THEN 5
-                    ELSE 6 
-                END")
                 ->get();
 
-            return $query->map(function ($item) {
-                return [
-                    'name' => $item->status_pegawai,
-                    'value' => $item->total
+            // Process and combine TAD data as requested
+            $result = [];
+            $tadPaketSDM = 0;
+            $tadPaketPekerjaan = 0;
+            $tadOther = 0;
+            
+            foreach ($query as $item) {
+                switch ($item->status_pegawai) {
+                    case 'PEGAWAI TETAP':
+                        $result[] = [
+                            'name' => 'PEGAWAI TETAP',
+                            'value' => $item->total
+                        ];
+                        break;
+                    case 'PKWT':
+                        $result[] = [
+                            'name' => 'PKWT',
+                            'value' => $item->total
+                        ];
+                        break;
+                    case 'TAD PAKET SDM':
+                        $tadPaketSDM = $item->total;
+                        break;
+                    case 'TAD PAKET PEKERJAAN':
+                        $tadPaketPekerjaan = $item->total;
+                        break;
+                    case 'TAD':
+                        $tadOther = $item->total;
+                        break;
+                }
+            }
+            
+            // Add TAD breakdown
+            if ($tadPaketSDM > 0) {
+                $result[] = [
+                    'name' => 'TAD PAKET SDM',
+                    'value' => $tadPaketSDM
                 ];
-            })->toArray();
+            }
+            
+            if ($tadPaketPekerjaan > 0) {
+                $result[] = [
+                    'name' => 'TAD PAKET PEKERJAAN',
+                    'value' => $tadPaketPekerjaan
+                ];
+            }
+            
+            // Add TAD Total (combination of all TAD types)
+            $tadTotal = $tadPaketSDM + $tadPaketPekerjaan + $tadOther;
+            if ($tadTotal > 0) {
+                $result[] = [
+                    'name' => 'TAD TOTAL',
+                    'value' => $tadTotal
+                ];
+            }
+
+            // Sort by value descending
+            usort($result, function($a, $b) {
+                return $b['value'] - $a['value'];
+            });
+
+            Log::debug('STATUS CHART: Generated data', [
+                'total_categories' => count($result),
+                'tad_paket_sdm' => $tadPaketSDM,
+                'tad_paket_pekerjaan' => $tadPaketPekerjaan,
+                'tad_total' => $tadTotal
+            ]);
+
+            return $result;
         } catch (\Exception $e) {
             Log::error('Status Chart Data Error: ' . $e->getMessage());
             return [];
@@ -508,8 +591,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get unit chart data (for bar chart)
-     * Focus on specific units: EGM, GM, MO, MF, MS, MU, MK, MQ, ME, MB
+     * NEW: Get unit chart data (SDM per Unit) - REAL TIME
+     * Chart Type: Bar Chart
+     * Focus on: EGM, GM, MO, MF, MS, MU, MK, MQ, ME, MB
      */
     private function getUnitChartData()
     {
@@ -518,15 +602,15 @@ class DashboardController extends Controller
             
             $query = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
                 ->whereNotNull('unit_organisasi')
+                ->where('unit_organisasi', '!=', '')
                 ->whereIn('unit_organisasi', $targetUnits)
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
                 ->groupBy('unit_organisasi')
-                ->orderByRaw("FIELD(unit_organisasi, '" . implode("','", $targetUnits) . "')")
                 ->get();
 
-            // Fill missing units with 0 count
+            // Create complete list with all target units
             $result = [];
             foreach ($targetUnits as $unit) {
                 $found = $query->firstWhere('unit_organisasi', $unit);
@@ -536,6 +620,16 @@ class DashboardController extends Controller
                 ];
             }
 
+            // Sort by value descending
+            usort($result, function($a, $b) {
+                return $b['value'] - $a['value'];
+            });
+
+            Log::debug('UNIT CHART: Generated data', [
+                'total_units' => count($result),
+                'units_with_data' => $query->count()
+            ]);
+
             return $result;
         } catch (\Exception $e) {
             Log::error('Unit Chart Data Error: ' . $e->getMessage());
@@ -544,7 +638,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get provider chart data (for bar chart)
+     * NEW: Get provider chart data (SDM per Provider) - REAL TIME
+     * Chart Type: Bar Chart
+     * Include: 10 companies as specified
      */
     private function getProviderChartData()
     {
@@ -552,10 +648,14 @@ class DashboardController extends Controller
             $targetProviders = [
                 'PT Gapura Angkasa',
                 'PT Air Box Personalia',
-                'PT Finfleet Teknologi Indonesia', 
-                'PT Mitra Angkasa',
-                'PT Kidora Mandiri Investama',
-                'PT IAS Support Indonesia'
+                'PT Finfleet Teknologi Indonesia',
+                'PT Mitra Angkasa Perdana',
+                'PT Safari Dharma Sakti',
+                'PT Grha Humanindo Management',
+                'PT Duta Griya Sarana',
+                'PT Aerotrans Wisata',
+                'PT Mandala Garda Nusantara',
+                'PT Kidora Mandiri Investama'
             ];
 
             $query = Employee::select('provider', DB::raw('count(*) as total'))
@@ -568,20 +668,45 @@ class DashboardController extends Controller
                 ->orderBy('total', 'desc')
                 ->get();
 
-            // Map provider names and ensure all target providers are included
             $result = [];
+            $processedProviders = [];
+            
+            // Process existing data and clean names
             foreach ($query as $item) {
                 $cleanName = $this->cleanProviderName($item->provider);
+                
+                // Skip if already processed (prevents duplicates)
+                if (in_array($cleanName, $processedProviders)) {
+                    continue;
+                }
+                
                 $result[] = [
                     'name' => $cleanName,
                     'value' => $item->total
                 ];
+                
+                $processedProviders[] = $cleanName;
+            }
+
+            // Add missing target providers with 0 count
+            foreach ($targetProviders as $provider) {
+                if (!in_array($provider, $processedProviders)) {
+                    $result[] = [
+                        'name' => $provider,
+                        'value' => 0
+                    ];
+                }
             }
 
             // Sort by value descending
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
+
+            Log::debug('PROVIDER CHART: Generated data', [
+                'total_providers' => count($result),
+                'providers_with_data' => $query->count()
+            ]);
 
             return $result;
         } catch (\Exception $e) {
@@ -591,7 +716,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get age chart data (for bar chart)
+     * NEW: Get age chart data (Komposisi Usia SDM) - REAL TIME
+     * Chart Type: Bar Chart  
      * Age groups: 18-25, 26-35, 36-45, 46-55
      */
     private function getAgeChartData()
@@ -605,14 +731,21 @@ class DashboardController extends Controller
             ];
 
             $employees = Employee::whereNotNull('tanggal_lahir')
+                ->where('tanggal_lahir', '!=', '')
+                ->where('tanggal_lahir', '!=', '0000-00-00')
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
                 ->get(['tanggal_lahir']);
 
+            $totalProcessed = 0;
+            $invalidDates = 0;
+
             foreach ($employees as $employee) {
                 try {
-                    $age = Carbon::parse($employee->tanggal_lahir)->age;
+                    $birthDate = Carbon::parse($employee->tanggal_lahir);
+                    $age = $birthDate->age;
+                    $totalProcessed++;
                     
                     if ($age >= 18 && $age <= 25) {
                         $ageGroups['18-25']++;
@@ -624,17 +757,25 @@ class DashboardController extends Controller
                         $ageGroups['46-55']++;
                     }
                 } catch (\Exception $e) {
-                    // Skip invalid dates
+                    $invalidDates++;
                     continue;
                 }
             }
 
-            return collect($ageGroups)->map(function ($count, $group) {
+            $result = collect($ageGroups)->map(function ($count, $group) {
                 return [
                     'name' => $group . ' Tahun',
                     'value' => $count
                 ];
             })->values()->toArray();
+
+            Log::debug('AGE CHART: Generated data', [
+                'total_employees_processed' => $totalProcessed,
+                'invalid_dates' => $invalidDates,
+                'age_groups' => $ageGroups
+            ]);
+
+            return $result;
         } catch (\Exception $e) {
             Log::error('Age Chart Data Error: ' . $e->getMessage());
             return [];
@@ -642,7 +783,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get jabatan chart data (for bar chart)
+     * NEW: Get jabatan chart data (Kelompok Jabatan) - REAL TIME
+     * Chart Type: Bar Chart
      * Include: ACCOUNT EXECUTIVE/AE, EXECUTIVE GENERAL MANAGER, GENERAL MANAGER, MANAGER, STAFF, SUPERVISOR, NON
      */
     private function getJabatanChartData()
@@ -665,24 +807,36 @@ class DashboardController extends Controller
                     return $query->where('status', 'active');
                 })
                 ->groupBy('kelompok_jabatan')
-                ->orderBy('total', 'desc')
                 ->get();
 
-            // Map results and ensure order
             $result = [];
+            $processedJabatan = [];
+
+            // Process existing data
             foreach ($query as $item) {
-                if (in_array($item->kelompok_jabatan, $targetJabatan)) {
-                    $result[] = [
-                        'name' => $item->kelompok_jabatan,
-                        'value' => $item->total
-                    ];
+                $jabatanName = trim($item->kelompok_jabatan);
+                
+                // Map variations to standard names
+                if (in_array($jabatanName, $targetJabatan) || $this->isJabatanVariation($jabatanName, $targetJabatan)) {
+                    $standardName = $this->getStandardJabatanName($jabatanName, $targetJabatan);
+                    
+                    // Check if already processed
+                    $existingIndex = array_search($standardName, array_column($result, 'name'));
+                    if ($existingIndex !== false) {
+                        $result[$existingIndex]['value'] += $item->total;
+                    } else {
+                        $result[] = [
+                            'name' => $standardName,
+                            'value' => $item->total
+                        ];
+                        $processedJabatan[] = $standardName;
+                    }
                 }
             }
 
-            // Add missing jabatan with 0 count if needed
-            $existingNames = array_column($result, 'name');
+            // Add missing jabatan with 0 count
             foreach ($targetJabatan as $jabatan) {
-                if (!in_array($jabatan, $existingNames)) {
+                if (!in_array($jabatan, $processedJabatan)) {
                     $result[] = [
                         'name' => $jabatan,
                         'value' => 0
@@ -694,6 +848,11 @@ class DashboardController extends Controller
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
+
+            Log::debug('JABATAN CHART: Generated data', [
+                'total_jabatan' => count($result),
+                'jabatan_with_data' => $query->count()
+            ]);
 
             return $result;
         } catch (\Exception $e) {
@@ -711,22 +870,74 @@ class DashboardController extends Controller
      */
     private function cleanProviderName($providerName)
     {
-        // Remove common prefixes and clean up
         $cleaned = trim($providerName);
         
-        // Standardize common names
+        // Standardize common name variations
         $mappings = [
             'PT GAPURA ANGKASA' => 'PT Gapura Angkasa',
+            'PT Gapura Angkasa' => 'PT Gapura Angkasa',
+            'PT AIR BOX PERSONALIA' => 'PT Air Box Personalia',
             'PT Air Box Personalia' => 'PT Air Box Personalia',
+            'PT FINFLEET TEKNOLOGI INDONESIA' => 'PT Finfleet Teknologi Indonesia',
             'PT Finfleet Teknologi Indonesia' => 'PT Finfleet Teknologi Indonesia',
-            'PT MITRA ANGKASA PERDANA' => 'PT Mitra Angkasa',
-            'PT Mitra Angkasa Perdana' => 'PT Mitra Angkasa',
+            'PT MITRA ANGKASA PERDANA' => 'PT Mitra Angkasa Perdana',
+            'PT Mitra Angkasa Perdana' => 'PT Mitra Angkasa Perdana',
+            'PT MITRA ANGKASA' => 'PT Mitra Angkasa Perdana',
+            'PT Mitra Angkasa' => 'PT Mitra Angkasa Perdana',
+            'PT SAFARI DHARMA SAKTI' => 'PT Safari Dharma Sakti',
+            'PT Safari Dharma Sakti' => 'PT Safari Dharma Sakti',
+            'PT GRHA HUMANINDO MANAGEMENT' => 'PT Grha Humanindo Management',
+            'PT Grha Humanindo Management' => 'PT Grha Humanindo Management',
+            'PT DUTA GRIYA SARANA' => 'PT Duta Griya Sarana',
+            'PT Duta Griya Sarana' => 'PT Duta Griya Sarana',
+            'PT AEROTRANS WISATA' => 'PT Aerotrans Wisata',
+            'PT Aerotrans Wisata' => 'PT Aerotrans Wisata',
+            'PT MANDALA GARDA NUSANTARA' => 'PT Mandala Garda Nusantara',
+            'PT Mandala Garda Nusantara' => 'PT Mandala Garda Nusantara',
             'PT KIDORA MANDIRI INVESTAMA' => 'PT Kidora Mandiri Investama',
             'PT Kidora Mandiri Investama' => 'PT Kidora Mandiri Investama',
             'PT IAS Support Indonesia' => 'PT IAS Support Indonesia'
         ];
 
         return $mappings[$cleaned] ?? $cleaned;
+    }
+
+    /**
+     * NEW: Check if jabatan name is a variation of target jabatan
+     */
+    private function isJabatanVariation($jabatanName, $targetJabatan)
+    {
+        $variations = [
+            'AE' => 'ACCOUNT EXECUTIVE/AE',
+            'ACCOUNT EXECUTIVE' => 'ACCOUNT EXECUTIVE/AE',
+            'EGM' => 'EXECUTIVE GENERAL MANAGER',
+            'GM' => 'GENERAL MANAGER',
+            'MANAGER' => 'MANAGER',
+            'NON' => 'NON',
+            'STAFF' => 'STAFF',
+            'SUPERVISOR' => 'SUPERVISOR'
+        ];
+
+        return array_key_exists($jabatanName, $variations);
+    }
+
+    /**
+     * NEW: Get standard jabatan name from variations
+     */
+    private function getStandardJabatanName($jabatanName, $targetJabatan)
+    {
+        $variations = [
+            'AE' => 'ACCOUNT EXECUTIVE/AE',
+            'ACCOUNT EXECUTIVE' => 'ACCOUNT EXECUTIVE/AE',
+            'EGM' => 'EXECUTIVE GENERAL MANAGER',
+            'GM' => 'GENERAL MANAGER',
+            'MANAGER' => 'MANAGER',
+            'NON' => 'NON',
+            'STAFF' => 'STAFF',
+            'SUPERVISOR' => 'SUPERVISOR'
+        ];
+
+        return $variations[$jabatanName] ?? $jabatanName;
     }
 
     /**
@@ -841,7 +1052,15 @@ class DashboardController extends Controller
                     'organizational_structure' => $unitModelAvailable && $subUnitModelAvailable,
                     'history_3_periods_only' => true,
                     'kelompok_jabatan_extended' => true,
-                    'six_charts_dashboard' => true // NEW: 6 charts feature
+                    'six_charts_dashboard_realtime' => true
+                ],
+                'charts_available' => [
+                    'gender_chart' => true,
+                    'status_chart' => true,
+                    'unit_chart' => true,
+                    'provider_chart' => true,
+                    'age_chart' => true,
+                    'jabatan_chart' => true
                 ],
                 'history_methods' => [
                     'getEmployeeHistory' => method_exists($this, 'getEmployeeHistory'),
@@ -850,8 +1069,9 @@ class DashboardController extends Controller
                     'periods_supported' => ['today', 'this_week', 'total_period']
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.11.0',
-                'timezone' => 'Asia/Makassar (WITA)'
+                'version' => '1.12.0',
+                'timezone' => 'Asia/Makassar (WITA)',
+                'dashboard_type' => '6_charts_realtime'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
