@@ -79,6 +79,19 @@ class DashboardController extends Controller
     {
         try {
             $chartData = $this->getChartDataArray();
+            
+            // Enhanced logging for debugging chart issues
+            Log::info('CHART API: Returning chart data', [
+                'gender_count' => count($chartData['gender']),
+                'status_count' => count($chartData['status']),
+                'unit_count' => count($chartData['unit']),
+                'provider_count' => count($chartData['provider']),
+                'age_count' => count($chartData['age']),
+                'jabatan_count' => count($chartData['jabatan']),
+                'age_data_sample' => $chartData['age'],
+                'status_data_sample' => $chartData['status']
+            ]);
+            
             return response()->json($chartData);
         } catch (\Exception $e) {
             Log::error('Dashboard Chart Data Error: ' . $e->getMessage());
@@ -571,7 +584,16 @@ class DashboardController extends Controller
                 ];
             }
 
-            // Sort by value descending to ensure proportional display
+            // Ensure we always return some data even if empty
+            if (empty($result)) {
+                $result = [
+                    ['name' => 'PEGAWAI TETAP', 'value' => 0],
+                    ['name' => 'PKWT', 'value' => 0],
+                    ['name' => 'TAD TOTAL', 'value' => 0],
+                ];
+            }
+
+            // Sort by value descending to ensure highest values show properly
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
@@ -587,7 +609,11 @@ class DashboardController extends Controller
             return $result;
         } catch (\Exception $e) {
             Log::error('Status Chart Data Error: ' . $e->getMessage());
-            return [];
+            return [
+                ['name' => 'PEGAWAI TETAP', 'value' => 0],
+                ['name' => 'PKWT', 'value' => 0],
+                ['name' => 'TAD TOTAL', 'value' => 0],
+            ];
         }
     }
 
@@ -621,7 +647,7 @@ class DashboardController extends Controller
                 ];
             }
 
-            // Sort by value descending to ensure proportional display
+            // Sort by value descending to ensure highest values show properly
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
@@ -635,7 +661,9 @@ class DashboardController extends Controller
             return $result;
         } catch (\Exception $e) {
             Log::error('Unit Chart Data Error: ' . $e->getMessage());
-            return [];
+            return array_map(function($unit) {
+                return ['name' => $unit, 'value' => 0];
+            }, ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB']);
         }
     }
 
@@ -700,7 +728,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending to ensure proportional display
+            // Sort by value descending to ensure highest values show properly
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
@@ -714,15 +742,23 @@ class DashboardController extends Controller
             return $result;
         } catch (\Exception $e) {
             Log::error('Provider Chart Data Error: ' . $e->getMessage());
-            return [];
+            return array_map(function($provider) {
+                return ['name' => $provider, 'value' => 0];
+            }, [
+                'PT Gapura Angkasa',
+                'PT Air Box Personalia',
+                'PT Finfleet Teknologi Indonesia',
+                'PT Mitra Angkasa Perdana',
+                'PT Safari Dharma Sakti'
+            ]);
         }
     }
 
     /**
-     * FIXED: Get age chart data (Komposisi Usia SDM) - REAL TIME dengan timezone Asia/Makassar
+     * ENHANCED: Get age chart data (Komposisi Usia SDM) - REAL TIME dengan timezone Asia/Makassar
      * Chart Type: Bar Chart  
      * Age groups: 18-25, 26-35, 36-45, 46-55
-     * FIXED: Proper age calculation with WITA timezone and better date validation
+     * ENHANCED: Better error handling, consistent data format, and improved debugging
      */
     private function getAgeChartData()
     {
@@ -760,6 +796,16 @@ class DashboardController extends Controller
                     // Parse birth date with proper timezone handling
                     $birthDate = Carbon::parse($employee->tanggal_lahir, 'Asia/Makassar');
                     
+                    // Validate birth date is not in the future
+                    if ($birthDate->isFuture()) {
+                        $invalidDates++;
+                        Log::warning('AGE CALCULATION: Future birth date detected', [
+                            'employee_id' => $employee->id,
+                            'birth_date' => $employee->tanggal_lahir
+                        ]);
+                        continue;
+                    }
+                    
                     // Calculate age in years using diffInYears for more accurate calculation
                     $age = $birthDate->diffInYears($currentDate);
                     $totalProcessed++;
@@ -775,6 +821,11 @@ class DashboardController extends Controller
                         $ageGroups['46-55']++;
                     } else {
                         $outsideRange++;
+                        Log::debug('AGE CALCULATION: Age outside range', [
+                            'employee_id' => $employee->id,
+                            'age' => $age,
+                            'birth_date' => $employee->tanggal_lahir
+                        ]);
                     }
                     
                     // Log sample calculations for debugging
@@ -803,21 +854,16 @@ class DashboardController extends Controller
                 }
             }
 
-            // Convert to result format with proper sorting
-            $result = collect($ageGroups)->map(function ($count, $group) {
-                return [
+            // Convert to result format with consistent structure
+            $result = [];
+            $ageOrder = ['18-25', '26-35', '36-45', '46-55'];
+            
+            foreach ($ageOrder as $group) {
+                $result[] = [
                     'name' => $group . ' Tahun',
-                    'value' => $count
+                    'value' => $ageGroups[$group]
                 ];
-            })->values()->toArray();
-
-            // Sort by age group order (not by value to maintain age sequence)
-            $ageOrder = ['18-25 Tahun', '26-35 Tahun', '36-45 Tahun', '46-55 Tahun'];
-            usort($result, function($a, $b) use ($ageOrder) {
-                $aIndex = array_search($a['name'], $ageOrder);
-                $bIndex = array_search($b['name'], $ageOrder);
-                return $aIndex - $bIndex;
-            });
+            }
 
             Log::info('AGE CHART: Generated data successfully', [
                 'total_employees_found' => $employees->count(),
@@ -827,7 +873,8 @@ class DashboardController extends Controller
                 'age_groups_breakdown' => $ageGroups,
                 'current_date' => $currentDate->toDateTimeString(),
                 'timezone' => 'Asia/Makassar',
-                'result_data' => $result
+                'result_data' => $result,
+                'data_has_values' => array_sum($ageGroups) > 0
             ]);
 
             return $result;
@@ -908,7 +955,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending to ensure proportional display
+            // Sort by value descending to ensure highest values show properly
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
@@ -922,7 +969,17 @@ class DashboardController extends Controller
             return $result;
         } catch (\Exception $e) {
             Log::error('Jabatan Chart Data Error: ' . $e->getMessage());
-            return [];
+            return array_map(function($jabatan) {
+                return ['name' => $jabatan, 'value' => 0];
+            }, [
+                'ACCOUNT EXECUTIVE/AE',
+                'EXECUTIVE GENERAL MANAGER',
+                'GENERAL MANAGER',
+                'MANAGER',
+                'NON',
+                'STAFF',
+                'SUPERVISOR'
+            ]);
         }
     }
 

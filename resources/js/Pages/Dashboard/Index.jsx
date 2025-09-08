@@ -27,61 +27,80 @@ export default function Index({ statistics = {} }) {
 
     const BASE_COLOR = "#439454";
 
-    // FIXED: Enhanced color palette with highly distinctive colors
-    // No similar greens, maximum contrast between colors
+    // Enhanced color palette with highly distinctive colors
     const CHART_COLORS = {
-        primary: "#439454", // Required green color (GM akan dapat ini)
-        crimson: "#DC2626", // Bright red (MU)
-        navy: "#1E3A8A", // Dark blue (ME)
-        orange: "#EA580C", // Bright orange (MO)
-        purple: "#7C3AED", // Bright purple (MF)
-        teal: "#0F766E", // Dark teal (MS)
-        amber: "#D97706", // Amber orange (MK)
-        pink: "#EC4899", // Bright pink (MQ)
-        indigo: "#4338CA", // Indigo blue (MB)
-        emerald: "#059669", // Different green shade (EGM)
-        slate: "#475569", // Dark slate (others)
-        rose: "#F43F5E", // Rose pink (others)
-        cyan: "#0891B2", // Cyan blue (others)
-        lime: "#65A30D", // Lime green (different from primary)
-        violet: "#8B5CF6", // Violet purple (others)
-        yellow: "#EAB308", // Golden yellow (others)
+        primary: "#439454", // Required green color
+        crimson: "#DC2626", // Bright red
+        navy: "#1E3A8A", // Dark blue
+        orange: "#EA580C", // Bright orange
+        purple: "#7C3AED", // Bright purple
+        teal: "#0F766E", // Dark teal
+        amber: "#D97706", // Amber orange
+        pink: "#EC4899", // Bright pink
+        indigo: "#4338CA", // Indigo blue
+        emerald: "#059669", // Different green shade
+        slate: "#475569", // Dark slate
+        rose: "#F43F5E", // Rose pink
+        cyan: "#0891B2", // Cyan blue
+        lime: "#65A30D", // Lime green
+        violet: "#8B5CF6", // Violet purple
+        yellow: "#EAB308", // Golden yellow
     };
 
     const fetchStatistics = useCallback(async () => {
         try {
+            console.log("🔄 Fetching statistics...");
             const response = await fetch("/api/dashboard/statistics");
             if (response.ok) {
                 const data = await response.json();
+                console.log("📊 Statistics received:", data);
                 setStats((prevStats) => ({
                     ...prevStats,
                     ...data,
                 }));
+            } else {
+                console.error("❌ Statistics fetch failed:", response.status);
             }
         } catch (error) {
-            console.error("Error fetching statistics:", error);
+            console.error("❌ Error fetching statistics:", error);
         }
     }, []);
 
     const fetchChartData = useCallback(async () => {
         try {
+            console.log("🔄 Fetching chart data...");
             const response = await fetch("/api/dashboard/charts");
             if (response.ok) {
                 const data = await response.json();
+                console.log("📈 Chart data received:", data);
+
+                // Debug specific chart data
+                console.log("🎯 Age chart data:", data.age);
+                console.log("🎯 Status chart data:", data.status);
+                console.log("🎯 Jabatan chart data:", data.jabatan);
+
                 setChartData(data);
+            } else {
+                console.error(
+                    "❌ Chart data fetch failed:",
+                    response.status,
+                    await response.text()
+                );
             }
         } catch (error) {
-            console.error("Error fetching chart data:", error);
+            console.error("❌ Error fetching chart data:", error);
         }
     }, []);
 
     const fetchAllData = useCallback(async () => {
+        console.log("🚀 Starting data fetch...");
         setLoading(true);
         try {
             await Promise.all([fetchStatistics(), fetchChartData()]);
             setLastUpdate(Date.now());
+            console.log("✅ All data fetched successfully");
         } catch (error) {
-            console.error("Error fetching data:", error);
+            console.error("❌ Error fetching all data:", error);
         } finally {
             setLoading(false);
         }
@@ -89,14 +108,19 @@ export default function Index({ statistics = {} }) {
 
     // Manual refresh function for real-time updates
     const manualRefresh = useCallback(async () => {
-        if (isRefreshing) return;
+        if (isRefreshing) {
+            console.log("⏳ Refresh already in progress, skipping...");
+            return;
+        }
 
+        console.log("🔄 Manual refresh triggered");
         setIsRefreshing(true);
         try {
             await Promise.all([fetchStatistics(), fetchChartData()]);
             setLastUpdate(Date.now());
+            console.log("✅ Manual refresh completed");
         } catch (error) {
-            console.error("Error refreshing data:", error);
+            console.error("❌ Error during manual refresh:", error);
         } finally {
             setIsRefreshing(false);
         }
@@ -104,10 +128,7 @@ export default function Index({ statistics = {} }) {
 
     // Expose refresh function globally for trigger from other components
     useEffect(() => {
-        // Make refresh function available globally
         window.dashboardRefresh = manualRefresh;
-
-        // Cleanup function
         return () => {
             if (window.dashboardRefresh) {
                 delete window.dashboardRefresh;
@@ -115,17 +136,15 @@ export default function Index({ statistics = {} }) {
         };
     }, [manualRefresh]);
 
-    // Listen for window focus to refresh data (when user returns to tab)
+    // Listen for window focus to refresh data
     useEffect(() => {
         const handleFocus = () => {
             // Optional: refresh when user returns to tab
-            // manualRefresh();
         };
 
         const handleVisibilityChange = () => {
             if (!document.hidden) {
                 // Optional: refresh when tab becomes visible
-                // manualRefresh();
             }
         };
 
@@ -144,11 +163,12 @@ export default function Index({ statistics = {} }) {
     // Listen for custom events for real-time updates
     useEffect(() => {
         const handleEmployeeDataChange = () => {
-            console.log("Employee data changed, refreshing dashboard...");
+            console.log(
+                "📡 Employee data change event received, refreshing dashboard..."
+            );
             manualRefresh();
         };
 
-        // Listen for custom events that indicate data changes
         window.addEventListener("employee-added", handleEmployeeDataChange);
         window.addEventListener("employee-updated", handleEmployeeDataChange);
         window.addEventListener("employee-deleted", handleEmployeeDataChange);
@@ -179,79 +199,46 @@ export default function Index({ statistics = {} }) {
         fetchAllData();
     }, []);
 
-    // Get chart-specific grid intervals with improved scaling
-    const getGridIntervals = (chartType, maxValue) => {
-        let interval, max;
+    /**
+     * ENHANCED: Dynamic interval calculation for truly responsive charts
+     */
+    const getDynamicGridIntervals = (maxValue) => {
+        console.log("📐 Calculating intervals for maxValue:", maxValue);
 
-        // Enhanced grid calculation for better proportional display
         if (maxValue === 0) {
-            return { intervals: [0], max: 10, interval: 5 };
+            console.log("⚠️ Max value is 0, using default intervals");
+            return { intervals: [0, 5, 10], max: 10, interval: 5 };
         }
 
-        switch (chartType) {
-            case "status":
-                if (maxValue <= 50) {
-                    interval = 10;
-                    max = Math.ceil(maxValue / 10) * 10;
-                } else if (maxValue <= 200) {
-                    interval = 25;
-                    max = Math.ceil(maxValue / 25) * 25;
-                } else {
-                    interval = 50;
-                    max = Math.ceil(maxValue / 50) * 50;
-                }
-                break;
-            case "unit":
-                if (maxValue <= 10) {
-                    interval = 2;
-                    max = Math.ceil(maxValue / 2) * 2;
-                } else if (maxValue <= 50) {
-                    interval = 10;
-                    max = Math.ceil(maxValue / 10) * 10;
-                } else {
-                    interval = 20;
-                    max = Math.ceil(maxValue / 20) * 20;
-                }
-                break;
-            case "provider":
-                if (maxValue <= 25) {
-                    interval = 5;
-                    max = Math.ceil(maxValue / 5) * 5;
-                } else if (maxValue <= 100) {
-                    interval = 25;
-                    max = Math.ceil(maxValue / 25) * 25;
-                } else {
-                    interval = 50;
-                    max = Math.ceil(maxValue / 50) * 50;
-                }
-                break;
-            case "age":
-                if (maxValue <= 20) {
-                    interval = 5;
-                    max = Math.ceil(maxValue / 5) * 5;
-                } else if (maxValue <= 100) {
-                    interval = 25;
-                    max = Math.ceil(maxValue / 25) * 25;
-                } else {
-                    interval = 50;
-                    max = Math.ceil(maxValue / 50) * 50;
-                }
-                break;
-            case "jabatan":
-                if (maxValue <= 20) {
-                    interval = 5;
-                    max = Math.ceil(maxValue / 5) * 5;
-                } else if (maxValue <= 100) {
-                    interval = 25;
-                    max = Math.ceil(maxValue / 25) * 25;
-                } else {
-                    interval = 50;
-                    max = Math.ceil(maxValue / 50) * 50;
-                }
-                break;
-            default:
-                interval = Math.max(1, Math.ceil(maxValue / 10));
-                max = Math.ceil(maxValue / interval) * interval;
+        let interval;
+        let max;
+
+        // Dynamic interval calculation based on data range
+        if (maxValue <= 5) {
+            interval = 1;
+            max = Math.max(5, Math.ceil(maxValue));
+        } else if (maxValue <= 10) {
+            interval = 2;
+            max = Math.ceil(maxValue / 2) * 2;
+        } else if (maxValue <= 20) {
+            interval = 5;
+            max = Math.ceil(maxValue / 5) * 5;
+        } else if (maxValue <= 50) {
+            interval = 10;
+            max = Math.ceil(maxValue / 10) * 10;
+        } else if (maxValue <= 100) {
+            interval = 20;
+            max = Math.ceil(maxValue / 20) * 20;
+        } else if (maxValue <= 200) {
+            interval = 25;
+            max = Math.ceil(maxValue / 25) * 25;
+        } else if (maxValue <= 500) {
+            interval = 50;
+            max = Math.ceil(maxValue / 50) * 50;
+        } else {
+            // For very large values
+            interval = Math.ceil(maxValue / 10);
+            max = Math.ceil(maxValue / interval) * interval;
         }
 
         const intervals = [];
@@ -259,12 +246,21 @@ export default function Index({ statistics = {} }) {
             intervals.push(i);
         }
 
+        console.log("📐 Generated intervals:", {
+            intervals,
+            max,
+            interval,
+            maxValue,
+        });
         return { intervals, max, interval };
     };
 
-    // ENHANCED: 3D Bar Chart Component with improved proportional rendering
+    // ENHANCED: 3D Bar Chart Component with truly proportional rendering
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
+        console.log(`📊 Rendering ${chartType} chart with data:`, data);
+
         if (!data || data.length === 0) {
+            console.log(`⚠️ No data for ${chartType} chart`);
             return (
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
@@ -295,12 +291,16 @@ export default function Index({ statistics = {} }) {
         }
 
         const maxValue = Math.max(...data.map((item) => item.value));
-        const { intervals, max } = getGridIntervals(chartType, maxValue);
+        const { intervals, max } = getDynamicGridIntervals(maxValue);
         const colorArray = Object.values(CHART_COLORS);
+
+        console.log(
+            `📊 ${chartType} chart - Max value: ${maxValue}, Grid max: ${max}`
+        );
 
         return (
             <div className="h-96">
-                {/* Title and description positioned like Excel charts */}
+                {/* Title and description */}
                 <div className="mb-6 text-center">
                     <h3 className="mb-2 text-xl font-bold text-gray-900">
                         {title}
@@ -308,9 +308,9 @@ export default function Index({ statistics = {} }) {
                     <p className="text-sm text-gray-600">{description}</p>
                 </div>
 
-                {/* Chart Container - Separated from labels */}
+                {/* Chart Container */}
                 <div className="relative bg-white border border-gray-100 rounded-lg">
-                    {/* Grid background with custom intervals */}
+                    {/* Grid background with dynamic intervals */}
                     <div className="absolute inset-0 pointer-events-none">
                         {intervals.map((value) => (
                             <div
@@ -327,21 +327,36 @@ export default function Index({ statistics = {} }) {
                         ))}
                     </div>
 
-                    {/* ENHANCED: Chart area with improved proportional scaling */}
+                    {/* ENHANCED: Chart area with truly proportional scaling */}
                     <div className="relative h-64 p-4 pb-0">
                         <div className="flex items-end justify-center h-full gap-4">
                             {data.map((item, index) => {
-                                // FIXED: Proper proportional height calculation
+                                // TRUE proportional height calculation
                                 const heightPercent =
                                     max > 0 ? (item.value / max) * 100 : 0;
 
-                                // FIXED: Use distinctive colors - first bar always green
+                                // Ensure minimum visibility for non-zero values, but keep zeros very small
+                                const displayHeight =
+                                    item.value === 0
+                                        ? 1
+                                        : Math.max(heightPercent, 2);
+
                                 const barColor =
                                     index === 0
                                         ? CHART_COLORS.primary
                                         : colorArray[
                                               (index + 1) % colorArray.length
                                           ];
+
+                                console.log(
+                                    `📊 Bar ${index}: value=${
+                                        item.value
+                                    }, heightPercent=${heightPercent.toFixed(
+                                        2
+                                    )}, displayHeight=${displayHeight.toFixed(
+                                        2
+                                    )}`
+                                );
 
                                 return (
                                     <div
@@ -352,14 +367,13 @@ export default function Index({ statistics = {} }) {
                                             minWidth: "50px",
                                         }}
                                     >
-                                        {/* FIXED: Value Display - positioned relative to actual bar height */}
+                                        {/* Value Display - positioned based on actual height */}
                                         <div
                                             className="absolute z-10 transform -translate-x-1/2 left-1/2"
                                             style={{
                                                 bottom: `${Math.max(
-                                                    (item.value / max) * 100 +
-                                                        5,
-                                                    item.value === 0 ? 8 : 6
+                                                    displayHeight + 3,
+                                                    8
                                                 )}%`,
                                             }}
                                         >
@@ -368,74 +382,53 @@ export default function Index({ statistics = {} }) {
                                             </div>
                                         </div>
 
-                                        {/* ENHANCED: Proportional 3D Bar rendering */}
+                                        {/* ENHANCED: Truly proportional 3D Bar */}
                                         <div className="relative flex items-end w-full h-full">
-                                            {(() => {
-                                                // Ensure minimum visible height for zero values
-                                                const minHeight = 3; // 3% minimum
-                                                const actualHeight =
-                                                    item.value === 0
-                                                        ? minHeight
-                                                        : Math.max(
-                                                              heightPercent,
-                                                              minHeight
-                                                          );
+                                            {/* Shadow - proportional to bar height */}
+                                            <div
+                                                className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
+                                                style={{
+                                                    height: `${displayHeight}%`,
+                                                }}
+                                            ></div>
 
-                                                const isZeroValue =
-                                                    item.value === 0;
+                                            {/* Main Bar - height truly reflects data value */}
+                                            <div
+                                                className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
+                                                style={{
+                                                    height: `${displayHeight}%`,
+                                                    background:
+                                                        item.value === 0
+                                                            ? `linear-gradient(135deg, ${barColor}30, ${barColor}50)`
+                                                            : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
+                                                    boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                                                    opacity:
+                                                        item.value === 0
+                                                            ? 0.4
+                                                            : 1,
+                                                }}
+                                                title={`${item.name}: ${item.value}`}
+                                            >
+                                                {/* 3D Top effect - only show for non-zero values */}
+                                                {item.value > 0 && (
+                                                    <div
+                                                        className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
+                                                        style={{
+                                                            background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
+                                                        }}
+                                                    ></div>
+                                                )}
 
-                                                return (
-                                                    <>
-                                                        {/* Shadow - proportional */}
-                                                        <div
-                                                            className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-10"
-                                                            style={{
-                                                                height: `${actualHeight}%`,
-                                                            }}
-                                                        ></div>
-
-                                                        {/* Main Bar - truly proportional */}
-                                                        <div
-                                                            className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
-                                                            style={{
-                                                                height: `${actualHeight}%`,
-                                                                background:
-                                                                    isZeroValue
-                                                                        ? `linear-gradient(135deg, ${barColor}30, ${barColor}50)`
-                                                                        : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
-                                                                boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
-                                                                opacity:
-                                                                    isZeroValue
-                                                                        ? 0.6
-                                                                        : 1,
-                                                            }}
-                                                            title={`${item.name}: ${item.value}`}
-                                                        >
-                                                            {/* 3D Top - visible for all bars */}
-                                                            <div
-                                                                className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
-                                                                style={{
-                                                                    background:
-                                                                        isZeroValue
-                                                                            ? `linear-gradient(90deg, ${barColor}30, ${barColor}50)`
-                                                                            : `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
-                                                                }}
-                                                            ></div>
-
-                                                            {/* 3D Right Side - visible for all bars */}
-                                                            <div
-                                                                className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
-                                                                style={{
-                                                                    background:
-                                                                        isZeroValue
-                                                                            ? `linear-gradient(180deg, ${barColor}30, ${barColor}50)`
-                                                                            : `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
-                                                                }}
-                                                            ></div>
-                                                        </div>
-                                                    </>
-                                                );
-                                            })()}
+                                                {/* 3D Right side effect - only show for non-zero values */}
+                                                {item.value > 0 && (
+                                                    <div
+                                                        className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
+                                                        style={{
+                                                            background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
+                                                        }}
+                                                    ></div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -444,7 +437,7 @@ export default function Index({ statistics = {} }) {
                     </div>
                 </div>
 
-                {/* Labels area - Completely separated from chart */}
+                {/* Labels area - separated from chart */}
                 <div className="pt-4 mt-4 border-t-2 border-gray-200">
                     <div className="flex justify-center">
                         <div className="flex flex-wrap justify-center max-w-4xl gap-4">
@@ -479,7 +472,7 @@ export default function Index({ statistics = {} }) {
         );
     };
 
-    // Enhanced 3D Pie Chart Component - Increased size and better layout
+    // Enhanced 3D Pie Chart Component
     const Enhanced3DPieChart = ({ data, title, description }) => {
         if (!data || data.length === 0) {
             return (
@@ -518,7 +511,6 @@ export default function Index({ statistics = {} }) {
         }
 
         const total = data.reduce((sum, item) => sum + item.value, 0);
-        // FIXED: Use highly distinctive colors for pie chart
         const colors = [
             CHART_COLORS.primary, // Green #439454
             CHART_COLORS.crimson, // Bright red
@@ -538,12 +530,12 @@ export default function Index({ statistics = {} }) {
 
                 <div className="flex items-center justify-center h-80">
                     <div className="relative flex items-center">
-                        {/* 3D Pie Chart Container - Larger size */}
+                        {/* 3D Pie Chart Container */}
                         <div className="relative">
                             {/* Shadow */}
                             <div className="absolute w-48 h-48 bg-black rounded-full top-2 left-2 opacity-20 blur-md"></div>
 
-                            {/* Main Pie - Increased size */}
+                            {/* Main Pie */}
                             <div className="relative w-48 h-48 overflow-hidden border-4 border-white rounded-full shadow-2xl">
                                 <svg
                                     viewBox="0 0 42 42"
@@ -598,7 +590,7 @@ export default function Index({ statistics = {} }) {
                                     })}
                                 </svg>
 
-                                {/* Center Circle with Total - Larger size */}
+                                {/* Center Circle with Total */}
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="flex items-center justify-center w-24 h-24 bg-white border-2 border-gray-100 rounded-full shadow-inner">
                                         <div className="text-center">
@@ -614,7 +606,7 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Enhanced Legend with Values and Percentages - Better spacing */}
+                        {/* Enhanced Legend with Values and Percentages */}
                         <div className="ml-10 space-y-4">
                             {data.map((item, index) => {
                                 const percentage =
@@ -937,7 +929,7 @@ export default function Index({ statistics = {} }) {
                         </div>
                     </div>
 
-                    {/* Enhanced Charts Section with better spacing */}
+                    {/* Enhanced Charts Section */}
                     <div className="space-y-16">
                         {/* Chart Row 1: Gender & Status */}
                         <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
@@ -1126,7 +1118,8 @@ export default function Index({ statistics = {} }) {
                 </div>
             </div>
 
-            <style jsx>{`
+            {/* Fixed JSX Style */}
+            <style>{`
                 @keyframes fadeInUp {
                     from {
                         opacity: 0;
