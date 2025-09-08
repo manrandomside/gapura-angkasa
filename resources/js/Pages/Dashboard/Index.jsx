@@ -27,20 +27,25 @@ export default function Index({ statistics = {} }) {
 
     const BASE_COLOR = "#439454";
 
-    // Enhanced color palette for charts - Excel-like colors with required green
+    // FIXED: Enhanced color palette with highly distinctive colors
+    // No similar greens, maximum contrast between colors
     const CHART_COLORS = {
-        primary: "#439454", // Required green color
-        blue: "#5470C6", // Excel blue
-        orange: "#FF9500", // Excel orange
-        gray: "#91A7BA", // Excel gray
-        yellow: "#FFD93D", // Excel yellow
-        lightBlue: "#6FB7F0", // Excel light blue
-        green: "#4A9B6E", // Excel alternative green
-        purple: "#9A60B4", // Excel purple
-        red: "#EA4335", // Excel red
-        teal: "#0F9D58", // Excel teal
-        amber: "#F4B942", // Excel amber
-        indigo: "#4285F4", // Excel indigo
+        primary: "#439454", // Required green color (GM akan dapat ini)
+        crimson: "#DC2626", // Bright red (MU)
+        navy: "#1E3A8A", // Dark blue (ME)
+        orange: "#EA580C", // Bright orange (MO)
+        purple: "#7C3AED", // Bright purple (MF)
+        teal: "#0F766E", // Dark teal (MS)
+        amber: "#D97706", // Amber orange (MK)
+        pink: "#EC4899", // Bright pink (MQ)
+        indigo: "#4338CA", // Indigo blue (MB)
+        emerald: "#059669", // Different green shade (EGM)
+        slate: "#475569", // Dark slate (others)
+        rose: "#F43F5E", // Rose pink (others)
+        cyan: "#0891B2", // Cyan blue (others)
+        lime: "#65A30D", // Lime green (different from primary)
+        violet: "#8B5CF6", // Violet purple (others)
+        yellow: "#EAB308", // Golden yellow (others)
     };
 
     const fetchStatistics = useCallback(async () => {
@@ -174,34 +179,79 @@ export default function Index({ statistics = {} }) {
         fetchAllData();
     }, []);
 
-    // Get chart-specific grid intervals
+    // Get chart-specific grid intervals with improved scaling
     const getGridIntervals = (chartType, maxValue) => {
         let interval, max;
 
+        // Enhanced grid calculation for better proportional display
+        if (maxValue === 0) {
+            return { intervals: [0], max: 10, interval: 5 };
+        }
+
         switch (chartType) {
             case "status":
-                interval = 100;
-                max = Math.ceil(maxValue / 100) * 100;
+                if (maxValue <= 50) {
+                    interval = 10;
+                    max = Math.ceil(maxValue / 10) * 10;
+                } else if (maxValue <= 200) {
+                    interval = 25;
+                    max = Math.ceil(maxValue / 25) * 25;
+                } else {
+                    interval = 50;
+                    max = Math.ceil(maxValue / 50) * 50;
+                }
                 break;
             case "unit":
-                interval = 20;
-                max = Math.ceil(maxValue / 20) * 20;
+                if (maxValue <= 10) {
+                    interval = 2;
+                    max = Math.ceil(maxValue / 2) * 2;
+                } else if (maxValue <= 50) {
+                    interval = 10;
+                    max = Math.ceil(maxValue / 10) * 10;
+                } else {
+                    interval = 20;
+                    max = Math.ceil(maxValue / 20) * 20;
+                }
                 break;
             case "provider":
-                interval = 50;
-                max = Math.ceil(maxValue / 50) * 50;
+                if (maxValue <= 25) {
+                    interval = 5;
+                    max = Math.ceil(maxValue / 5) * 5;
+                } else if (maxValue <= 100) {
+                    interval = 25;
+                    max = Math.ceil(maxValue / 25) * 25;
+                } else {
+                    interval = 50;
+                    max = Math.ceil(maxValue / 50) * 50;
+                }
                 break;
             case "age":
-                interval = 50;
-                max = Math.ceil(maxValue / 50) * 50;
+                if (maxValue <= 20) {
+                    interval = 5;
+                    max = Math.ceil(maxValue / 5) * 5;
+                } else if (maxValue <= 100) {
+                    interval = 25;
+                    max = Math.ceil(maxValue / 25) * 25;
+                } else {
+                    interval = 50;
+                    max = Math.ceil(maxValue / 50) * 50;
+                }
                 break;
             case "jabatan":
-                interval = 25;
-                max = Math.ceil(maxValue / 25) * 25;
+                if (maxValue <= 20) {
+                    interval = 5;
+                    max = Math.ceil(maxValue / 5) * 5;
+                } else if (maxValue <= 100) {
+                    interval = 25;
+                    max = Math.ceil(maxValue / 25) * 25;
+                } else {
+                    interval = 50;
+                    max = Math.ceil(maxValue / 50) * 50;
+                }
                 break;
             default:
-                interval = 25;
-                max = Math.ceil(maxValue / 25) * 25;
+                interval = Math.max(1, Math.ceil(maxValue / 10));
+                max = Math.ceil(maxValue / interval) * interval;
         }
 
         const intervals = [];
@@ -212,7 +262,7 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // Enhanced 3D Bar Chart Component - Properly separated chart and labels
+    // ENHANCED: 3D Bar Chart Component with improved proportional rendering
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         if (!data || data.length === 0) {
             return (
@@ -277,13 +327,15 @@ export default function Index({ statistics = {} }) {
                         ))}
                     </div>
 
-                    {/* Chart area - bars start from 0 */}
+                    {/* ENHANCED: Chart area with improved proportional scaling */}
                     <div className="relative h-64 p-4 pb-0">
                         <div className="flex items-end justify-center h-full gap-4">
                             {data.map((item, index) => {
+                                // FIXED: Proper proportional height calculation
                                 const heightPercent =
                                     max > 0 ? (item.value / max) * 100 : 0;
-                                // Ensure first bar uses green color (#439454), then use other colors
+
+                                // FIXED: Use distinctive colors - first bar always green
                                 const barColor =
                                     index === 0
                                         ? CHART_COLORS.primary
@@ -300,13 +352,14 @@ export default function Index({ statistics = {} }) {
                                             minWidth: "50px",
                                         }}
                                     >
-                                        {/* Value Display - Always show value, even for 0 */}
+                                        {/* FIXED: Value Display - positioned relative to actual bar height */}
                                         <div
                                             className="absolute z-10 transform -translate-x-1/2 left-1/2"
                                             style={{
                                                 bottom: `${Math.max(
-                                                    heightPercent + 3,
-                                                    8
+                                                    (item.value / max) * 100 +
+                                                        5,
+                                                    item.value === 0 ? 8 : 6
                                                 )}%`,
                                             }}
                                         >
@@ -315,71 +368,67 @@ export default function Index({ statistics = {} }) {
                                             </div>
                                         </div>
 
-                                        {/* 3D Bar - starts from bottom (0), always visible */}
+                                        {/* ENHANCED: Proportional 3D Bar rendering */}
                                         <div className="relative flex items-end w-full h-full">
-                                            {/* Calculate actual height - ensure 0 values get minimal height */}
                                             {(() => {
+                                                // Ensure minimum visible height for zero values
+                                                const minHeight = 3; // 3% minimum
                                                 const actualHeight =
                                                     item.value === 0
-                                                        ? 2
+                                                        ? minHeight
                                                         : Math.max(
                                                               heightPercent,
-                                                              2
+                                                              minHeight
                                                           );
-                                                const displayHeight =
-                                                    item.value === 0
-                                                        ? "2%"
-                                                        : `${heightPercent}%`;
+
+                                                const isZeroValue =
+                                                    item.value === 0;
 
                                                 return (
                                                     <>
-                                                        {/* Shadow */}
+                                                        {/* Shadow - proportional */}
                                                         <div
                                                             className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-10"
                                                             style={{
-                                                                height: displayHeight,
+                                                                height: `${actualHeight}%`,
                                                             }}
                                                         ></div>
 
-                                                        {/* Main Bar */}
+                                                        {/* Main Bar - truly proportional */}
                                                         <div
                                                             className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
                                                             style={{
-                                                                height: displayHeight,
+                                                                height: `${actualHeight}%`,
                                                                 background:
-                                                                    item.value ===
-                                                                    0
-                                                                        ? `linear-gradient(135deg, ${barColor}40, ${barColor}60)`
+                                                                    isZeroValue
+                                                                        ? `linear-gradient(135deg, ${barColor}30, ${barColor}50)`
                                                                         : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
                                                                 boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
                                                                 opacity:
-                                                                    item.value ===
-                                                                    0
+                                                                    isZeroValue
                                                                         ? 0.6
                                                                         : 1,
                                                             }}
                                                             title={`${item.name}: ${item.value}`}
                                                         >
-                                                            {/* 3D Top - show for all bars */}
+                                                            {/* 3D Top - visible for all bars */}
                                                             <div
                                                                 className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
                                                                 style={{
                                                                     background:
-                                                                        item.value ===
-                                                                        0
-                                                                            ? `linear-gradient(90deg, ${barColor}40, ${barColor}60)`
+                                                                        isZeroValue
+                                                                            ? `linear-gradient(90deg, ${barColor}30, ${barColor}50)`
                                                                             : `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
                                                                 }}
                                                             ></div>
 
-                                                            {/* 3D Right Side - show for all bars */}
+                                                            {/* 3D Right Side - visible for all bars */}
                                                             <div
                                                                 className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
                                                                 style={{
                                                                     background:
-                                                                        item.value ===
-                                                                        0
-                                                                            ? `linear-gradient(180deg, ${barColor}40, ${barColor}60)`
+                                                                        isZeroValue
+                                                                            ? `linear-gradient(180deg, ${barColor}30, ${barColor}50)`
                                                                             : `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
                                                                 }}
                                                             ></div>
@@ -469,12 +518,12 @@ export default function Index({ statistics = {} }) {
         }
 
         const total = data.reduce((sum, item) => sum + item.value, 0);
-        // Use varied colors with green as first color
+        // FIXED: Use highly distinctive colors for pie chart
         const colors = [
             CHART_COLORS.primary, // Green #439454
-            CHART_COLORS.blue, // Blue
-            CHART_COLORS.orange, // Orange
-            CHART_COLORS.purple, // Purple
+            CHART_COLORS.crimson, // Bright red
+            CHART_COLORS.navy, // Dark blue
+            CHART_COLORS.orange, // Bright orange
         ];
 
         return (
@@ -993,7 +1042,7 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Chart Row 3: Age & Position */}
+                        {/* Chart Row 4: Age & Position */}
                         <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
                             {/* Komposisi Usia Chart */}
                             <div

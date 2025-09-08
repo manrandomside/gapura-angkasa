@@ -571,7 +571,7 @@ class DashboardController extends Controller
                 ];
             }
 
-            // Sort by value descending
+            // Sort by value descending to ensure proportional display
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
@@ -580,7 +580,8 @@ class DashboardController extends Controller
                 'total_categories' => count($result),
                 'tad_paket_sdm' => $tadPaketSDM,
                 'tad_paket_pekerjaan' => $tadPaketPekerjaan,
-                'tad_total' => $tadTotal
+                'tad_total' => $tadTotal,
+                'result_data' => $result
             ]);
 
             return $result;
@@ -620,14 +621,15 @@ class DashboardController extends Controller
                 ];
             }
 
-            // Sort by value descending
+            // Sort by value descending to ensure proportional display
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
             Log::debug('UNIT CHART: Generated data', [
                 'total_units' => count($result),
-                'units_with_data' => $query->count()
+                'units_with_data' => $query->count(),
+                'result_data' => $result
             ]);
 
             return $result;
@@ -698,14 +700,15 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending
+            // Sort by value descending to ensure proportional display
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
             Log::debug('PROVIDER CHART: Generated data', [
                 'total_providers' => count($result),
-                'providers_with_data' => $query->count()
+                'providers_with_data' => $query->count(),
+                'result_data' => $result
             ]);
 
             return $result;
@@ -716,9 +719,10 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get age chart data (Komposisi Usia SDM) - REAL TIME
+     * FIXED: Get age chart data (Komposisi Usia SDM) - REAL TIME dengan timezone Asia/Makassar
      * Chart Type: Bar Chart  
      * Age groups: 18-25, 26-35, 36-45, 46-55
+     * FIXED: Proper age calculation with WITA timezone and better date validation
      */
     private function getAgeChartData()
     {
@@ -730,23 +734,37 @@ class DashboardController extends Controller
                 '46-55' => 0
             ];
 
+            // Set timezone to Asia/Makassar (WITA) for accurate age calculation
+            $currentDate = Carbon::now('Asia/Makassar');
+
             $employees = Employee::whereNotNull('tanggal_lahir')
                 ->where('tanggal_lahir', '!=', '')
                 ->where('tanggal_lahir', '!=', '0000-00-00')
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
-                ->get(['tanggal_lahir']);
+                ->get(['id', 'tanggal_lahir', 'nama_lengkap']);
 
             $totalProcessed = 0;
             $invalidDates = 0;
+            $outsideRange = 0;
+
+            Log::info('AGE CHART: Starting age calculation', [
+                'total_employees_to_process' => $employees->count(),
+                'current_date' => $currentDate->toDateTimeString(),
+                'timezone' => 'Asia/Makassar'
+            ]);
 
             foreach ($employees as $employee) {
                 try {
-                    $birthDate = Carbon::parse($employee->tanggal_lahir);
-                    $age = $birthDate->age;
+                    // Parse birth date with proper timezone handling
+                    $birthDate = Carbon::parse($employee->tanggal_lahir, 'Asia/Makassar');
+                    
+                    // Calculate age in years using diffInYears for more accurate calculation
+                    $age = $birthDate->diffInYears($currentDate);
                     $totalProcessed++;
                     
+                    // Categorize by age group
                     if ($age >= 18 && $age <= 25) {
                         $ageGroups['18-25']++;
                     } elseif ($age >= 26 && $age <= 35) {
@@ -755,13 +773,37 @@ class DashboardController extends Controller
                         $ageGroups['36-45']++;
                     } elseif ($age >= 46 && $age <= 55) {
                         $ageGroups['46-55']++;
+                    } else {
+                        $outsideRange++;
                     }
+                    
+                    // Log sample calculations for debugging
+                    if ($totalProcessed <= 5) {
+                        Log::debug('AGE CALCULATION: Sample employee processed', [
+                            'employee_id' => $employee->id,
+                            'employee_name' => $employee->nama_lengkap,
+                            'birth_date' => $employee->tanggal_lahir,
+                            'parsed_birth_date' => $birthDate->toDateString(),
+                            'calculated_age' => $age,
+                            'assigned_group' => $age >= 18 && $age <= 25 ? '18-25' : 
+                                              ($age >= 26 && $age <= 35 ? '26-35' : 
+                                              ($age >= 36 && $age <= 45 ? '36-45' : 
+                                              ($age >= 46 && $age <= 55 ? '46-55' : 'outside_range')))
+                        ]);
+                    }
+                    
                 } catch (\Exception $e) {
                     $invalidDates++;
+                    Log::warning('AGE CALCULATION: Invalid birth date', [
+                        'employee_id' => $employee->id,
+                        'birth_date' => $employee->tanggal_lahir,
+                        'error' => $e->getMessage()
+                    ]);
                     continue;
                 }
             }
 
+            // Convert to result format with proper sorting
             $result = collect($ageGroups)->map(function ($count, $group) {
                 return [
                     'name' => $group . ' Tahun',
@@ -769,16 +811,38 @@ class DashboardController extends Controller
                 ];
             })->values()->toArray();
 
-            Log::debug('AGE CHART: Generated data', [
+            // Sort by age group order (not by value to maintain age sequence)
+            $ageOrder = ['18-25 Tahun', '26-35 Tahun', '36-45 Tahun', '46-55 Tahun'];
+            usort($result, function($a, $b) use ($ageOrder) {
+                $aIndex = array_search($a['name'], $ageOrder);
+                $bIndex = array_search($b['name'], $ageOrder);
+                return $aIndex - $bIndex;
+            });
+
+            Log::info('AGE CHART: Generated data successfully', [
+                'total_employees_found' => $employees->count(),
                 'total_employees_processed' => $totalProcessed,
                 'invalid_dates' => $invalidDates,
-                'age_groups' => $ageGroups
+                'outside_age_range' => $outsideRange,
+                'age_groups_breakdown' => $ageGroups,
+                'current_date' => $currentDate->toDateTimeString(),
+                'timezone' => 'Asia/Makassar',
+                'result_data' => $result
             ]);
 
             return $result;
         } catch (\Exception $e) {
-            Log::error('Age Chart Data Error: ' . $e->getMessage());
-            return [];
+            Log::error('Age Chart Data Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return default structure to prevent frontend errors
+            return [
+                ['name' => '18-25 Tahun', 'value' => 0],
+                ['name' => '26-35 Tahun', 'value' => 0],
+                ['name' => '36-45 Tahun', 'value' => 0],
+                ['name' => '46-55 Tahun', 'value' => 0]
+            ];
         }
     }
 
@@ -844,14 +908,15 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending
+            // Sort by value descending to ensure proportional display
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
             Log::debug('JABATAN CHART: Generated data', [
                 'total_jabatan' => count($result),
-                'jabatan_with_data' => $query->count()
+                'jabatan_with_data' => $query->count(),
+                'result_data' => $result
             ]);
 
             return $result;
