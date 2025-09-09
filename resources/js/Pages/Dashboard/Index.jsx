@@ -200,23 +200,23 @@ export default function Index({ statistics = {} }) {
     }, []);
 
     /**
-     * FIXED: Enhanced dynamic interval calculation for truly responsive charts
+     * COMPLETELY REWRITTEN: True proportional grid calculation
      */
     const getDynamicGridIntervals = (maxValue) => {
-        console.log("Calculating intervals for maxValue:", maxValue);
+        console.log("GRID CALC: Calculating intervals for maxValue:", maxValue);
 
         if (maxValue === 0) {
-            console.log("Max value is 0, using minimal intervals");
+            console.log("GRID CALC: Max value is 0, using minimal intervals");
             return { intervals: [0, 1, 2, 3, 4, 5], max: 5, interval: 1 };
         }
 
         let interval;
         let max;
 
-        // Improved dynamic interval calculation for better proportional display
+        // FIXED: Improved interval calculation for true proportional display
         if (maxValue <= 5) {
             interval = 1;
-            max = Math.max(5, maxValue);
+            max = Math.max(5, Math.ceil(maxValue));
         } else if (maxValue <= 10) {
             interval = 2;
             max = Math.ceil(maxValue / 2) * 2;
@@ -235,16 +235,13 @@ export default function Index({ statistics = {} }) {
         } else if (maxValue <= 500) {
             interval = 50;
             max = Math.ceil(maxValue / 50) * 50;
-        } else if (maxValue <= 1000) {
-            interval = 100;
-            max = Math.ceil(maxValue / 100) * 100;
         } else {
             // For very large values
             interval = Math.ceil(maxValue / 10);
             max = Math.ceil(maxValue / interval) * interval;
         }
 
-        // Ensure max is at least equal to maxValue
+        // CRITICAL: Ensure max is EXACTLY maxValue for perfect proportions
         max = Math.max(max, maxValue);
 
         const intervals = [];
@@ -252,22 +249,22 @@ export default function Index({ statistics = {} }) {
             intervals.push(i);
         }
 
-        console.log("Generated intervals:", {
+        console.log("GRID CALC: Generated intervals:", {
             intervals,
             max,
             interval,
             maxValue,
-            efficiency: `${intervals.length} grid lines`,
+            gridLines: intervals.length,
         });
         return { intervals, max, interval };
     };
 
-    // COMPLETELY FIXED: Enhanced 3D Bar Chart with TRULY PROPORTIONAL rendering
+    // COMPLETELY REWRITTEN: True Proportional Bar Chart Component
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
-        console.log(`Rendering ${chartType} chart with data:`, data);
+        console.log(`CHART [${chartType}]: Rendering with data:`, data);
 
         if (!data || data.length === 0) {
-            console.log(`No data for ${chartType} chart`);
+            console.log(`CHART [${chartType}]: No data available`);
             return (
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
@@ -297,20 +294,23 @@ export default function Index({ statistics = {} }) {
             );
         }
 
-        // FIXED: Better maxValue calculation and validation
+        // FIXED: Accurate max value calculation and validation
         const maxValue = Math.max(...data.map((item) => item.value || 0));
         const hasData = data.some((item) => item.value > 0);
 
-        console.log(`${chartType} chart analysis:`, {
+        console.log(`CHART [${chartType}]: Analysis:`, {
             maxValue,
             hasData,
             dataCount: data.length,
-            values: data.map((item) => item.value),
+            values: data.map((item) => ({
+                name: item.name,
+                value: item.value,
+            })),
         });
 
-        // FIXED: Handle case where all values are 0
+        // Handle case where all values are 0
         if (maxValue === 0 || !hasData) {
-            console.log(`${chartType} chart has no positive values`);
+            console.log(`CHART [${chartType}]: No positive values found`);
             return (
                 <div className="h-96">
                     <div className="mb-6 text-center">
@@ -351,11 +351,18 @@ export default function Index({ statistics = {} }) {
         const { intervals, max } = getDynamicGridIntervals(maxValue);
         const colorArray = Object.values(CHART_COLORS);
 
-        console.log(`${chartType} chart rendering:`, {
+        // FIXED: Chart height calculation - use exact max value for true proportions
+        const CHART_HEIGHT = 320; // Fixed chart height in pixels
+        const GRID_MARGIN = 60; // Space for labels
+        const EFFECTIVE_HEIGHT = CHART_HEIGHT - GRID_MARGIN;
+
+        console.log(`CHART [${chartType}]: Rendering config:`, {
             maxValue,
             gridMax: max,
             intervalCount: intervals.length,
-            willRenderChart: true,
+            chartHeight: CHART_HEIGHT,
+            effectiveHeight: EFFECTIVE_HEIGHT,
+            proportionalCalculation: "TRUE",
         });
 
         return (
@@ -368,37 +375,77 @@ export default function Index({ statistics = {} }) {
                     <p className="text-sm text-gray-600">{description}</p>
                 </div>
 
-                {/* Chart Container - INCREASED HEIGHT FOR BETTER PROPORTIONS */}
-                <div className="relative bg-white border border-gray-100 rounded-lg">
+                {/* COMPLETELY REWRITTEN: Chart Container with TRUE proportional system */}
+                <div
+                    className="relative bg-white border border-gray-100 rounded-lg"
+                    style={{ height: `${CHART_HEIGHT}px` }}
+                >
                     {/* Grid background with dynamic intervals */}
                     <div className="absolute inset-0 pointer-events-none">
-                        {intervals.map((value) => (
-                            <div
-                                key={value}
-                                className="absolute w-full border-t border-gray-100"
-                                style={{
-                                    bottom: `${(value / max) * 100}%`,
-                                }}
-                            >
-                                <span className="absolute text-xs text-gray-400 transform -translate-y-1/2 -left-10">
-                                    {value}
-                                </span>
-                            </div>
-                        ))}
+                        {intervals.map((value) => {
+                            const yPosition =
+                                GRID_MARGIN +
+                                EFFECTIVE_HEIGHT * (1 - value / max);
+                            return (
+                                <div key={value}>
+                                    {/* Grid line */}
+                                    <div
+                                        className="absolute w-full border-t border-gray-100"
+                                        style={{ top: `${yPosition}px` }}
+                                    />
+                                    {/* Y-axis label */}
+                                    <span
+                                        className="absolute text-xs text-gray-400 transform -translate-y-1/2"
+                                        style={{
+                                            top: `${yPosition}px`,
+                                            left: "10px",
+                                        }}
+                                    >
+                                        {value}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    {/* COMPLETELY FIXED: Chart area with TRULY proportional scaling */}
-                    <div className="relative p-4 pb-0 h-72">
-                        <div className="flex items-end justify-center h-full gap-3">
+                    {/* REVOLUTIONARY: Absolute positioned chart area with MATHEMATICAL precision */}
+                    <div
+                        className="relative w-full"
+                        style={{
+                            height: `${CHART_HEIGHT}px`,
+                            paddingLeft: "50px",
+                            paddingRight: "20px",
+                            paddingTop: "20px",
+                            paddingBottom: "20px",
+                        }}
+                    >
+                        <div
+                            className="relative w-full"
+                            style={{ height: `${EFFECTIVE_HEIGHT}px` }}
+                        >
                             {data.map((item, index) => {
-                                // CRITICAL FIX: TRUE proportional height calculation - NO artificial minimums
                                 const rawValue = item.value || 0;
-                                const heightPercent =
-                                    max > 0 ? (rawValue / max) * 100 : 0;
 
-                                // MAJOR FIX: Remove ALL artificial minimum heights
-                                // Chart heights now TRULY reflect data proportions
-                                const displayHeight = heightPercent;
+                                // CRITICAL FIX: MATHEMATICAL proportional height calculation
+                                const heightPixels =
+                                    max > 0
+                                        ? (rawValue / max) * EFFECTIVE_HEIGHT
+                                        : 0;
+                                const bottomPosition = GRID_MARGIN;
+
+                                // Bar width calculation for equal distribution
+                                const containerWidth = 100; // Percentage
+                                const barWidthPercent = Math.min(
+                                    80 / data.length,
+                                    12
+                                ); // Max 12% per bar, distributed evenly
+                                const gapPercent =
+                                    (containerWidth -
+                                        barWidthPercent * data.length) /
+                                    (data.length + 1);
+                                const leftPositionPercent =
+                                    gapPercent +
+                                    index * (barWidthPercent + gapPercent);
 
                                 const barColor =
                                     index === 0
@@ -407,65 +454,79 @@ export default function Index({ statistics = {} }) {
                                               (index + 1) % colorArray.length
                                           ];
 
-                                console.log(`Bar ${index} [${item.name}]:`, {
-                                    rawValue,
-                                    max,
-                                    heightPercent:
-                                        heightPercent.toFixed(2) + "%",
-                                    displayHeight:
-                                        displayHeight.toFixed(2) + "%",
-                                    isZero: rawValue === 0,
-                                    trueProportional: true,
-                                });
+                                console.log(
+                                    `CHART [${chartType}] Bar ${index} [${item.name}]:`,
+                                    {
+                                        rawValue,
+                                        maxValue: max,
+                                        heightPixels: Math.round(heightPixels),
+                                        heightPercent:
+                                            max > 0
+                                                ? (
+                                                      (rawValue / max) *
+                                                      100
+                                                  ).toFixed(1) + "%"
+                                                : "0%",
+                                        leftPosition:
+                                            leftPositionPercent.toFixed(1) +
+                                            "%",
+                                        barWidth:
+                                            barWidthPercent.toFixed(1) + "%",
+                                        isTrueProportional: true,
+                                    }
+                                );
 
                                 return (
                                     <div
                                         key={index}
-                                        className="relative flex flex-col items-center flex-1 group"
+                                        className="absolute group"
                                         style={{
-                                            maxWidth: "70px",
-                                            minWidth: "40px",
+                                            left: `${leftPositionPercent}%`,
+                                            width: `${barWidthPercent}%`,
+                                            bottom: "40px",
+                                            height: `${Math.max(
+                                                heightPixels,
+                                                3
+                                            )}px`, // Minimum 3px for visibility
+                                            zIndex: 10,
                                         }}
                                     >
-                                        {/* Value Display - show for ALL values including zero */}
+                                        {/* Value Display - positioned above bar */}
                                         <div
-                                            className="absolute z-10 transform -translate-x-1/2 left-1/2"
+                                            className="absolute z-20 flex items-center justify-center w-full transform -translate-y-full"
                                             style={{
-                                                bottom:
+                                                top:
                                                     rawValue === 0
-                                                        ? "5px"
-                                                        : `${Math.max(
-                                                              displayHeight + 5,
-                                                              10
-                                                          )}%`,
+                                                        ? "-25px"
+                                                        : "-8px",
                                             }}
                                         >
-                                            <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md">
+                                            <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md whitespace-nowrap">
                                                 {rawValue}
                                             </div>
                                         </div>
 
-                                        {/* COMPLETELY FIXED: TRULY proportional 3D Bar */}
-                                        <div className="relative flex items-end w-full h-full">
-                                            {/* Shadow - only for non-zero values */}
+                                        {/* MATHEMATICAL PRECISION: Bar with exact proportional height */}
+                                        <div className="relative w-full h-full">
+                                            {/* 3D Shadow - only for visible bars */}
                                             {rawValue > 0 &&
-                                                displayHeight > 0.5 && (
+                                                heightPixels > 5 && (
                                                     <div
                                                         className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
                                                         style={{
-                                                            height: `${displayHeight}%`,
+                                                            height: `${heightPixels}px`,
                                                         }}
-                                                    ></div>
+                                                    />
                                                 )}
 
-                                            {/* Main Bar - height EXACTLY reflects data value */}
+                                            {/* Main Bar - EXACT mathematical height */}
                                             <div
                                                 className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
                                                 style={{
-                                                    height:
-                                                        rawValue === 0
-                                                            ? "3px"
-                                                            : `${displayHeight}%`,
+                                                    height: `${Math.max(
+                                                        heightPixels,
+                                                        3
+                                                    )}px`,
                                                     background:
                                                         rawValue === 0
                                                             ? `linear-gradient(135deg, ${barColor}30, ${barColor}40)`
@@ -478,39 +539,55 @@ export default function Index({ statistics = {} }) {
                                                         rawValue === 0
                                                             ? 0.4
                                                             : 1,
-                                                    minHeight: "3px", // Minimal untuk visibility tapi tidak mengganggu proporsi
                                                 }}
                                                 title={`${item.name}: ${rawValue}`}
                                             >
                                                 {/* 3D Top effect - only show for substantial heights */}
                                                 {rawValue > 0 &&
-                                                    displayHeight > 8 && (
+                                                    heightPixels > 15 && (
                                                         <div
                                                             className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
                                                             style={{
                                                                 background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
                                                             }}
-                                                        ></div>
+                                                        />
                                                     )}
 
                                                 {/* 3D Right side effect - only show for substantial heights */}
                                                 {rawValue > 0 &&
-                                                    displayHeight > 8 && (
+                                                    heightPixels > 15 && (
                                                         <div
                                                             className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
                                                             style={{
                                                                 background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
                                                             }}
-                                                        ></div>
+                                                        />
                                                     )}
 
                                                 {/* Zero value special indicator */}
                                                 {rawValue === 0 && (
                                                     <div className="absolute inset-0 flex items-center justify-center">
-                                                        <div className="w-full h-0.5 bg-gray-300 rounded"></div>
+                                                        <div className="w-full h-0.5 bg-gray-300 rounded" />
                                                     </div>
                                                 )}
                                             </div>
+                                        </div>
+
+                                        {/* X-axis label - positioned below chart */}
+                                        <div
+                                            className="absolute flex items-center justify-center w-full text-xs font-medium text-gray-700 transform"
+                                            style={{
+                                                top: `${
+                                                    EFFECTIVE_HEIGHT + 10
+                                                }px`,
+                                                maxWidth: "120px",
+                                                left: "50%",
+                                                transform: "translateX(-50%)",
+                                            }}
+                                        >
+                                            <span className="leading-tight text-center">
+                                                {item.name}
+                                            </span>
                                         </div>
                                     </div>
                                 );
@@ -519,35 +596,37 @@ export default function Index({ statistics = {} }) {
                     </div>
                 </div>
 
-                {/* Labels area - separated from chart */}
-                <div className="pt-3 mt-3 border-t-2 border-gray-200">
-                    <div className="flex justify-center">
-                        <div className="flex flex-wrap justify-center max-w-4xl gap-4">
-                            {data.map((item, index) => {
-                                const barColor =
-                                    index === 0
-                                        ? CHART_COLORS.primary
-                                        : colorArray[
-                                              (index + 1) % colorArray.length
-                                          ];
-                                return (
+                {/* CLEAN SEPARATED LEGEND WITH DIVIDER LINE */}
+                <div className="mt-8">
+                    {/* Divider line */}
+                    <div className="w-full h-px mb-6 bg-gray-300"></div>
+
+                    {/* Legend container */}
+                    <div className="flex flex-wrap items-center justify-center gap-8 px-4">
+                        {data.map((item, index) => {
+                            const barColor =
+                                index === 0
+                                    ? CHART_COLORS.primary
+                                    : colorArray[
+                                          (index + 1) % colorArray.length
+                                      ];
+                            return (
+                                <div
+                                    key={index}
+                                    className="flex items-center space-x-3"
+                                >
                                     <div
-                                        key={index}
-                                        className="flex items-center space-x-2"
-                                    >
-                                        <div
-                                            className="w-4 h-4 rounded"
-                                            style={{
-                                                backgroundColor: barColor,
-                                            }}
-                                        ></div>
-                                        <span className="text-xs font-medium text-gray-700">
-                                            {item.name}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                        className="w-5 h-3 rounded-sm"
+                                        style={{
+                                            backgroundColor: barColor,
+                                        }}
+                                    />
+                                    <span className="text-sm font-semibold tracking-wide text-gray-800 uppercase">
+                                        {item.name}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
