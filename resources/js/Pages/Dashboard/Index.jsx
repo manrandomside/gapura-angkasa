@@ -380,7 +380,7 @@ export default function Index({ statistics = {} }) {
                     className="relative bg-white border border-gray-100 rounded-lg"
                     style={{ height: `${CHART_HEIGHT}px` }}
                 >
-                    {/* Grid background with dynamic intervals */}
+                    {/* Grid background with dynamic intervals - FIXED: NO Y-AXIS NUMBERS */}
                     <div className="absolute inset-0 pointer-events-none">
                         {intervals.map((value) => {
                             const yPosition =
@@ -388,21 +388,11 @@ export default function Index({ statistics = {} }) {
                                 EFFECTIVE_HEIGHT * (1 - value / max);
                             return (
                                 <div key={value}>
-                                    {/* Grid line */}
+                                    {/* Grid line only - Y-axis numbers removed */}
                                     <div
                                         className="absolute w-full border-t border-gray-100"
                                         style={{ top: `${yPosition}px` }}
                                     />
-                                    {/* Y-axis label */}
-                                    <span
-                                        className="absolute text-xs text-gray-400 transform -translate-y-1/2"
-                                        style={{
-                                            top: `${yPosition}px`,
-                                            left: "10px",
-                                        }}
-                                    >
-                                        {value}
-                                    </span>
                                 </div>
                             );
                         })}
@@ -596,37 +586,39 @@ export default function Index({ statistics = {} }) {
                     </div>
                 </div>
 
-                {/* CLEAN SEPARATED LEGEND WITH DIVIDER LINE */}
+                {/* ENHANCED LEGEND CONTAINER WITH PROMINENT STYLING */}
                 <div className="mt-8">
-                    {/* Divider line */}
-                    <div className="w-full h-px mb-6 bg-gray-300"></div>
+                    {/* Strong horizontal divider line */}
+                    <div className="w-full h-0.5 bg-gray-300 mb-6"></div>
 
-                    {/* Legend container */}
-                    <div className="flex flex-wrap items-center justify-center gap-8 px-4">
-                        {data.map((item, index) => {
-                            const barColor =
-                                index === 0
-                                    ? CHART_COLORS.primary
-                                    : colorArray[
-                                          (index + 1) % colorArray.length
-                                      ];
-                            return (
-                                <div
-                                    key={index}
-                                    className="flex items-center space-x-3"
-                                >
+                    {/* Prominent legend container with background */}
+                    <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="flex flex-wrap items-center justify-center gap-8">
+                            {data.map((item, index) => {
+                                const barColor =
+                                    index === 0
+                                        ? CHART_COLORS.primary
+                                        : colorArray[
+                                              (index + 1) % colorArray.length
+                                          ];
+                                return (
                                     <div
-                                        className="w-5 h-3 rounded-sm"
-                                        style={{
-                                            backgroundColor: barColor,
-                                        }}
-                                    />
-                                    <span className="text-sm font-semibold tracking-wide text-gray-800 uppercase">
-                                        {item.name}
-                                    </span>
-                                </div>
-                            );
-                        })}
+                                        key={index}
+                                        className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-100 rounded-md shadow-sm"
+                                    >
+                                        <div
+                                            className="flex-shrink-0 w-5 h-4 border border-gray-200 rounded"
+                                            style={{
+                                                backgroundColor: barColor,
+                                            }}
+                                        />
+                                        <span className="text-sm font-semibold tracking-wide text-gray-800 uppercase whitespace-nowrap">
+                                            {item.name}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>

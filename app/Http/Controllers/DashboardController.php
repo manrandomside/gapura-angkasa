@@ -457,8 +457,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get gender chart data (Jenis Kelamin) - REAL TIME
+     * FIXED: Get gender chart data (Jenis Kelamin) - Sesuai requirement
      * Chart Type: Pie Chart
+     * Data: Laki-laki, Perempuan
      */
     private function getGenderChartData()
     {
@@ -512,97 +513,83 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get status chart data (Status Pegawai) - REAL TIME
+     * FIXED: Get status chart data (Status Pegawai) - Sesuai requirement EXACT
      * Chart Type: Bar Chart
-     * Include: PEGAWAI TETAP, TAD (with breakdown), PKWT
+     * Data: PEGAWAI TETAP, PKWT, TAD TOTAL, TAD PAKET SDM, TAD PAKET PEKERJAAN
      */
     private function getStatusChartData()
     {
         try {
-            $query = Employee::select('status_pegawai', DB::raw('count(*) as total'))
-                ->whereNotNull('status_pegawai')
-                ->where('status_pegawai', '!=', '')
+            $pegawaiTetap = Employee::where('status_pegawai', 'PEGAWAI TETAP')
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
-                ->groupBy('status_pegawai')
-                ->get();
+                ->count();
 
-            // Process and combine TAD data as requested
-            $result = [];
-            $tadPaketSDM = 0;
-            $tadPaketPekerjaan = 0;
-            $tadOther = 0;
-            
-            foreach ($query as $item) {
-                switch ($item->status_pegawai) {
-                    case 'PEGAWAI TETAP':
-                        $result[] = [
-                            'name' => 'PEGAWAI TETAP',
-                            'value' => $item->total
-                        ];
-                        break;
-                    case 'PKWT':
-                        $result[] = [
-                            'name' => 'PKWT',
-                            'value' => $item->total
-                        ];
-                        break;
-                    case 'TAD PAKET SDM':
-                        $tadPaketSDM = $item->total;
-                        break;
-                    case 'TAD PAKET PEKERJAAN':
-                        $tadPaketPekerjaan = $item->total;
-                        break;
-                    case 'TAD':
-                        $tadOther = $item->total;
-                        break;
-                }
-            }
-            
-            // Add TAD breakdown
-            if ($tadPaketSDM > 0) {
-                $result[] = [
-                    'name' => 'TAD PAKET SDM',
-                    'value' => $tadPaketSDM
-                ];
-            }
-            
-            if ($tadPaketPekerjaan > 0) {
-                $result[] = [
-                    'name' => 'TAD PAKET PEKERJAAN',
-                    'value' => $tadPaketPekerjaan
-                ];
-            }
-            
-            // Add TAD Total (combination of all TAD types)
-            $tadTotal = $tadPaketSDM + $tadPaketPekerjaan + $tadOther;
-            if ($tadTotal > 0) {
-                $result[] = [
+            $pkwt = Employee::where('status_pegawai', 'PKWT')
+                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                    return $query->where('status', 'active');
+                })
+                ->count();
+
+            $tadPaketSDM = Employee::where('status_pegawai', 'TAD PAKET SDM')
+                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                    return $query->where('status', 'active');
+                })
+                ->count();
+
+            $tadPaketPekerjaan = Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')
+                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                    return $query->where('status', 'active');
+                })
+                ->count();
+
+            // Handle legacy TAD data
+            $tadLegacy = Employee::where('status_pegawai', 'TAD')
+                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                    return $query->where('status', 'active');
+                })
+                ->count();
+
+            // TAD TOTAL adalah gabungan semua TAD
+            $tadTotal = $tadPaketSDM + $tadPaketPekerjaan + $tadLegacy;
+
+            // Sesuai requirement EXACT dari user
+            $result = [
+                [
+                    'name' => 'PEGAWAI TETAP',
+                    'value' => $pegawaiTetap
+                ],
+                [
+                    'name' => 'PKWT',
+                    'value' => $pkwt
+                ],
+                [
                     'name' => 'TAD TOTAL',
                     'value' => $tadTotal
-                ];
-            }
+                ],
+                [
+                    'name' => 'TAD PAKET SDM',
+                    'value' => $tadPaketSDM
+                ],
+                [
+                    'name' => 'TAD PAKET PEKERJAAN',
+                    'value' => $tadPaketPekerjaan
+                ]
+            ];
 
-            // Ensure we always return some data even if empty
-            if (empty($result)) {
-                $result = [
-                    ['name' => 'PEGAWAI TETAP', 'value' => 0],
-                    ['name' => 'PKWT', 'value' => 0],
-                    ['name' => 'TAD TOTAL', 'value' => 0],
-                ];
-            }
-
-            // Sort by value descending to ensure highest values show properly
+            // Sort by value descending untuk display yang better
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
-            Log::debug('STATUS CHART: Generated data', [
-                'total_categories' => count($result),
+            Log::debug('STATUS CHART: Generated data sesuai requirement', [
+                'pegawai_tetap' => $pegawaiTetap,
+                'pkwt' => $pkwt,
+                'tad_total' => $tadTotal,
                 'tad_paket_sdm' => $tadPaketSDM,
                 'tad_paket_pekerjaan' => $tadPaketPekerjaan,
-                'tad_total' => $tadTotal,
+                'tad_legacy' => $tadLegacy,
                 'result_data' => $result
             ]);
 
@@ -613,18 +600,21 @@ class DashboardController extends Controller
                 ['name' => 'PEGAWAI TETAP', 'value' => 0],
                 ['name' => 'PKWT', 'value' => 0],
                 ['name' => 'TAD TOTAL', 'value' => 0],
+                ['name' => 'TAD PAKET SDM', 'value' => 0],
+                ['name' => 'TAD PAKET PEKERJAAN', 'value' => 0]
             ];
         }
     }
 
     /**
-     * NEW: Get unit chart data (SDM per Unit) - REAL TIME
+     * FIXED: Get unit chart data (SDM per Unit) - Sesuai requirement EXACT
      * Chart Type: Bar Chart
-     * Focus on: EGM, GM, MO, MF, MS, MU, MK, MQ, ME, MB
+     * Data: EGM, GM, MO, MF, MS, MU, MK, MQ, ME, MB
      */
     private function getUnitChartData()
     {
         try {
+            // Sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             
             $query = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
@@ -637,7 +627,7 @@ class DashboardController extends Controller
                 ->groupBy('unit_organisasi')
                 ->get();
 
-            // Create complete list with all target units
+            // Create complete list dengan semua target units
             $result = [];
             foreach ($targetUnits as $unit) {
                 $found = $query->firstWhere('unit_organisasi', $unit);
@@ -647,13 +637,13 @@ class DashboardController extends Controller
                 ];
             }
 
-            // Sort by value descending to ensure highest values show properly
+            // Sort by value descending
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
-            Log::debug('UNIT CHART: Generated data', [
-                'total_units' => count($result),
+            Log::debug('UNIT CHART: Generated data sesuai requirement', [
+                'target_units' => $targetUnits,
                 'units_with_data' => $query->count(),
                 'result_data' => $result
             ]);
@@ -668,13 +658,14 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Get provider chart data (SDM per Provider) - REAL TIME
+     * FIXED: Get provider chart data (SDM per Provider) - Sesuai requirement EXACT
      * Chart Type: Bar Chart
-     * Include: 10 companies as specified
+     * Data: 10 perusahaan sesuai yang disebutkan user
      */
     private function getProviderChartData()
     {
         try {
+            // Sesuai requirement EXACT dari user
             $targetProviders = [
                 'PT Gapura Angkasa',
                 'PT Air Box Personalia',
@@ -695,30 +686,32 @@ class DashboardController extends Controller
                     return $query->where('status', 'active');
                 })
                 ->groupBy('provider')
-                ->orderBy('total', 'desc')
                 ->get();
 
             $result = [];
             $processedProviders = [];
             
-            // Process existing data and clean names
+            // Process existing data dan clean names
             foreach ($query as $item) {
                 $cleanName = $this->cleanProviderName($item->provider);
                 
-                // Skip if already processed (prevents duplicates)
-                if (in_array($cleanName, $processedProviders)) {
-                    continue;
+                // Check jika provider ini masuk dalam target list
+                if (in_array($cleanName, $targetProviders)) {
+                    // Skip jika sudah diproses (prevents duplicates)
+                    if (in_array($cleanName, $processedProviders)) {
+                        continue;
+                    }
+                    
+                    $result[] = [
+                        'name' => $cleanName,
+                        'value' => $item->total
+                    ];
+                    
+                    $processedProviders[] = $cleanName;
                 }
-                
-                $result[] = [
-                    'name' => $cleanName,
-                    'value' => $item->total
-                ];
-                
-                $processedProviders[] = $cleanName;
             }
 
-            // Add missing target providers with 0 count
+            // Add missing target providers dengan 0 count
             foreach ($targetProviders as $provider) {
                 if (!in_array($provider, $processedProviders)) {
                     $result[] = [
@@ -728,13 +721,13 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending to ensure highest values show properly
+            // Sort by value descending
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
-            Log::debug('PROVIDER CHART: Generated data', [
-                'total_providers' => count($result),
+            Log::debug('PROVIDER CHART: Generated data sesuai requirement', [
+                'target_providers' => count($targetProviders),
                 'providers_with_data' => $query->count(),
                 'result_data' => $result
             ]);
@@ -749,20 +742,25 @@ class DashboardController extends Controller
                 'PT Air Box Personalia',
                 'PT Finfleet Teknologi Indonesia',
                 'PT Mitra Angkasa Perdana',
-                'PT Safari Dharma Sakti'
+                'PT Safari Dharma Sakti',
+                'PT Grha Humanindo Management',
+                'PT Duta Griya Sarana',
+                'PT Aerotrans Wisata',
+                'PT Mandala Garda Nusantara',
+                'PT Kidora Mandiri Investama'
             ]);
         }
     }
 
     /**
-     * COMPLETELY FIXED: Get age chart data (Komposisi Usia SDM) - IMPROVED VERSION
+     * FIXED: Get age chart data (Komposisi Usia SDM) - Sesuai requirement EXACT
      * Chart Type: Bar Chart  
      * Age groups: 18-25, 26-35, 36-45, 46-55
-     * MAJOR FIXES: Relaxed validation, better error handling, multiple data sources
      */
     private function getAgeChartData()
     {
         try {
+            // Sesuai requirement EXACT dari user
             $ageGroups = [
                 '18-25' => 0,
                 '26-35' => 0, 
@@ -770,21 +768,21 @@ class DashboardController extends Controller
                 '46-55' => 0
             ];
 
-            // Set timezone to Asia/Makassar (WITA) for accurate age calculation
+            // Set timezone ke Asia/Makassar (WITA) untuk accurate age calculation
             $currentDate = Carbon::now('Asia/Makassar');
             
-            Log::info('AGE CHART: Starting IMPROVED age calculation', [
+            Log::info('AGE CHART: Starting age calculation sesuai requirement', [
                 'current_date' => $currentDate->toDateTimeString(),
                 'timezone' => 'Asia/Makassar',
-                'method_version' => 'improved_v2.0'
+                'target_age_groups' => array_keys($ageGroups)
             ]);
 
-            // MAJOR FIX: Much more relaxed query - only essential filters
+            // Query semua employees yang aktif
             $employees = Employee::select(['id', 'tanggal_lahir', 'nama_lengkap', 'usia'])
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
-                ->get(); // Get ALL employees, filter later
+                ->get();
 
             $totalProcessed = 0;
             $usedCalculatedAge = 0;
@@ -823,7 +821,7 @@ class DashboardController extends Controller
                         }
                     }
                     
-                    // Skip if no valid age found
+                    // Skip jika no valid age found
                     if ($age === null) {
                         $invalidDates++;
                         continue;
@@ -831,7 +829,7 @@ class DashboardController extends Controller
                     
                     $totalProcessed++;
                     
-                    // Categorize by age group
+                    // Categorize by age group - SESUAI REQUIREMENT EXACT
                     if ($age >= 18 && $age <= 25) {
                         $ageGroups['18-25']++;
                     } elseif ($age >= 26 && $age <= 35) {
@@ -844,7 +842,7 @@ class DashboardController extends Controller
                         $outsideRange++;
                     }
                     
-                    // Enhanced debugging for first few records
+                    // Enhanced debugging untuk first few records
                     if ($totalProcessed <= 5) {
                         Log::debug('AGE CALCULATION: Sample employee processed', [
                             'employee_id' => $employee->id,
@@ -870,13 +868,13 @@ class DashboardController extends Controller
                 }
             }
 
-            // Convert to result format with consistent structure
+            // Convert to result format sesuai requirement EXACT
             $result = [];
-            $ageOrder = ['18-25', '26-35', '36-45', '46-55'];
+            $ageOrder = ['18-25', '26-35', '36-45', '46-55']; // EXACT sesuai user requirement
             
             foreach ($ageOrder as $group) {
                 $result[] = [
-                    'name' => $group . ' Tahun',
+                    'name' => $group,
                     'value' => $ageGroups[$group]
                 ];
             }
@@ -885,7 +883,7 @@ class DashboardController extends Controller
             $totalInGroups = array_sum($ageGroups);
             $hasValidData = $totalInGroups > 0;
 
-            Log::info('AGE CHART: SUCCESSFULLY generated data with IMPROVED method', [
+            Log::info('AGE CHART: Successfully generated data sesuai requirement EXACT', [
                 'total_employees_found' => $employees->count(),
                 'total_employees_processed' => $totalProcessed,
                 'used_stored_age' => $usedStoredAge,
@@ -896,47 +894,46 @@ class DashboardController extends Controller
                 'age_groups_breakdown' => $ageGroups,
                 'result_data' => $result,
                 'has_valid_data' => $hasValidData,
-                'processing_success_rate' => $employees->count() > 0 ? round(($totalProcessed / $employees->count()) * 100, 2) . '%' : '0%',
-                'method_version' => 'improved_v2.0'
+                'processing_success_rate' => $employees->count() > 0 ? round(($totalProcessed / $employees->count()) * 100, 2) . '%' : '0%'
             ]);
 
-            // ALWAYS return valid structure - even if no data
             return $result;
             
         } catch (\Exception $e) {
-            Log::error('AGE CHART: Critical error in IMPROVED age chart generation', [
+            Log::error('AGE CHART: Critical error in age chart generation', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // Return default structure to prevent frontend errors
+            // Return default structure sesuai requirement EXACT
             return [
-                ['name' => '18-25 Tahun', 'value' => 0],
-                ['name' => '26-35 Tahun', 'value' => 0],
-                ['name' => '36-45 Tahun', 'value' => 0],
-                ['name' => '46-55 Tahun', 'value' => 0]
+                ['name' => '18-25', 'value' => 0],
+                ['name' => '26-35', 'value' => 0],
+                ['name' => '36-45', 'value' => 0],
+                ['name' => '46-55', 'value' => 0]
             ];
         }
     }
 
     /**
-     * NEW: Get jabatan chart data (Kelompok Jabatan) - REAL TIME
+     * FIXED: Get jabatan chart data (Kelompok Jabatan) - Sesuai requirement EXACT
      * Chart Type: Bar Chart
-     * Include: ACCOUNT EXECUTIVE/AE, EXECUTIVE GENERAL MANAGER, GENERAL MANAGER, MANAGER, STAFF, SUPERVISOR, NON
+     * Data: ACCOUNT EXECUTIVE/AE, EXECUTIVE GENERAL MANAGER, GENERAL MANAGER, MANAGER, STAFF, SUPERVISOR, NON
      */
     private function getJabatanChartData()
     {
         try {
+            // Sesuai requirement EXACT dari user
             $targetJabatan = [
                 'ACCOUNT EXECUTIVE/AE',
                 'EXECUTIVE GENERAL MANAGER',
                 'GENERAL MANAGER',
                 'MANAGER',
-                'NON',
                 'STAFF',
-                'SUPERVISOR'
+                'SUPERVISOR',
+                'NON'
             ];
 
             $query = Employee::select('kelompok_jabatan', DB::raw('count(*) as total'))
@@ -955,11 +952,11 @@ class DashboardController extends Controller
             foreach ($query as $item) {
                 $jabatanName = trim($item->kelompok_jabatan);
                 
-                // Map variations to standard names
-                if (in_array($jabatanName, $targetJabatan) || $this->isJabatanVariation($jabatanName, $targetJabatan)) {
-                    $standardName = $this->getStandardJabatanName($jabatanName, $targetJabatan);
-                    
-                    // Check if already processed
+                // Map variations ke standard names
+                $standardName = $this->getStandardJabatanName($jabatanName, $targetJabatan);
+                
+                if (in_array($standardName, $targetJabatan)) {
+                    // Check jika sudah diproses untuk menghindari duplikasi
                     $existingIndex = array_search($standardName, array_column($result, 'name'));
                     if ($existingIndex !== false) {
                         $result[$existingIndex]['value'] += $item->total;
@@ -973,7 +970,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Add missing jabatan with 0 count
+            // Add missing jabatan dengan 0 count
             foreach ($targetJabatan as $jabatan) {
                 if (!in_array($jabatan, $processedJabatan)) {
                     $result[] = [
@@ -983,14 +980,15 @@ class DashboardController extends Controller
                 }
             }
 
-            // Sort by value descending to ensure highest values show properly
+            // Sort by value descending
             usort($result, function($a, $b) {
                 return $b['value'] - $a['value'];
             });
 
-            Log::debug('JABATAN CHART: Generated data', [
-                'total_jabatan' => count($result),
+            Log::debug('JABATAN CHART: Generated data sesuai requirement EXACT', [
+                'target_jabatan' => $targetJabatan,
                 'jabatan_with_data' => $query->count(),
+                'processed_jabatan' => $processedJabatan,
                 'result_data' => $result
             ]);
 
@@ -1004,9 +1002,9 @@ class DashboardController extends Controller
                 'EXECUTIVE GENERAL MANAGER',
                 'GENERAL MANAGER',
                 'MANAGER',
-                'NON',
                 'STAFF',
-                'SUPERVISOR'
+                'SUPERVISOR',
+                'NON'
             ]);
         }
     }
@@ -1016,13 +1014,13 @@ class DashboardController extends Controller
     // =====================================================
 
     /**
-     * NEW: Clean provider name for display
+     * FIXED: Clean provider name untuk display sesuai standard names
      */
     private function cleanProviderName($providerName)
     {
         $cleaned = trim($providerName);
         
-        // Standardize common name variations
+        // Standardize common name variations sesuai requirement user
         $mappings = [
             'PT GAPURA ANGKASA' => 'PT Gapura Angkasa',
             'PT Gapura Angkasa' => 'PT Gapura Angkasa',
@@ -1045,34 +1043,14 @@ class DashboardController extends Controller
             'PT MANDALA GARDA NUSANTARA' => 'PT Mandala Garda Nusantara',
             'PT Mandala Garda Nusantara' => 'PT Mandala Garda Nusantara',
             'PT KIDORA MANDIRI INVESTAMA' => 'PT Kidora Mandiri Investama',
-            'PT Kidora Mandiri Investama' => 'PT Kidora Mandiri Investama',
-            'PT IAS Support Indonesia' => 'PT IAS Support Indonesia'
+            'PT Kidora Mandiri Investama' => 'PT Kidora Mandiri Investama'
         ];
 
         return $mappings[$cleaned] ?? $cleaned;
     }
 
     /**
-     * NEW: Check if jabatan name is a variation of target jabatan
-     */
-    private function isJabatanVariation($jabatanName, $targetJabatan)
-    {
-        $variations = [
-            'AE' => 'ACCOUNT EXECUTIVE/AE',
-            'ACCOUNT EXECUTIVE' => 'ACCOUNT EXECUTIVE/AE',
-            'EGM' => 'EXECUTIVE GENERAL MANAGER',
-            'GM' => 'GENERAL MANAGER',
-            'MANAGER' => 'MANAGER',
-            'NON' => 'NON',
-            'STAFF' => 'STAFF',
-            'SUPERVISOR' => 'SUPERVISOR'
-        ];
-
-        return array_key_exists($jabatanName, $variations);
-    }
-
-    /**
-     * NEW: Get standard jabatan name from variations
+     * FIXED: Get standard jabatan name dari variations sesuai requirement
      */
     private function getStandardJabatanName($jabatanName, $targetJabatan)
     {
@@ -1121,7 +1099,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Health check for dashboard
+     * Health check untuk dashboard
      * ENHANCED: Include employee history feature status dan Unit/SubUnit model check
      */
     public function healthCheck()
@@ -1130,7 +1108,7 @@ class DashboardController extends Controller
             $dbConnection = DB::connection()->getPdo();
             $employeeCount = Employee::count();
             
-            // Check Unit and SubUnit models
+            // Check Unit dan SubUnit models
             $unitCount = 0;
             $subUnitCount = 0;
             $unitModelAvailable = false;
@@ -1160,13 +1138,13 @@ class DashboardController extends Controller
                     $organizationCount = Organization::count();
                 }
             } catch (\Exception $e) {
-                // Fallback if Organization model doesn't exist
+                // Fallback jika Organization model doesn't exist
                 $organizationCount = Employee::distinct('unit_organisasi')
                     ->whereNotNull('unit_organisasi')
                     ->count();
             }
 
-            // Check recent employees for history feature
+            // Check recent employees untuk history feature
             $recentEmployees = Employee::where('created_at', '>=', Carbon::now('Asia/Makassar')->subDays(30))->count();
             
             // Test history methods
@@ -1219,9 +1197,9 @@ class DashboardController extends Controller
                     'periods_supported' => ['today', 'this_week', 'total_period']
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.12.0',
+                'version' => '1.13.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime'
+                'dashboard_type' => '6_charts_realtime_fixed_exact_requirements'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -1238,7 +1216,7 @@ class DashboardController extends Controller
     // =====================================================
 
     /**
-     * FIXED: Helper method - Get employee initials for display
+     * FIXED: Helper method - Get employee initials untuk display
      */
     private function getEmployeeInitials($namaLengkap)
     {
@@ -1264,7 +1242,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Build organizational structure for employee - SAFE VERSION
+     * FIXED: Build organizational structure untuk employee - SAFE VERSION
      */
     private function buildOrganizationalStructureSafe($employee)
     {
@@ -1276,7 +1254,7 @@ class DashboardController extends Controller
                 'full_structure' => null
             ];
 
-            // Try to get unit info if model is available and unit_id exists
+            // Try to get unit info jika model available dan unit_id exists
             if (class_exists('App\Models\Unit') && $employee->unit_id) {
                 try {
                     $unit = Unit::find($employee->unit_id);
@@ -1295,7 +1273,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Try to get sub unit info if model is available and sub_unit_id exists
+            // Try to get sub unit info jika model available dan sub_unit_id exists
             if (class_exists('App\Models\SubUnit') && $employee->sub_unit_id) {
                 try {
                     $subUnit = SubUnit::find($employee->sub_unit_id);
@@ -1314,7 +1292,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Build full structure string for display
+            // Build full structure string untuk display
             $fullStructureParts = [];
             
             if ($structure['unit_organisasi'] && $structure['unit_organisasi'] !== 'Tidak tersedia') {
@@ -1368,12 +1346,12 @@ class DashboardController extends Controller
 
     /**
      * FIXED: Calculate history summary statistics - Only 3 periods (Today, This Week, 30 Days)
-     * Fixed timezone and date calculation issues
+     * Fixed timezone dan date calculation issues
      */
     private function calculateHistorySummarySafe($startDate, $endDate)
     {
         try {
-            // Set timezone to Indonesia (WITA)
+            // Set timezone ke Indonesia (WITA)
             $timezone = 'Asia/Makassar';
             
             // Get current time in Indonesia timezone
@@ -1390,7 +1368,7 @@ class DashboardController extends Controller
                 'period_end' => $endDate->toISOString()
             ]);
 
-            // Calculate statistics with proper timezone handling
+            // Calculate statistics dengan proper timezone handling
             $todayCount = Employee::where('created_at', '>=', $today)
                                  ->where('created_at', '<', $today->copy()->addDay())
                                  ->count();
@@ -1414,7 +1392,7 @@ class DashboardController extends Controller
                 'total_period' => $totalPeriodCount
             ];
 
-            // Add growth calculation for 30 days period
+            // Add growth calculation untuk 30 days period
             $previousPeriodStart = $startDate->copy()->subDays(30);
             $previousPeriodTotal = Employee::whereBetween('created_at', [$previousPeriodStart, $startDate])->count();
             
@@ -1493,7 +1471,7 @@ class DashboardController extends Controller
                     ];
                 });
 
-            // Combine and sort by timestamp
+            // Combine dan sort by timestamp
             $activities = $recentEmployees->concat($updatedEmployees)
                 ->sortByDesc('timestamp')
                 ->values()
@@ -1542,8 +1520,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * Private method to get statistics data
-     * UPDATED: Support new dashboard with proper TAD breakdown and PKWT
+     * Private method untuk get statistics data
+     * UPDATED: Support new dashboard dengan proper TAD breakdown dan PKWT
      */
     private function getStatisticsData()
     {
@@ -1551,7 +1529,7 @@ class DashboardController extends Controller
             // Base statistics
             $totalEmployees = Employee::count();
             
-            // Check if status column exists, if not use alternative approach
+            // Check jika status column exists, if not use alternative approach
             $activeEmployees = $totalEmployees;
             if (Schema::hasColumn('employees', 'status')) {
                 $activeEmployees = Employee::where('status', 'active')->count();
@@ -1560,7 +1538,7 @@ class DashboardController extends Controller
             $pegawaiTetap = Employee::where('status_pegawai', 'PEGAWAI TETAP')->count();
             $pkwt = Employee::where('status_pegawai', 'PKWT')->count();
             
-            // TAD Statistics dengan split - UPDATED for new dashboard
+            // TAD Statistics dengan split - UPDATED untuk new dashboard
             $tadPaketSDM = Employee::where('status_pegawai', 'TAD PAKET SDM')->count();
             $tadPaketPekerjaan = Employee::where('status_pegawai', 'TAD PAKET PEKERJAAN')->count();
             $tadTotal = $tadPaketSDM + $tadPaketPekerjaan;
@@ -1569,10 +1547,10 @@ class DashboardController extends Controller
             $tadLegacy = Employee::where('status_pegawai', 'TAD')->count();
             if ($tadLegacy > 0 && $tadTotal == 0) {
                 $tadTotal = $tadLegacy;
-                $tadPaketSDM = $tadLegacy; // Assign to SDM for compatibility
+                $tadPaketSDM = $tadLegacy; // Assign ke SDM untuk compatibility
             }
 
-            // Gender statistics - handle both L/P and Laki-laki/Perempuan formats
+            // Gender statistics - handle both L/P dan Laki-laki/Perempuan formats
             $maleEmployees = Employee::where(function ($query) {
                 $query->where('jenis_kelamin', 'L')
                       ->orWhere('jenis_kelamin', 'Laki-laki');
@@ -1590,11 +1568,11 @@ class DashboardController extends Controller
                     $totalOrganizations = Organization::count();
                 }
             } catch (\Exception $e) {
-                // Ignore if Organization model doesn't exist
+                // Ignore jika Organization model doesn't exist
             }
             
             if ($totalOrganizations == 0) {
-                // Fallback: count unique units from employees
+                // Fallback: count unique units dari employees
                 $totalOrganizations = Employee::distinct('unit_organisasi')
                     ->whereNotNull('unit_organisasi')
                     ->count();
@@ -1613,13 +1591,13 @@ class DashboardController extends Controller
             $recentHires = $recentHiresQuery->count();
 
             return [
-                // Basic statistics for new dashboard
+                // Basic statistics untuk new dashboard
                 'total_employees' => $totalEmployees,
                 'active_employees' => $activeEmployees,
                 'pegawai_tetap' => $pegawaiTetap,
                 'pkwt' => $pkwt,
                 
-                // TAD Statistics with breakdown - NEW DASHBOARD STRUCTURE
+                // TAD Statistics dengan breakdown - NEW DASHBOARD STRUCTURE
                 'tad_total' => $tadTotal,
                 'tad_paket_sdm' => $tadPaketSDM,
                 'tad_paket_pekerjaan' => $tadPaketPekerjaan,
@@ -1723,7 +1701,7 @@ class DashboardController extends Controller
         $callback = function () use ($statistics, $organizationData) {
             $file = fopen('php://output', 'w');
             
-            // Add BOM for UTF-8
+            // Add BOM untuk UTF-8
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
             
             // Header
@@ -1736,7 +1714,7 @@ class DashboardController extends Controller
             fputcsv($file, ['Metrik', 'Nilai']);
             foreach ($statistics as $key => $value) {
                 if (is_array($value)) {
-                    continue; // Skip complex data for CSV
+                    continue; // Skip complex data untuk CSV
                 }
                 $label = ucfirst(str_replace('_', ' ', $key));
                 fputcsv($file, [$label, $value]);
@@ -1762,8 +1740,8 @@ class DashboardController extends Controller
      */
     private function exportToPdf($statistics, $organizationData)
     {
-        // This would require a PDF library like DOMPDF or TCPDF
-        // For now, return JSON with a message
+        // This would require a PDF library like DOMPDF atau TCPDF
+        // For now, return JSON dengan message
         return response()->json([
             'message' => 'PDF export feature akan segera tersedia',
             'data' => [
