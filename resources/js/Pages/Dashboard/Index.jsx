@@ -49,58 +49,58 @@ export default function Index({ statistics = {} }) {
 
     const fetchStatistics = useCallback(async () => {
         try {
-            console.log("🔄 Fetching statistics...");
+            console.log("Fetching statistics...");
             const response = await fetch("/api/dashboard/statistics");
             if (response.ok) {
                 const data = await response.json();
-                console.log("📊 Statistics received:", data);
+                console.log("Statistics received:", data);
                 setStats((prevStats) => ({
                     ...prevStats,
                     ...data,
                 }));
             } else {
-                console.error("❌ Statistics fetch failed:", response.status);
+                console.error("Statistics fetch failed:", response.status);
             }
         } catch (error) {
-            console.error("❌ Error fetching statistics:", error);
+            console.error("Error fetching statistics:", error);
         }
     }, []);
 
     const fetchChartData = useCallback(async () => {
         try {
-            console.log("🔄 Fetching chart data...");
+            console.log("Fetching chart data...");
             const response = await fetch("/api/dashboard/charts");
             if (response.ok) {
                 const data = await response.json();
-                console.log("📈 Chart data received:", data);
+                console.log("Chart data received:", data);
 
                 // Debug specific chart data
-                console.log("🎯 Age chart data:", data.age);
-                console.log("🎯 Status chart data:", data.status);
-                console.log("🎯 Jabatan chart data:", data.jabatan);
+                console.log("Age chart data:", data.age);
+                console.log("Status chart data:", data.status);
+                console.log("Jabatan chart data:", data.jabatan);
 
                 setChartData(data);
             } else {
                 console.error(
-                    "❌ Chart data fetch failed:",
+                    "Chart data fetch failed:",
                     response.status,
                     await response.text()
                 );
             }
         } catch (error) {
-            console.error("❌ Error fetching chart data:", error);
+            console.error("Error fetching chart data:", error);
         }
     }, []);
 
     const fetchAllData = useCallback(async () => {
-        console.log("🚀 Starting data fetch...");
+        console.log("Starting data fetch...");
         setLoading(true);
         try {
             await Promise.all([fetchStatistics(), fetchChartData()]);
             setLastUpdate(Date.now());
-            console.log("✅ All data fetched successfully");
+            console.log("All data fetched successfully");
         } catch (error) {
-            console.error("❌ Error fetching all data:", error);
+            console.error("Error fetching all data:", error);
         } finally {
             setLoading(false);
         }
@@ -109,18 +109,18 @@ export default function Index({ statistics = {} }) {
     // Manual refresh function for real-time updates
     const manualRefresh = useCallback(async () => {
         if (isRefreshing) {
-            console.log("⏳ Refresh already in progress, skipping...");
+            console.log("Refresh already in progress, skipping...");
             return;
         }
 
-        console.log("🔄 Manual refresh triggered");
+        console.log("Manual refresh triggered");
         setIsRefreshing(true);
         try {
             await Promise.all([fetchStatistics(), fetchChartData()]);
             setLastUpdate(Date.now());
-            console.log("✅ Manual refresh completed");
+            console.log("Manual refresh completed");
         } catch (error) {
-            console.error("❌ Error during manual refresh:", error);
+            console.error("Error during manual refresh:", error);
         } finally {
             setIsRefreshing(false);
         }
@@ -164,7 +164,7 @@ export default function Index({ statistics = {} }) {
     useEffect(() => {
         const handleEmployeeDataChange = () => {
             console.log(
-                "📡 Employee data change event received, refreshing dashboard..."
+                "Employee data change event received, refreshing dashboard..."
             );
             manualRefresh();
         };
@@ -200,27 +200,27 @@ export default function Index({ statistics = {} }) {
     }, []);
 
     /**
-     * ENHANCED: Dynamic interval calculation for truly responsive charts
+     * FIXED: Enhanced dynamic interval calculation for truly responsive charts
      */
     const getDynamicGridIntervals = (maxValue) => {
-        console.log("📐 Calculating intervals for maxValue:", maxValue);
+        console.log("Calculating intervals for maxValue:", maxValue);
 
         if (maxValue === 0) {
-            console.log("⚠️ Max value is 0, using default intervals");
-            return { intervals: [0, 5, 10], max: 10, interval: 5 };
+            console.log("Max value is 0, using minimal intervals");
+            return { intervals: [0, 1, 2, 3, 4, 5], max: 5, interval: 1 };
         }
 
         let interval;
         let max;
 
-        // Dynamic interval calculation based on data range
+        // Improved dynamic interval calculation for better proportional display
         if (maxValue <= 5) {
             interval = 1;
-            max = Math.max(5, Math.ceil(maxValue));
+            max = Math.max(5, maxValue);
         } else if (maxValue <= 10) {
             interval = 2;
             max = Math.ceil(maxValue / 2) * 2;
-        } else if (maxValue <= 20) {
+        } else if (maxValue <= 25) {
             interval = 5;
             max = Math.ceil(maxValue / 5) * 5;
         } else if (maxValue <= 50) {
@@ -229,38 +229,45 @@ export default function Index({ statistics = {} }) {
         } else if (maxValue <= 100) {
             interval = 20;
             max = Math.ceil(maxValue / 20) * 20;
-        } else if (maxValue <= 200) {
+        } else if (maxValue <= 250) {
             interval = 25;
             max = Math.ceil(maxValue / 25) * 25;
         } else if (maxValue <= 500) {
             interval = 50;
             max = Math.ceil(maxValue / 50) * 50;
+        } else if (maxValue <= 1000) {
+            interval = 100;
+            max = Math.ceil(maxValue / 100) * 100;
         } else {
             // For very large values
             interval = Math.ceil(maxValue / 10);
             max = Math.ceil(maxValue / interval) * interval;
         }
 
+        // Ensure max is at least equal to maxValue
+        max = Math.max(max, maxValue);
+
         const intervals = [];
         for (let i = 0; i <= max; i += interval) {
             intervals.push(i);
         }
 
-        console.log("📐 Generated intervals:", {
+        console.log("Generated intervals:", {
             intervals,
             max,
             interval,
             maxValue,
+            efficiency: `${intervals.length} grid lines`,
         });
         return { intervals, max, interval };
     };
 
-    // ENHANCED: 3D Bar Chart Component with truly proportional rendering
+    // FIXED: Enhanced 3D Bar Chart Component with truly proportional rendering
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
-        console.log(`📊 Rendering ${chartType} chart with data:`, data);
+        console.log(`Rendering ${chartType} chart with data:`, data);
 
         if (!data || data.length === 0) {
-            console.log(`⚠️ No data for ${chartType} chart`);
+            console.log(`No data for ${chartType} chart`);
             return (
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
@@ -290,13 +297,66 @@ export default function Index({ statistics = {} }) {
             );
         }
 
-        const maxValue = Math.max(...data.map((item) => item.value));
+        // FIXED: Better maxValue calculation and validation
+        const maxValue = Math.max(...data.map((item) => item.value || 0));
+        const hasData = data.some((item) => item.value > 0);
+
+        console.log(`${chartType} chart analysis:`, {
+            maxValue,
+            hasData,
+            dataCount: data.length,
+            values: data.map((item) => item.value),
+        });
+
+        // FIXED: Handle case where all values are 0
+        if (maxValue === 0 || !hasData) {
+            console.log(`${chartType} chart has no positive values`);
+            return (
+                <div className="h-96">
+                    <div className="mb-6 text-center">
+                        <h3 className="mb-2 text-xl font-bold text-gray-900">
+                            {title}
+                        </h3>
+                        <p className="text-sm text-gray-600">{description}</p>
+                    </div>
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-12 h-12 mb-4 bg-gray-100 rounded-full">
+                                <svg
+                                    className="w-6 h-6 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                    />
+                                </svg>
+                            </div>
+                            <p className="font-medium text-gray-500">
+                                Belum ada data
+                            </p>
+                            <p className="mt-1 text-sm text-gray-400">
+                                Chart akan menampilkan data saat tersedia
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         const { intervals, max } = getDynamicGridIntervals(maxValue);
         const colorArray = Object.values(CHART_COLORS);
 
-        console.log(
-            `📊 ${chartType} chart - Max value: ${maxValue}, Grid max: ${max}`
-        );
+        console.log(`${chartType} chart rendering:`, {
+            maxValue,
+            gridMax: max,
+            intervalCount: intervals.length,
+            willRenderChart: true,
+        });
 
         return (
             <div className="h-96">
@@ -327,19 +387,26 @@ export default function Index({ statistics = {} }) {
                         ))}
                     </div>
 
-                    {/* ENHANCED: Chart area with truly proportional scaling */}
+                    {/* FIXED: Chart area with truly proportional scaling */}
                     <div className="relative h-64 p-4 pb-0">
-                        <div className="flex items-end justify-center h-full gap-4">
+                        <div className="flex items-end justify-center h-full gap-3">
                             {data.map((item, index) => {
-                                // TRUE proportional height calculation
+                                // FIXED: True proportional height calculation without artificial minimums
+                                const rawValue = item.value || 0;
                                 const heightPercent =
-                                    max > 0 ? (item.value / max) * 100 : 0;
+                                    max > 0 ? (rawValue / max) * 100 : 0;
 
-                                // Ensure minimum visibility for non-zero values, but keep zeros very small
-                                const displayHeight =
-                                    item.value === 0
-                                        ? 1
-                                        : Math.max(heightPercent, 2);
+                                // CRITICAL FIX: Only apply minimum height for visual purposes if value > 0
+                                // Zero values should be truly zero height
+                                let displayHeight;
+                                if (rawValue === 0) {
+                                    displayHeight = 0;
+                                } else if (heightPercent < 3) {
+                                    // Very small values get minimum 3% for visibility
+                                    displayHeight = 3;
+                                } else {
+                                    displayHeight = heightPercent;
+                                }
 
                                 const barColor =
                                     index === 0
@@ -348,49 +415,53 @@ export default function Index({ statistics = {} }) {
                                               (index + 1) % colorArray.length
                                           ];
 
-                                console.log(
-                                    `📊 Bar ${index}: value=${
-                                        item.value
-                                    }, heightPercent=${heightPercent.toFixed(
-                                        2
-                                    )}, displayHeight=${displayHeight.toFixed(
-                                        2
-                                    )}`
-                                );
+                                console.log(`Bar ${index} [${item.name}]:`, {
+                                    rawValue,
+                                    max,
+                                    heightPercent:
+                                        heightPercent.toFixed(2) + "%",
+                                    displayHeight:
+                                        displayHeight.toFixed(2) + "%",
+                                    isZero: rawValue === 0,
+                                });
 
                                 return (
                                     <div
                                         key={index}
                                         className="relative flex flex-col items-center flex-1 group"
                                         style={{
-                                            maxWidth: "80px",
-                                            minWidth: "50px",
+                                            maxWidth: "70px",
+                                            minWidth: "40px",
                                         }}
                                     >
-                                        {/* Value Display - positioned based on actual height */}
-                                        <div
-                                            className="absolute z-10 transform -translate-x-1/2 left-1/2"
-                                            style={{
-                                                bottom: `${Math.max(
-                                                    displayHeight + 3,
-                                                    8
-                                                )}%`,
-                                            }}
-                                        >
-                                            <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md">
-                                                {item.value}
-                                            </div>
-                                        </div>
-
-                                        {/* ENHANCED: Truly proportional 3D Bar */}
-                                        <div className="relative flex items-end w-full h-full">
-                                            {/* Shadow - proportional to bar height */}
+                                        {/* Value Display - only show for non-zero values */}
+                                        {rawValue > 0 && (
                                             <div
-                                                className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
+                                                className="absolute z-10 transform -translate-x-1/2 left-1/2"
                                                 style={{
-                                                    height: `${displayHeight}%`,
+                                                    bottom: `${Math.max(
+                                                        displayHeight + 5,
+                                                        10
+                                                    )}%`,
                                                 }}
-                                            ></div>
+                                            >
+                                                <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md">
+                                                    {rawValue}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* FIXED: Truly proportional 3D Bar */}
+                                        <div className="relative flex items-end w-full h-full">
+                                            {/* Shadow - only for non-zero values */}
+                                            {rawValue > 0 && (
+                                                <div
+                                                    className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
+                                                    style={{
+                                                        height: `${displayHeight}%`,
+                                                    }}
+                                                ></div>
+                                            )}
 
                                             {/* Main Bar - height truly reflects data value */}
                                             <div
@@ -398,35 +469,53 @@ export default function Index({ statistics = {} }) {
                                                 style={{
                                                     height: `${displayHeight}%`,
                                                     background:
-                                                        item.value === 0
-                                                            ? `linear-gradient(135deg, ${barColor}30, ${barColor}50)`
+                                                        rawValue === 0
+                                                            ? `linear-gradient(135deg, ${barColor}20, ${barColor}30)`
                                                             : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
-                                                    boxShadow: `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`,
+                                                    boxShadow:
+                                                        rawValue > 0
+                                                            ? `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`
+                                                            : "none",
                                                     opacity:
-                                                        item.value === 0
-                                                            ? 0.4
+                                                        rawValue === 0
+                                                            ? 0.3
                                                             : 1,
+                                                    minHeight:
+                                                        rawValue === 0
+                                                            ? "2px"
+                                                            : "auto",
                                                 }}
-                                                title={`${item.name}: ${item.value}`}
+                                                title={`${item.name}: ${rawValue}`}
                                             >
                                                 {/* 3D Top effect - only show for non-zero values */}
-                                                {item.value > 0 && (
-                                                    <div
-                                                        className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
-                                                        style={{
-                                                            background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
-                                                        }}
-                                                    ></div>
-                                                )}
+                                                {rawValue > 0 &&
+                                                    displayHeight > 5 && (
+                                                        <div
+                                                            className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
+                                                            style={{
+                                                                background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
+                                                            }}
+                                                        ></div>
+                                                    )}
 
                                                 {/* 3D Right side effect - only show for non-zero values */}
-                                                {item.value > 0 && (
-                                                    <div
-                                                        className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
-                                                        style={{
-                                                            background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
-                                                        }}
-                                                    ></div>
+                                                {rawValue > 0 &&
+                                                    displayHeight > 5 && (
+                                                        <div
+                                                            className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
+                                                            style={{
+                                                                background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
+                                                            }}
+                                                        ></div>
+                                                    )}
+
+                                                {/* Zero value indicator */}
+                                                {rawValue === 0 && (
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <span className="text-xs font-medium text-gray-400">
+                                                            0
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -510,13 +599,52 @@ export default function Index({ statistics = {} }) {
             );
         }
 
-        const total = data.reduce((sum, item) => sum + item.value, 0);
+        const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
         const colors = [
             CHART_COLORS.primary, // Green #439454
             CHART_COLORS.crimson, // Bright red
             CHART_COLORS.navy, // Dark blue
             CHART_COLORS.orange, // Bright orange
         ];
+
+        // Handle case where total is 0
+        if (total === 0) {
+            return (
+                <div className="h-96">
+                    <div className="mb-6 text-center">
+                        <h3 className="mb-2 text-xl font-bold text-gray-900">
+                            {title}
+                        </h3>
+                        <p className="text-sm text-gray-600">{description}</p>
+                    </div>
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-12 h-12 mb-4 bg-gray-100 rounded-full">
+                                <svg
+                                    className="w-6 h-6 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"
+                                    />
+                                </svg>
+                            </div>
+                            <p className="font-medium text-gray-500">
+                                Belum ada data
+                            </p>
+                            <p className="mt-1 text-sm text-gray-400">
+                                Chart akan menampilkan data saat tersedia
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className="h-96">
@@ -542,9 +670,10 @@ export default function Index({ statistics = {} }) {
                                     className="w-full h-full transform -rotate-90"
                                 >
                                     {data.map((item, index) => {
+                                        const value = item.value || 0;
                                         const percentage =
                                             total > 0
-                                                ? (item.value / total) * 100
+                                                ? (value / total) * 100
                                                 : 0;
                                         const offset = data
                                             .slice(0, index)
@@ -552,7 +681,8 @@ export default function Index({ statistics = {} }) {
                                                 (acc, curr) =>
                                                     acc +
                                                     (total > 0
-                                                        ? (curr.value / total) *
+                                                        ? ((curr.value || 0) /
+                                                              total) *
                                                           100
                                                         : 0),
                                                 0
@@ -580,9 +710,9 @@ export default function Index({ statistics = {} }) {
                                                     filter: `drop-shadow(0 2px 4px ${color}40)`,
                                                 }}
                                             >
-                                                <title>{`${item.name}: ${
-                                                    item.value
-                                                } (${percentage.toFixed(
+                                                <title>{`${
+                                                    item.name
+                                                }: ${value} (${percentage.toFixed(
                                                     1
                                                 )}%)`}</title>
                                             </circle>
@@ -609,8 +739,9 @@ export default function Index({ statistics = {} }) {
                         {/* Enhanced Legend with Values and Percentages */}
                         <div className="ml-10 space-y-4">
                             {data.map((item, index) => {
+                                const value = item.value || 0;
                                 const percentage =
-                                    total > 0 ? (item.value / total) * 100 : 0;
+                                    total > 0 ? (value / total) * 100 : 0;
                                 const color = colors[index % colors.length];
 
                                 return (
@@ -638,7 +769,7 @@ export default function Index({ statistics = {} }) {
                                             </div>
                                             <div className="text-xs text-gray-600">
                                                 <span className="text-lg font-bold">
-                                                    {item.value}
+                                                    {value}
                                                 </span>
                                                 <span className="ml-1">
                                                     ({percentage.toFixed(1)}%)

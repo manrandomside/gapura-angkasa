@@ -755,10 +755,10 @@ class DashboardController extends Controller
     }
 
     /**
-     * ENHANCED: Get age chart data (Komposisi Usia SDM) - REAL TIME dengan timezone Asia/Makassar
+     * FIXED: Get age chart data (Komposisi Usia SDM) - REAL TIME dengan timezone Asia/Makassar
      * Chart Type: Bar Chart  
      * Age groups: 18-25, 26-35, 36-45, 46-55
-     * ENHANCED: Better error handling, consistent data format, and improved debugging
+     * ENHANCED: Better validation, error handling, and age calculation
      */
     private function getAgeChartData()
     {
@@ -772,42 +772,85 @@ class DashboardController extends Controller
 
             // Set timezone to Asia/Makassar (WITA) for accurate age calculation
             $currentDate = Carbon::now('Asia/Makassar');
+            
+            Log::info('AGE CHART: Starting age calculation with enhanced validation', [
+                'current_date' => $currentDate->toDateTimeString(),
+                'timezone' => 'Asia/Makassar'
+            ]);
 
-            $employees = Employee::whereNotNull('tanggal_lahir')
+            // Enhanced query with better validation
+            $employees = Employee::select(['id', 'tanggal_lahir', 'nama_lengkap', 'usia'])
+                ->whereNotNull('tanggal_lahir')
                 ->where('tanggal_lahir', '!=', '')
                 ->where('tanggal_lahir', '!=', '0000-00-00')
+                ->where('tanggal_lahir', '!=', '1900-01-01')
+                ->whereRaw('tanggal_lahir REGEXP ?', ['^[0-9]{4}-[0-9]{2}-[0-9]{2}$'])
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
-                ->get(['id', 'tanggal_lahir', 'nama_lengkap']);
+                ->get();
 
             $totalProcessed = 0;
             $invalidDates = 0;
             $outsideRange = 0;
 
-            Log::info('AGE CHART: Starting age calculation', [
-                'total_employees_to_process' => $employees->count(),
-                'current_date' => $currentDate->toDateTimeString(),
-                'timezone' => 'Asia/Makassar'
+            Log::info('AGE CHART: Found employees to process', [
+                'total_employees_found' => $employees->count()
             ]);
 
             foreach ($employees as $employee) {
                 try {
-                    // Parse birth date with proper timezone handling
-                    $birthDate = Carbon::parse($employee->tanggal_lahir, 'Asia/Makassar');
-                    
-                    // Validate birth date is not in the future
-                    if ($birthDate->isFuture()) {
+                    // Additional validation for date format
+                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $employee->tanggal_lahir)) {
                         $invalidDates++;
-                        Log::warning('AGE CALCULATION: Future birth date detected', [
+                        Log::warning('AGE CALCULATION: Invalid date format', [
+                            'employee_id' => $employee->id,
+                            'birth_date' => $employee->tanggal_lahir
+                        ]);
+                        continue;
+                    }
+
+                    // Parse birth date with timezone
+                    $birthDate = Carbon::createFromFormat('Y-m-d', $employee->tanggal_lahir, 'Asia/Makassar');
+                    
+                    if (!$birthDate) {
+                        $invalidDates++;
+                        Log::warning('AGE CALCULATION: Cannot parse birth date', [
                             'employee_id' => $employee->id,
                             'birth_date' => $employee->tanggal_lahir
                         ]);
                         continue;
                     }
                     
-                    // Calculate age in years using diffInYears for more accurate calculation
-                    $age = $birthDate->diffInYears($currentDate);
+                    // Validate birth date is reasonable (not future, not too old)
+                    if ($birthDate->isFuture() || $birthDate->year < 1940) {
+                        $invalidDates++;
+                        Log::warning('AGE CALCULATION: Unreasonable birth date', [
+                            'employee_id' => $employee->id,
+                            'birth_date' => $employee->tanggal_lahir,
+                            'parsed_year' => $birthDate->year
+                        ]);
+                        continue;
+                    }
+                    
+                    // Calculate age using multiple methods for accuracy
+                    $ageFromCarbon = $birthDate->diffInYears($currentDate);
+                    
+                    // Fallback calculation method
+                    $ageFromDate = $currentDate->year - $birthDate->year;
+                    if ($currentDate->month < $birthDate->month || 
+                        ($currentDate->month == $birthDate->month && $currentDate->day < $birthDate->day)) {
+                        $ageFromDate--;
+                    }
+                    
+                    // Use the most reliable calculation
+                    $age = $ageFromCarbon;
+                    
+                    // Cross-validate with stored usia if available
+                    if (!empty($employee->usia) && abs($employee->usia - $age) <= 1) {
+                        $age = $employee->usia;
+                    }
+                    
                     $totalProcessed++;
                     
                     // Categorize by age group
@@ -821,21 +864,24 @@ class DashboardController extends Controller
                         $ageGroups['46-55']++;
                     } else {
                         $outsideRange++;
-                        Log::debug('AGE CALCULATION: Age outside range', [
+                        Log::debug('AGE CALCULATION: Age outside target range', [
                             'employee_id' => $employee->id,
                             'age' => $age,
                             'birth_date' => $employee->tanggal_lahir
                         ]);
                     }
                     
-                    // Log sample calculations for debugging
-                    if ($totalProcessed <= 5) {
+                    // Enhanced debugging for first few records
+                    if ($totalProcessed <= 3) {
                         Log::debug('AGE CALCULATION: Sample employee processed', [
                             'employee_id' => $employee->id,
                             'employee_name' => $employee->nama_lengkap,
                             'birth_date' => $employee->tanggal_lahir,
                             'parsed_birth_date' => $birthDate->toDateString(),
-                            'calculated_age' => $age,
+                            'calculated_age_carbon' => $ageFromCarbon,
+                            'calculated_age_manual' => $ageFromDate,
+                            'final_age' => $age,
+                            'stored_usia' => $employee->usia,
                             'assigned_group' => $age >= 18 && $age <= 25 ? '18-25' : 
                                               ($age >= 26 && $age <= 35 ? '26-35' : 
                                               ($age >= 36 && $age <= 45 ? '36-45' : 
@@ -845,7 +891,7 @@ class DashboardController extends Controller
                     
                 } catch (\Exception $e) {
                     $invalidDates++;
-                    Log::warning('AGE CALCULATION: Invalid birth date', [
+                    Log::warning('AGE CALCULATION: Exception processing employee', [
                         'employee_id' => $employee->id,
                         'birth_date' => $employee->tanggal_lahir,
                         'error' => $e->getMessage()
@@ -865,21 +911,32 @@ class DashboardController extends Controller
                 ];
             }
 
-            Log::info('AGE CHART: Generated data successfully', [
+            // Verify we have valid data
+            $totalInGroups = array_sum($ageGroups);
+            $hasValidData = $totalInGroups > 0;
+
+            Log::info('AGE CHART: Successfully generated data', [
                 'total_employees_found' => $employees->count(),
                 'total_employees_processed' => $totalProcessed,
                 'invalid_dates' => $invalidDates,
                 'outside_age_range' => $outsideRange,
+                'total_in_age_groups' => $totalInGroups,
                 'age_groups_breakdown' => $ageGroups,
                 'current_date' => $currentDate->toDateTimeString(),
                 'timezone' => 'Asia/Makassar',
                 'result_data' => $result,
-                'data_has_values' => array_sum($ageGroups) > 0
+                'has_valid_data' => $hasValidData,
+                'processing_success_rate' => $employees->count() > 0 ? round(($totalProcessed / $employees->count()) * 100, 2) . '%' : '0%'
             ]);
 
+            // Return result even if no data (frontend will handle gracefully)
             return $result;
+            
         } catch (\Exception $e) {
-            Log::error('Age Chart Data Error: ' . $e->getMessage(), [
+            Log::error('AGE CHART: Critical error in age chart generation', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             
