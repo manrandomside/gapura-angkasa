@@ -262,7 +262,7 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // FIXED: Enhanced 3D Bar Chart Component with truly proportional rendering
+    // COMPLETELY FIXED: Enhanced 3D Bar Chart with TRULY PROPORTIONAL rendering
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         console.log(`Rendering ${chartType} chart with data:`, data);
 
@@ -361,14 +361,14 @@ export default function Index({ statistics = {} }) {
         return (
             <div className="h-96">
                 {/* Title and description */}
-                <div className="mb-6 text-center">
+                <div className="mb-4 text-center">
                     <h3 className="mb-2 text-xl font-bold text-gray-900">
                         {title}
                     </h3>
                     <p className="text-sm text-gray-600">{description}</p>
                 </div>
 
-                {/* Chart Container */}
+                {/* Chart Container - INCREASED HEIGHT FOR BETTER PROPORTIONS */}
                 <div className="relative bg-white border border-gray-100 rounded-lg">
                     {/* Grid background with dynamic intervals */}
                     <div className="absolute inset-0 pointer-events-none">
@@ -387,26 +387,18 @@ export default function Index({ statistics = {} }) {
                         ))}
                     </div>
 
-                    {/* FIXED: Chart area with truly proportional scaling */}
-                    <div className="relative h-64 p-4 pb-0">
+                    {/* COMPLETELY FIXED: Chart area with TRULY proportional scaling */}
+                    <div className="relative p-4 pb-0 h-72">
                         <div className="flex items-end justify-center h-full gap-3">
                             {data.map((item, index) => {
-                                // FIXED: True proportional height calculation without artificial minimums
+                                // CRITICAL FIX: TRUE proportional height calculation - NO artificial minimums
                                 const rawValue = item.value || 0;
                                 const heightPercent =
                                     max > 0 ? (rawValue / max) * 100 : 0;
 
-                                // CRITICAL FIX: Only apply minimum height for visual purposes if value > 0
-                                // Zero values should be truly zero height
-                                let displayHeight;
-                                if (rawValue === 0) {
-                                    displayHeight = 0;
-                                } else if (heightPercent < 3) {
-                                    // Very small values get minimum 3% for visibility
-                                    displayHeight = 3;
-                                } else {
-                                    displayHeight = heightPercent;
-                                }
+                                // MAJOR FIX: Remove ALL artificial minimum heights
+                                // Chart heights now TRULY reflect data proportions
+                                const displayHeight = heightPercent;
 
                                 const barColor =
                                     index === 0
@@ -423,6 +415,7 @@ export default function Index({ statistics = {} }) {
                                     displayHeight:
                                         displayHeight.toFixed(2) + "%",
                                     isZero: rawValue === 0,
+                                    trueProportional: true,
                                 });
 
                                 return (
@@ -434,43 +427,48 @@ export default function Index({ statistics = {} }) {
                                             minWidth: "40px",
                                         }}
                                     >
-                                        {/* Value Display - only show for non-zero values */}
-                                        {rawValue > 0 && (
-                                            <div
-                                                className="absolute z-10 transform -translate-x-1/2 left-1/2"
-                                                style={{
-                                                    bottom: `${Math.max(
-                                                        displayHeight + 5,
-                                                        10
-                                                    )}%`,
-                                                }}
-                                            >
-                                                <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md">
-                                                    {rawValue}
-                                                </div>
+                                        {/* Value Display - show for ALL values including zero */}
+                                        <div
+                                            className="absolute z-10 transform -translate-x-1/2 left-1/2"
+                                            style={{
+                                                bottom:
+                                                    rawValue === 0
+                                                        ? "5px"
+                                                        : `${Math.max(
+                                                              displayHeight + 5,
+                                                              10
+                                                          )}%`,
+                                            }}
+                                        >
+                                            <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md">
+                                                {rawValue}
                                             </div>
-                                        )}
+                                        </div>
 
-                                        {/* FIXED: Truly proportional 3D Bar */}
+                                        {/* COMPLETELY FIXED: TRULY proportional 3D Bar */}
                                         <div className="relative flex items-end w-full h-full">
                                             {/* Shadow - only for non-zero values */}
-                                            {rawValue > 0 && (
-                                                <div
-                                                    className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
-                                                    style={{
-                                                        height: `${displayHeight}%`,
-                                                    }}
-                                                ></div>
-                                            )}
+                                            {rawValue > 0 &&
+                                                displayHeight > 0.5 && (
+                                                    <div
+                                                        className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
+                                                        style={{
+                                                            height: `${displayHeight}%`,
+                                                        }}
+                                                    ></div>
+                                                )}
 
-                                            {/* Main Bar - height truly reflects data value */}
+                                            {/* Main Bar - height EXACTLY reflects data value */}
                                             <div
                                                 className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
                                                 style={{
-                                                    height: `${displayHeight}%`,
+                                                    height:
+                                                        rawValue === 0
+                                                            ? "3px"
+                                                            : `${displayHeight}%`,
                                                     background:
                                                         rawValue === 0
-                                                            ? `linear-gradient(135deg, ${barColor}20, ${barColor}30)`
+                                                            ? `linear-gradient(135deg, ${barColor}30, ${barColor}40)`
                                                             : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
                                                     boxShadow:
                                                         rawValue > 0
@@ -478,18 +476,15 @@ export default function Index({ statistics = {} }) {
                                                             : "none",
                                                     opacity:
                                                         rawValue === 0
-                                                            ? 0.3
+                                                            ? 0.4
                                                             : 1,
-                                                    minHeight:
-                                                        rawValue === 0
-                                                            ? "2px"
-                                                            : "auto",
+                                                    minHeight: "3px", // Minimal untuk visibility tapi tidak mengganggu proporsi
                                                 }}
                                                 title={`${item.name}: ${rawValue}`}
                                             >
-                                                {/* 3D Top effect - only show for non-zero values */}
+                                                {/* 3D Top effect - only show for substantial heights */}
                                                 {rawValue > 0 &&
-                                                    displayHeight > 5 && (
+                                                    displayHeight > 8 && (
                                                         <div
                                                             className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
                                                             style={{
@@ -498,9 +493,9 @@ export default function Index({ statistics = {} }) {
                                                         ></div>
                                                     )}
 
-                                                {/* 3D Right side effect - only show for non-zero values */}
+                                                {/* 3D Right side effect - only show for substantial heights */}
                                                 {rawValue > 0 &&
-                                                    displayHeight > 5 && (
+                                                    displayHeight > 8 && (
                                                         <div
                                                             className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
                                                             style={{
@@ -509,12 +504,10 @@ export default function Index({ statistics = {} }) {
                                                         ></div>
                                                     )}
 
-                                                {/* Zero value indicator */}
+                                                {/* Zero value special indicator */}
                                                 {rawValue === 0 && (
                                                     <div className="absolute inset-0 flex items-center justify-center">
-                                                        <span className="text-xs font-medium text-gray-400">
-                                                            0
-                                                        </span>
+                                                        <div className="w-full h-0.5 bg-gray-300 rounded"></div>
                                                     </div>
                                                 )}
                                             </div>
@@ -527,7 +520,7 @@ export default function Index({ statistics = {} }) {
                 </div>
 
                 {/* Labels area - separated from chart */}
-                <div className="pt-4 mt-4 border-t-2 border-gray-200">
+                <div className="pt-3 mt-3 border-t-2 border-gray-200">
                     <div className="flex justify-center">
                         <div className="flex flex-wrap justify-center max-w-4xl gap-4">
                             {data.map((item, index) => {
