@@ -605,7 +605,7 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // COMPLETELY REWRITTEN: True Proportional Bar Chart Component
+    // FIXED: True Proportional Bar Chart Component - Clean without labels
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         console.log(`CHART [${chartType}]: Rendering with data:`, data);
 
@@ -613,7 +613,7 @@ export default function Index({ statistics = {} }) {
             console.log(`CHART [${chartType}]: No data available`);
             return (
                 <div>
-                    <div className="flex items-center justify-center h-96">
+                    <div className="flex items-center justify-center h-80">
                         <div className="text-center">
                             <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gray-100 rounded-full">
                                 <svg
@@ -638,16 +638,11 @@ export default function Index({ statistics = {} }) {
                             </p>
                         </div>
                     </div>
-                    <DetailContainer
-                        data={data}
-                        chartType={chartType}
-                        title={title}
-                    />
                 </div>
             );
         }
 
-        // FIXED: Accurate max value calculation and validation
+        // FIXED: Use actual maxValue for TRUE proportional display
         const maxValue = Math.max(...data.map((item) => item.value || 0));
         const hasData = data.some((item) => item.value > 0);
 
@@ -666,7 +661,7 @@ export default function Index({ statistics = {} }) {
             console.log(`CHART [${chartType}]: No positive values found`);
             return (
                 <div>
-                    <div className="h-96">
+                    <div className="h-80">
                         <div className="mb-6 text-center">
                             <h3 className="mb-2 text-xl font-bold text-gray-900">
                                 {title}
@@ -701,74 +696,54 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
                     </div>
-                    <DetailContainer
-                        data={data}
-                        chartType={chartType}
-                        title={title}
-                    />
                 </div>
             );
         }
 
-        const { intervals, max } = getDynamicGridIntervals(maxValue);
         const colorArray = Object.values(CHART_COLORS);
 
-        // FIXED: Chart height calculation - use exact max value for true proportions
-        const CHART_HEIGHT = 320; // Fixed chart height in pixels
-        const GRID_MARGIN = 60; // Space for labels
-        const EFFECTIVE_HEIGHT = CHART_HEIGHT - GRID_MARGIN;
+        // FIXED: Better height calculation - use maxValue directly for TRUE proportions
+        const CHART_HEIGHT = 300; // Increased for better visibility
+        const TITLE_SPACE = 80; // Space for title and description
+        const VALUE_SPACE = 40; // Space for value labels above bars
+        const EFFECTIVE_HEIGHT = CHART_HEIGHT - TITLE_SPACE - VALUE_SPACE;
 
         console.log(`CHART [${chartType}]: Rendering config:`, {
             maxValue,
-            gridMax: max,
-            intervalCount: intervals.length,
             chartHeight: CHART_HEIGHT,
             effectiveHeight: EFFECTIVE_HEIGHT,
-            proportionalCalculation: "TRUE",
+            titleSpace: TITLE_SPACE,
+            valueSpace: VALUE_SPACE,
+            proportionalCalculation: "TRUE PROPORTIONAL TO maxValue",
         });
 
         return (
             <div>
-                <div className="h-96">
+                <div style={{ height: `${CHART_HEIGHT + TITLE_SPACE}px` }}>
                     {/* Title and description */}
-                    <div className="mb-4 text-center">
+                    <div
+                        className="mb-6 text-center"
+                        style={{ height: `${TITLE_SPACE}px` }}
+                    >
                         <h3 className="mb-2 text-xl font-bold text-gray-900">
                             {title}
                         </h3>
                         <p className="text-sm text-gray-600">{description}</p>
                     </div>
 
-                    {/* COMPLETELY REWRITTEN: Chart Container with TRUE proportional system */}
+                    {/* FIXED: Chart Container - TRUE proportional system */}
                     <div
                         className="relative bg-white border border-gray-100 rounded-lg"
                         style={{ height: `${CHART_HEIGHT}px` }}
                     >
-                        {/* Grid background with dynamic intervals - FIXED: NO Y-AXIS NUMBERS */}
-                        <div className="absolute inset-0 pointer-events-none">
-                            {intervals.map((value) => {
-                                const yPosition =
-                                    GRID_MARGIN +
-                                    EFFECTIVE_HEIGHT * (1 - value / max);
-                                return (
-                                    <div key={value}>
-                                        {/* Grid line only - Y-axis numbers removed */}
-                                        <div
-                                            className="absolute w-full border-t border-gray-100"
-                                            style={{ top: `${yPosition}px` }}
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* REVOLUTIONARY: Absolute positioned chart area with MATHEMATICAL precision */}
+                        {/* Chart area with MATHEMATICAL precision */}
                         <div
                             className="relative w-full"
                             style={{
                                 height: `${CHART_HEIGHT}px`,
-                                paddingLeft: "50px",
+                                paddingLeft: "20px",
                                 paddingRight: "20px",
-                                paddingTop: "20px",
+                                paddingTop: `${VALUE_SPACE}px`,
                                 paddingBottom: "20px",
                             }}
                         >
@@ -779,20 +754,19 @@ export default function Index({ statistics = {} }) {
                                 {data.map((item, index) => {
                                     const rawValue = item.value || 0;
 
-                                    // CRITICAL FIX: MATHEMATICAL proportional height calculation
+                                    // CRITICAL: TRUE proportional height using maxValue as reference
                                     const heightPixels =
-                                        max > 0
-                                            ? (rawValue / max) *
+                                        maxValue > 0
+                                            ? (rawValue / maxValue) *
                                               EFFECTIVE_HEIGHT
                                             : 0;
-                                    const bottomPosition = GRID_MARGIN;
 
                                     // Bar width calculation for equal distribution
-                                    const containerWidth = 100; // Percentage
+                                    const containerWidth = 100;
                                     const barWidthPercent = Math.min(
-                                        80 / data.length,
-                                        12
-                                    ); // Max 12% per bar, distributed evenly
+                                        75 / data.length,
+                                        15
+                                    );
                                     const gapPercent =
                                         (containerWidth -
                                             barWidthPercent * data.length) /
@@ -813,23 +787,24 @@ export default function Index({ statistics = {} }) {
                                         `CHART [${chartType}] Bar ${index} [${item.name}]:`,
                                         {
                                             rawValue,
-                                            maxValue: max,
+                                            maxValue,
                                             heightPixels:
                                                 Math.round(heightPixels),
-                                            heightPercent:
-                                                max > 0
-                                                    ? (
-                                                          (rawValue / max) *
+                                            percentage:
+                                                maxValue > 0
+                                                    ? `${(
+                                                          (rawValue /
+                                                              maxValue) *
                                                           100
-                                                      ).toFixed(1) + "%"
+                                                      ).toFixed(1)}%`
                                                     : "0%",
-                                            leftPosition:
-                                                leftPositionPercent.toFixed(1) +
-                                                "%",
-                                            barWidth:
-                                                barWidthPercent.toFixed(1) +
-                                                "%",
-                                            isTrueProportional: true,
+                                            leftPosition: `${leftPositionPercent.toFixed(
+                                                1
+                                            )}%`,
+                                            barWidth: `${barWidthPercent.toFixed(
+                                                1
+                                            )}%`,
+                                            TRUE_PROPORTIONAL: true,
                                         }
                                     );
 
@@ -840,22 +815,19 @@ export default function Index({ statistics = {} }) {
                                             style={{
                                                 left: `${leftPositionPercent}%`,
                                                 width: `${barWidthPercent}%`,
-                                                bottom: "40px",
+                                                bottom: "0px",
                                                 height: `${Math.max(
                                                     heightPixels,
                                                     3
-                                                )}px`, // Minimum 3px for visibility
+                                                )}px`,
                                                 zIndex: 10,
                                             }}
                                         >
-                                            {/* Value Display - positioned above bar */}
+                                            {/* FIXED: Value Display - ALWAYS visible above bar */}
                                             <div
-                                                className="absolute z-20 flex items-center justify-center w-full transform -translate-y-full"
+                                                className="absolute z-30 flex items-center justify-center w-full"
                                                 style={{
-                                                    top:
-                                                        rawValue === 0
-                                                            ? "-25px"
-                                                            : "-8px",
+                                                    top: "-35px", // Fixed position above bar
                                                 }}
                                             >
                                                 <div className="px-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded shadow-md whitespace-nowrap">
@@ -863,35 +835,20 @@ export default function Index({ statistics = {} }) {
                                                 </div>
                                             </div>
 
-                                            {/* MATHEMATICAL PRECISION: Bar with exact proportional height */}
+                                            {/* Simple Flat Bar - No 3D Effects */}
                                             <div className="relative w-full h-full">
-                                                {/* 3D Shadow - only for visible bars */}
-                                                {rawValue > 0 &&
-                                                    heightPixels > 5 && (
-                                                        <div
-                                                            className="absolute bottom-0 w-full transform translate-x-1 translate-y-1 bg-black rounded-b-lg opacity-15"
-                                                            style={{
-                                                                height: `${heightPixels}px`,
-                                                            }}
-                                                        />
-                                                    )}
-
-                                                {/* Main Bar - EXACT mathematical height */}
+                                                {/* Main Bar - Simple flat design */}
                                                 <div
-                                                    className="relative w-full transition-all duration-1000 ease-out rounded-lg cursor-pointer group-hover:scale-105 group-hover:brightness-110 transform-gpu"
+                                                    className="relative w-full transition-all duration-300 ease-out rounded cursor-pointer group-hover:brightness-110"
                                                     style={{
                                                         height: `${Math.max(
                                                             heightPixels,
                                                             3
                                                         )}px`,
-                                                        background:
+                                                        backgroundColor:
                                                             rawValue === 0
-                                                                ? `linear-gradient(135deg, ${barColor}30, ${barColor}40)`
-                                                                : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
-                                                        boxShadow:
-                                                            rawValue > 0
-                                                                ? `0 4px 20px ${barColor}40, inset 0 1px 0 rgba(255,255,255,0.3)`
-                                                                : "none",
+                                                                ? `${barColor}40`
+                                                                : barColor,
                                                         opacity:
                                                             rawValue === 0
                                                                 ? 0.4
@@ -899,29 +856,7 @@ export default function Index({ statistics = {} }) {
                                                     }}
                                                     title={`${item.name}: ${rawValue}`}
                                                 >
-                                                    {/* 3D Top effect - only show for substantial heights */}
-                                                    {rawValue > 0 &&
-                                                        heightPixels > 15 && (
-                                                            <div
-                                                                className="absolute left-0 w-full h-1 transform -skew-x-12 rounded-t-lg -top-0.5"
-                                                                style={{
-                                                                    background: `linear-gradient(90deg, ${barColor}, ${barColor}bb)`,
-                                                                }}
-                                                            />
-                                                        )}
-
-                                                    {/* 3D Right side effect - only show for substantial heights */}
-                                                    {rawValue > 0 &&
-                                                        heightPixels > 15 && (
-                                                            <div
-                                                                className="absolute top-0 w-1 h-full transform skew-y-12 rounded-r-lg -right-0.5"
-                                                                style={{
-                                                                    background: `linear-gradient(180deg, ${barColor}aa, ${barColor}88)`,
-                                                                }}
-                                                            />
-                                                        )}
-
-                                                    {/* Zero value special indicator */}
+                                                    {/* Zero value indicator */}
                                                     {rawValue === 0 && (
                                                         <div className="absolute inset-0 flex items-center justify-center">
                                                             <div className="w-full h-0.5 bg-gray-300 rounded" />
@@ -930,23 +865,7 @@ export default function Index({ statistics = {} }) {
                                                 </div>
                                             </div>
 
-                                            {/* X-axis label - positioned below chart */}
-                                            <div
-                                                className="absolute flex items-center justify-center w-full text-xs font-medium text-gray-700 transform"
-                                                style={{
-                                                    top: `${
-                                                        EFFECTIVE_HEIGHT + 10
-                                                    }px`,
-                                                    maxWidth: "120px",
-                                                    left: "50%",
-                                                    transform:
-                                                        "translateX(-50%)",
-                                                }}
-                                            >
-                                                <span className="leading-tight text-center">
-                                                    {item.name}
-                                                </span>
-                                            </div>
+                                            {/* REMOVED: X-axis label - as requested */}
                                         </div>
                                     );
                                 })}
@@ -954,23 +873,16 @@ export default function Index({ statistics = {} }) {
                         </div>
                     </div>
                 </div>
-
-                {/* NEW: Detail Container */}
-                <DetailContainer
-                    data={data}
-                    chartType={chartType}
-                    title={title}
-                />
             </div>
         );
     };
 
-    // Enhanced 3D Pie Chart Component
+    // FIXED: Enhanced 3D Pie Chart Component - REMOVED DetailContainer calls
     const Enhanced3DPieChart = ({ data, title, description }) => {
         if (!data || data.length === 0) {
             return (
-                <div>
-                    <div className="flex items-center justify-center h-96">
+                <div className="overflow-hidden max-h-80">
+                    <div className="flex items-center justify-center h-80">
                         <div className="text-center">
                             <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gray-100 rounded-full">
                                 <svg
@@ -1001,11 +913,6 @@ export default function Index({ statistics = {} }) {
                             </p>
                         </div>
                     </div>
-                    <DetailContainer
-                        data={data}
-                        chartType="gender"
-                        title={title}
-                    />
                 </div>
             );
         }
@@ -1021,8 +928,8 @@ export default function Index({ statistics = {} }) {
         // Handle case where total is 0
         if (total === 0) {
             return (
-                <div>
-                    <div className="h-96">
+                <div className="overflow-hidden max-h-80">
+                    <div className="h-80">
                         <div className="mb-6 text-center">
                             <h3 className="mb-2 text-xl font-bold text-gray-900">
                                 {title}
@@ -1057,18 +964,13 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
                     </div>
-                    <DetailContainer
-                        data={data}
-                        chartType="gender"
-                        title={title}
-                    />
                 </div>
             );
         }
 
         return (
-            <div>
-                <div className="h-96">
+            <div className="overflow-hidden max-h-80">
+                <div className="h-80">
                     {/* Title positioned like Excel charts */}
                     <div className="mb-6 text-center">
                         <h3 className="mb-2 text-xl font-bold text-gray-900">
@@ -1077,7 +979,10 @@ export default function Index({ statistics = {} }) {
                         <p className="text-sm text-gray-600">{description}</p>
                     </div>
 
-                    <div className="flex items-center justify-center h-80">
+                    <div
+                        className="flex items-center justify-center"
+                        style={{ height: "240px", maxHeight: "240px" }}
+                    >
                         <div className="relative flex items-center">
                             {/* 3D Pie Chart Container */}
                             <div className="relative">
@@ -1160,9 +1065,6 @@ export default function Index({ statistics = {} }) {
                         </div>
                     </div>
                 </div>
-
-                {/* NEW: Detail Container */}
-                <DetailContainer data={data} chartType="gender" title={title} />
             </div>
         );
     };
@@ -1458,11 +1360,18 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DPieChart
-                                        data={chartData.gender}
-                                        title="Jenis Kelamin"
-                                        description="Distribusi berdasarkan jenis kelamin"
-                                    />
+                                    <div>
+                                        <Enhanced3DPieChart
+                                            data={chartData.gender}
+                                            title="Jenis Kelamin"
+                                            description="Distribusi berdasarkan jenis kelamin"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.gender}
+                                            chartType="gender"
+                                            title="Jenis Kelamin"
+                                        />
+                                    </div>
                                 )}
                             </div>
 
@@ -1482,12 +1391,19 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
-                                        data={chartData.status}
-                                        title="Status Pegawai"
-                                        description="Distribusi berdasarkan status pegawai"
-                                        chartType="status"
-                                    />
+                                    <div>
+                                        <Enhanced3DBarChart
+                                            data={chartData.status}
+                                            title="Status Pegawai"
+                                            description="Distribusi berdasarkan status pegawai"
+                                            chartType="status"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.status}
+                                            chartType="status"
+                                            title="Status Pegawai"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1509,12 +1425,19 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
-                                        data={chartData.unit}
-                                        title="SDM per Unit"
-                                        description="Distribusi berdasarkan unit organisasi"
-                                        chartType="unit"
-                                    />
+                                    <div>
+                                        <Enhanced3DBarChart
+                                            data={chartData.unit}
+                                            title="SDM per Unit"
+                                            description="Distribusi berdasarkan unit organisasi"
+                                            chartType="unit"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.unit}
+                                            chartType="unit"
+                                            title="SDM per Unit"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1536,12 +1459,19 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
-                                        data={chartData.provider}
-                                        title="SDM per Provider"
-                                        description="Distribusi berdasarkan perusahaan provider"
-                                        chartType="provider"
-                                    />
+                                    <div>
+                                        <Enhanced3DBarChart
+                                            data={chartData.provider}
+                                            title="SDM per Provider"
+                                            description="Distribusi berdasarkan perusahaan provider"
+                                            chartType="provider"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.provider}
+                                            chartType="provider"
+                                            title="SDM per Provider"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1564,12 +1494,19 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
-                                        data={chartData.age}
-                                        title="Komposisi Usia SDM"
-                                        description="Distribusi berdasarkan kelompok usia"
-                                        chartType="age"
-                                    />
+                                    <div>
+                                        <Enhanced3DBarChart
+                                            data={chartData.age}
+                                            title="Komposisi Usia SDM"
+                                            description="Distribusi berdasarkan kelompok usia"
+                                            chartType="age"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.age}
+                                            chartType="age"
+                                            title="Komposisi Usia SDM"
+                                        />
+                                    </div>
                                 )}
                             </div>
 
@@ -1589,12 +1526,19 @@ export default function Index({ statistics = {} }) {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Enhanced3DBarChart
-                                        data={chartData.jabatan}
-                                        title="Kelompok Jabatan"
-                                        description="Distribusi berdasarkan kelompok jabatan"
-                                        chartType="jabatan"
-                                    />
+                                    <div>
+                                        <Enhanced3DBarChart
+                                            data={chartData.jabatan}
+                                            title="Kelompok Jabatan"
+                                            description="Distribusi berdasarkan kelompok jabatan"
+                                            chartType="jabatan"
+                                        />
+                                        <DetailContainer
+                                            data={chartData.jabatan}
+                                            chartType="jabatan"
+                                            title="Kelompok Jabatan"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>
