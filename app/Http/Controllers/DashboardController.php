@@ -36,20 +36,20 @@ class DashboardController extends Controller
     }
 
     /**
-     * NEW: Mapping kode unit ke nama lengkap untuk double query strategy
-     * Untuk backward compatibility dengan seeder lama
+     * FIXED: Mapping kode unit ke nama lengkap berdasarkan data seeder
+     * Sesuai dengan field kode_organisasi dan nama_organisasi di seeder
      */
     private function getUnitCodeToNameMapping()
     {
         return [
-            'MO' => 'Movement Operations',
-            'ME' => 'Maintenance Equipment', 
-            'MF' => 'Movement Flight',
-            'MS' => 'Movement Service',
-            'MU' => 'Management Unit',
-            'MK' => 'Management Keuangan',
-            'MQ' => 'Management Quality',
-            'MB' => 'Management Business',
+            'MO' => 'OPERATION SERVICES',
+            'ME' => 'MAINTENANCE SERVICES', 
+            'MF' => 'FLIGHT SERVICES',
+            'MS' => 'MOVEMENT SERVICES',
+            'MU' => 'MANAGEMENT UNIT',
+            'MK' => 'FINANCE',
+            'MQ' => 'QUALITY SERVICES',
+            'MB' => 'BUSINESS SERVICES',
             'EGM' => 'EGM',
             'GM' => 'GM'
         ];
@@ -201,6 +201,8 @@ class DashboardController extends Controller
                     'nik', 
                     'nama_lengkap',
                     'unit_organisasi',
+                    'kode_organisasi',
+                    'nama_organisasi',
                     'unit_id',
                     'sub_unit_id',
                     'jabatan',
@@ -220,7 +222,7 @@ class DashboardController extends Controller
                 'safe_mode' => true
             ]);
 
-            // FIXED: Safe data mapping tanpa dependency pada relationship
+            // FIXED: Safe data mapping dengan format unit display
             $historyData = $employees->map(function ($employee) {
                 $organizationalStructure = $this->buildOrganizationalStructureSafe($employee);
                 
@@ -232,6 +234,9 @@ class DashboardController extends Controller
                     'initials' => $this->getEmployeeInitials($employee->nama_lengkap),
                     'organizational_structure' => $organizationalStructure,
                     'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
+                    'kode_organisasi' => $employee->kode_organisasi ?? null,
+                    'nama_organisasi' => $employee->nama_organisasi ?? null,
+                    'unit_display_formatted' => $this->formatEmployeeUnitDisplay($employee),
                     'unit_name' => $organizationalStructure['unit']['name'] ?? null,
                     'sub_unit_name' => $organizationalStructure['sub_unit']['name'] ?? null,
                     'full_structure' => $organizationalStructure['full_structure'],
@@ -243,13 +248,6 @@ class DashboardController extends Controller
                     'relative_date' => $employee->created_at ? $employee->created_at->diffForHumans() : null,
                     'days_ago' => $employee->created_at ? $employee->created_at->diffInDays(Carbon::now('Asia/Makassar')) : null
                 ];
-
-                Log::debug('HISTORY API: Processing employee', [
-                    'employee_id' => $employee->id,
-                    'name' => $employee->nama_lengkap,
-                    'created_at' => $employee->created_at,
-                    'full_structure' => $organizationalStructure['full_structure']
-                ]);
 
                 return $data;
             });
@@ -334,8 +332,8 @@ class DashboardController extends Controller
             // Get latest employees for preview
             $latestEmployees = Employee::select([
                     'id', 'nip', 'nik', 'nama_lengkap', 'unit_organisasi', 
-                    'unit_id', 'sub_unit_id', 'jabatan', 'nama_jabatan', 
-                    'status_pegawai', 'created_at'
+                    'kode_organisasi', 'nama_organisasi', 'unit_id', 'sub_unit_id', 
+                    'jabatan', 'nama_jabatan', 'status_pegawai', 'created_at'
                 ])
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->orderBy('created_at', 'desc')
@@ -348,6 +346,7 @@ class DashboardController extends Controller
                         'nik' => $employee->nik,
                         'nama_lengkap' => $employee->nama_lengkap,
                         'unit_organisasi' => $employee->unit_organisasi,
+                        'unit_display_formatted' => $this->formatEmployeeUnitDisplay($employee),
                         'jabatan' => $employee->jabatan ?? $employee->nama_jabatan,
                         'status_pegawai' => $employee->status_pegawai,
                         'created_at' => $employee->created_at,
@@ -656,90 +655,46 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Get unit chart data (SDM per Unit) - DOUBLE QUERY STRATEGY
+     * COMPLETELY FIXED: Get unit chart data (SDM per Unit) - MENGGUNAKAN FIELD KODE_ORGANISASI
      * Chart Type: Bar Chart
-     * STRATEGY: Cari berdasarkan kode dulu, lalu cari berdasarkan nama lengkap
-     * Backward compatible dengan seeder lama tanpa mengubah seeder
+     * STRATEGI BARU: Query berdasarkan field kode_organisasi dari seeder, bukan unit_organisasi
      */
     private function getUnitChartData()
     {
         try {
             // Target units sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
-            $unitCodeToNameMapping = $this->getUnitCodeToNameMapping();
             
-            Log::info('UNIT CHART: Starting DOUBLE QUERY STRATEGY for unit chart data', [
+            Log::info('UNIT CHART: Starting FIXED STRATEGY using kode_organisasi field', [
                 'target_units' => $targetUnits,
-                'unit_code_to_name_mapping' => $unitCodeToNameMapping,
+                'strategy' => 'kode_organisasi_based',
                 'unit_display_mapping' => $this->getUnitDisplayMapping()
             ]);
 
-            // QUERY 1: Cari berdasarkan kode unit (data baru)
-            $codeBasedQuery = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
-                ->whereNotNull('unit_organisasi')
-                ->where('unit_organisasi', '!=', '')
-                ->whereIn('unit_organisasi', $targetUnits)
+            // FIXED QUERY: Menggunakan field kode_organisasi dari seeder
+            $unitData = Employee::select('kode_organisasi', DB::raw('count(*) as total'))
+                ->whereNotNull('kode_organisasi')
+                ->where('kode_organisasi', '!=', '')
+                ->whereIn('kode_organisasi', $targetUnits)
                 ->when(Schema::hasColumn('employees', 'status'), function ($query) {
                     return $query->where('status', 'active');
                 })
-                ->groupBy('unit_organisasi')
+                ->groupBy('kode_organisasi')
                 ->get();
 
-            Log::info('UNIT CHART: Query 1 (Code-based) results', [
-                'units_found_by_code' => $codeBasedQuery->count(),
-                'code_based_data' => $codeBasedQuery->toArray()
+            Log::info('UNIT CHART: Query results using kode_organisasi', [
+                'units_found' => $unitData->count(),
+                'raw_data' => $unitData->toArray()
             ]);
 
-            // QUERY 2: Cari berdasarkan nama lengkap (data lama dari seeder)
-            $unitFullNames = array_values($unitCodeToNameMapping);
-            $nameBasedQuery = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
-                ->whereNotNull('unit_organisasi')
-                ->where('unit_organisasi', '!=', '')
-                ->whereIn('unit_organisasi', $unitFullNames)
-                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
-                    return $query->where('status', 'active');
-                })
-                ->groupBy('unit_organisasi')
-                ->get();
-
-            Log::info('UNIT CHART: Query 2 (Name-based) results', [
-                'units_found_by_name' => $nameBasedQuery->count(),
-                'name_based_data' => $nameBasedQuery->toArray(),
-                'searched_names' => $unitFullNames
-            ]);
-
-            // COMBINE RESULTS: Gabungkan kedua query dan format dengan kode
-            $combinedResults = [];
-            
-            // Process code-based results
-            foreach ($codeBasedQuery as $item) {
-                $unitCode = $item->unit_organisasi;
-                if (in_array($unitCode, $targetUnits)) {
-                    $combinedResults[$unitCode] = $item->total;
-                }
-            }
-
-            // Process name-based results dan map ke kode
-            foreach ($nameBasedQuery as $item) {
-                $unitName = $item->unit_organisasi;
-                
-                // Find corresponding code for this name
-                $unitCode = array_search($unitName, $unitCodeToNameMapping);
-                
-                if ($unitCode && in_array($unitCode, $targetUnits)) {
-                    // Jika sudah ada dari code-based query, tambahkan
-                    if (isset($combinedResults[$unitCode])) {
-                        $combinedResults[$unitCode] += $item->total;
-                    } else {
-                        $combinedResults[$unitCode] = $item->total;
-                    }
-                }
-            }
-
-            // Create final result dengan semua target units dan format dengan kode
+            // Create result dengan semua target units
             $result = [];
-            foreach ($targetUnits as $unitCode) {
-                $count = $combinedResults[$unitCode] ?? 0;
+            $foundUnits = [];
+            
+            // Process data yang ditemukan
+            foreach ($unitData as $item) {
+                $unitCode = $item->kode_organisasi;
+                $count = $item->total;
                 $displayName = $this->formatUnitForChart($unitCode);
                 
                 $result[] = [
@@ -747,6 +702,21 @@ class DashboardController extends Controller
                     'unit_code' => $unitCode,
                     'value' => $count
                 ];
+                
+                $foundUnits[] = $unitCode;
+            }
+
+            // Tambahkan unit yang tidak ditemukan dengan value 0
+            foreach ($targetUnits as $unitCode) {
+                if (!in_array($unitCode, $foundUnits)) {
+                    $displayName = $this->formatUnitForChart($unitCode);
+                    
+                    $result[] = [
+                        'name' => $displayName,
+                        'unit_code' => $unitCode,
+                        'value' => 0
+                    ];
+                }
             }
 
             // Sort by value descending
@@ -756,14 +726,13 @@ class DashboardController extends Controller
 
             $totalEmployeesInUnits = array_sum(array_column($result, 'value'));
 
-            Log::info('UNIT CHART: DOUBLE QUERY STRATEGY completed successfully', [
+            Log::info('UNIT CHART: FIXED STRATEGY completed successfully', [
                 'target_units' => $targetUnits,
-                'code_based_units_found' => $codeBasedQuery->count(),
-                'name_based_units_found' => $nameBasedQuery->count(),
-                'combined_results' => $combinedResults,
+                'found_units' => $foundUnits,
+                'missing_units' => array_diff($targetUnits, $foundUnits),
                 'final_result_data' => $result,
                 'total_employees_in_units' => $totalEmployeesInUnits,
-                'strategy' => 'double_query_backward_compatible'
+                'strategy' => 'kode_organisasi_field_based'
             ]);
 
             return $result;
@@ -967,22 +936,6 @@ class DashboardController extends Controller
                         $outsideRange++;
                     }
                     
-                    // Enhanced debugging untuk first few records
-                    if ($totalProcessed <= 5) {
-                        Log::debug('AGE CALCULATION: Sample employee processed', [
-                            'employee_id' => $employee->id,
-                            'employee_name' => $employee->nama_lengkap,
-                            'birth_date' => $employee->tanggal_lahir,
-                            'stored_usia' => $employee->usia,
-                            'final_age' => $age,
-                            'age_source' => $ageSource,
-                            'assigned_group' => $age >= 18 && $age <= 25 ? '18-25' : 
-                                              ($age >= 26 && $age <= 35 ? '26-35' : 
-                                              ($age >= 36 && $age <= 45 ? '36-45' : 
-                                              ($age >= 46 && $age <= 55 ? '46-55' : 'outside_range')))
-                        ]);
-                    }
-                    
                 } catch (\Exception $e) {
                     $invalidDates++;
                     Log::warning('AGE CALCULATION: Exception processing employee', [
@@ -1137,6 +1090,34 @@ class DashboardController extends Controller
     // =====================================================
     // HELPER METHODS
     // =====================================================
+
+    /**
+     * NEW: Format employee unit display dengan kode untuk konsistensi
+     * Menggabungkan kode_organisasi dengan nama_organisasi
+     */
+    private function formatEmployeeUnitDisplay($employee)
+    {
+        try {
+            if (!empty($employee->kode_organisasi)) {
+                $unitCode = $employee->kode_organisasi;
+                $displayName = $this->formatUnitForChart($unitCode);
+                
+                // Tambahkan nama organisasi jika tersedia
+                if (!empty($employee->nama_organisasi)) {
+                    return $displayName . ' - ' . $employee->nama_organisasi;
+                }
+                
+                return $displayName;
+            }
+            
+            // Fallback ke unit_organisasi jika kode_organisasi tidak ada
+            return $employee->unit_organisasi ?? 'Unit tidak tersedia';
+            
+        } catch (\Exception $e) {
+            Log::warning('Format employee unit display error: ' . $e->getMessage());
+            return $employee->unit_organisasi ?? 'Unit tidak tersedia';
+        }
+    }
 
     /**
      * FIXED: Clean provider name untuk display sesuai standard names
@@ -1307,7 +1288,7 @@ class DashboardController extends Controller
                     'kelompok_jabatan_extended' => true,
                     'six_charts_dashboard_realtime' => true,
                     'unit_code_format_display' => true,
-                    'double_query_strategy' => true
+                    'kode_organisasi_strategy' => true
                 ],
                 'charts_available' => [
                     'gender_chart' => true,
@@ -1332,12 +1313,12 @@ class DashboardController extends Controller
                         'MS' => '(MS) Movement Service'
                     ],
                     'mapping_available' => true,
-                    'double_query_strategy' => 'Backward compatible dengan seeder lama'
+                    'strategy' => 'Menggunakan field kode_organisasi dari seeder'
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.15.0',
+                'version' => '1.16.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime_with_double_query_unit_strategy'
+                'dashboard_type' => '6_charts_realtime_with_kode_organisasi_strategy'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -1380,13 +1361,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Build organizational structure untuk employee - SAFE VERSION
+     * FIXED: Build organizational structure untuk employee - SAFE VERSION dengan unit format
      */
     private function buildOrganizationalStructureSafe($employee)
     {
         try {
             $structure = [
                 'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
+                'kode_organisasi' => $employee->kode_organisasi ?? null,
+                'nama_organisasi' => $employee->nama_organisasi ?? null,
                 'unit' => null,
                 'sub_unit' => null,
                 'full_structure' => null
@@ -1430,7 +1413,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Build full structure string untuk display
+            // Build full structure string untuk display dengan format unit
             $fullStructureParts = [];
             
             if ($structure['unit_organisasi'] && $structure['unit_organisasi'] !== 'Tidak tersedia') {
@@ -1448,6 +1431,12 @@ class DashboardController extends Controller
             // Create full structure string
             $structure['full_structure'] = implode(' > ', $fullStructureParts);
             
+            // Enhanced structure dengan format kode
+            if (!empty($structure['kode_organisasi'])) {
+                $formattedUnitDisplay = $this->formatEmployeeUnitDisplay($employee);
+                $structure['unit_display_formatted'] = $formattedUnitDisplay;
+            }
+            
             // Ensure we always have at least unit_organisasi
             if (empty($structure['full_structure']) && $structure['unit_organisasi'] !== 'Tidak tersedia') {
                 $structure['full_structure'] = $structure['unit_organisasi'];
@@ -1457,13 +1446,6 @@ class DashboardController extends Controller
             if (empty($structure['full_structure'])) {
                 $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
             }
-
-            Log::debug('SAFE: Organizational structure built', [
-                'employee_id' => $employee->id,
-                'full_structure' => $structure['full_structure'],
-                'has_unit' => !is_null($structure['unit']),
-                'has_sub_unit' => !is_null($structure['sub_unit'])
-            ]);
 
             return $structure;
 
@@ -1475,6 +1457,8 @@ class DashboardController extends Controller
             
             return [
                 'unit_organisasi' => $employee->unit_organisasi ?? 'Tidak tersedia',
+                'kode_organisasi' => $employee->kode_organisasi ?? null,
+                'nama_organisasi' => $employee->nama_organisasi ?? null,
                 'unit' => null,
                 'sub_unit' => null,
                 'full_structure' => $employee->unit_organisasi ?? 'Struktur organisasi tidak tersedia'
@@ -1573,7 +1557,7 @@ class DashboardController extends Controller
     {
         try {
             // Get recently added employees (last 30 days)
-            $recentEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'created_at')
+            $recentEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'created_at')
                 ->where('created_at', '>=', Carbon::now('Asia/Makassar')->subDays(30))
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
@@ -1583,7 +1567,7 @@ class DashboardController extends Controller
                         'type' => 'employee_added',
                         'title' => 'Karyawan Baru Ditambahkan',
                         'description' => $employee->nama_lengkap . ' - ' . ($employee->jabatan ?? $employee->nama_jabatan ?? 'Jabatan tidak tersedia'),
-                        'unit' => $employee->unit_organisasi ?? 'Unit tidak tersedia',
+                        'unit' => $this->formatEmployeeUnitDisplay($employee),
                         'timestamp' => $employee->created_at,
                         'icon' => 'user-plus',
                         'color' => 'green',
@@ -1591,7 +1575,7 @@ class DashboardController extends Controller
                 });
 
             // Get recently updated employees (last 7 days)
-            $updatedEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'updated_at')
+            $updatedEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'updated_at')
                 ->where('updated_at', '>=', Carbon::now('Asia/Makassar')->subDays(7))
                 ->where('updated_at', '!=', DB::raw('created_at'))
                 ->orderBy('updated_at', 'desc')
@@ -1602,7 +1586,7 @@ class DashboardController extends Controller
                         'type' => 'employee_updated',
                         'title' => 'Data Karyawan Diperbarui',
                         'description' => $employee->nama_lengkap . ' - ' . ($employee->jabatan ?? $employee->nama_jabatan ?? 'Jabatan tidak tersedia'),
-                        'unit' => $employee->unit_organisasi ?? 'Unit tidak tersedia',
+                        'unit' => $this->formatEmployeeUnitDisplay($employee),
                         'timestamp' => $employee->updated_at,
                         'icon' => 'edit',
                         'color' => 'blue',

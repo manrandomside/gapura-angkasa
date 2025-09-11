@@ -68,7 +68,48 @@ class EmployeeController extends Controller
     ];
 
     /**
+     * FIXED: Unit display mapping untuk format (XX) Nama Unit - sesuai dengan DashboardController
+     * Konsisten dengan field kode_organisasi dari seeder
+     */
+    private function getUnitDisplayMapping()
+    {
+        return [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'MO' => '(MO) Movement Operations',
+            'ME' => '(ME) Maintenance Equipment',
+            'MF' => '(MF) Movement Flight',
+            'MS' => '(MS) Movement Service',
+            'MU' => '(MU) Management Unit',
+            'MK' => '(MK) Management Keuangan',
+            'MQ' => '(MQ) Management Quality',
+            'MB' => '(MB) Management Business',
+        ];
+    }
+
+    /**
+     * FIXED: Mapping kode unit ke nama organisasi berdasarkan data seeder sebenarnya
+     * Sesuai dengan field kode_organisasi dan nama_organisasi di seeder
+     */
+    private function getUnitCodeToNameMapping()
+    {
+        return [
+            'MO' => 'OPERATION SERVICES',
+            'ME' => 'MAINTENANCE SERVICES', 
+            'MF' => 'FLIGHT SERVICES',
+            'MS' => 'MOVEMENT SERVICES',
+            'MU' => 'MANAGEMENT UNIT',
+            'MK' => 'FINANCE',
+            'MQ' => 'QUALITY SERVICES',
+            'MB' => 'BUSINESS SERVICES',
+            'EGM' => 'EGM',
+            'GM' => 'GM'
+        ];
+    }
+
+    /**
      * UPDATED: Unit code mapping untuk format display (XX) Nama Unit
+     * LEGACY - Masih digunakan untuk backward compatibility
      */
     private function getUnitCodeMapping()
     {
@@ -95,6 +136,40 @@ class EmployeeController extends Controller
     }
 
     /**
+     * NEW: Format employee unit display dengan kode untuk konsistensi dengan dashboard
+     * Menggunakan field kode_organisasi dari employee
+     */
+    private function formatEmployeeUnitDisplay($employee)
+    {
+        try {
+            // Prioritas: gunakan kode_organisasi jika tersedia (data terbaru)
+            if (!empty($employee->kode_organisasi)) {
+                $unitCode = $employee->kode_organisasi;
+                $mapping = $this->getUnitDisplayMapping();
+                $displayName = $mapping[$unitCode] ?? $unitCode;
+                
+                // Tambahkan nama organisasi jika tersedia
+                if (!empty($employee->nama_organisasi)) {
+                    return $displayName . ' - ' . $employee->nama_organisasi;
+                }
+                
+                return $displayName;
+            }
+            
+            // Fallback: gunakan unit_organisasi dengan mapping lama
+            if (!empty($employee->unit_organisasi)) {
+                return $this->formatUnitWithCode($employee->unit_organisasi, $employee->unit_organisasi);
+            }
+            
+            return 'Unit tidak tersedia';
+            
+        } catch (\Exception $e) {
+            Log::warning('Format employee unit display error: ' . $e->getMessage());
+            return $employee->unit_organisasi ?? 'Unit tidak tersedia';
+        }
+    }
+
+    /**
      * UPDATED: Helper method untuk format unit display dengan kode (XX) Nama Unit
      */
     private function formatUnitWithCode($unitName, $unitOrganisasi)
@@ -108,6 +183,15 @@ class EmployeeController extends Controller
         
         // Fallback untuk unit tanpa mapping (EGM, GM)
         return $unitName;
+    }
+
+    /**
+     * NEW: Helper method untuk format unit berdasarkan kode_organisasi
+     */
+    private function formatUnitForDisplay($unitCode)
+    {
+        $mapping = $this->getUnitDisplayMapping();
+        return $mapping[$unitCode] ?? $unitCode;
     }
 
     /**
@@ -869,7 +953,7 @@ class EmployeeController extends Controller
                              ->paginate($perPage)
                              ->withQueryString();
 
-            // CRITICAL FIX: Process setiap employee untuk memastikan masa_kerja dihitung dengan benar
+            // CRITICAL FIX: Process setiap employee dengan format unit display yang benar
             $employees->getCollection()->transform(function ($employee) {
                 // Convert to array untuk manipulasi
                 $employeeData = $employee->toArray();
@@ -883,26 +967,12 @@ class EmployeeController extends Controller
                     
                     // Set the calculated value
                     $employeeData['masa_kerja'] = $calculatedMasaKerja;
-                    
-                    // DEBUG LOG untuk troubleshooting
-                    Log::info('Employee Index - Masa Kerja Calculated', [
-                        'employee_id' => $employee->id,
-                        'employee_nik' => $employee->nik,
-                        'employee_name' => $employee->nama_lengkap,
-                        'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'],
-                        'tmt_berakhir_kerja' => $employeeData['tmt_berakhir_kerja'] ?? null,
-                        'masa_kerja_db' => $employee->masa_kerja,
-                        'masa_kerja_calculated' => $calculatedMasaKerja
-                    ]);
                 } else {
                     $employeeData['masa_kerja'] = "-";
-                    
-                    Log::info('Employee Index - No TMT Mulai Kerja', [
-                        'employee_id' => $employee->id,
-                        'employee_nik' => $employee->nik,
-                        'tmt_mulai_kerja' => $employeeData['tmt_mulai_kerja'] ?? 'null'
-                    ]);
                 }
+
+                // ADDED: Format unit display dengan kode untuk konsistensi
+                $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
                 
                 // Convert gender dari database format (L/P) ke display format untuk consistency
                 if (isset($employeeData['jenis_kelamin'])) {
@@ -942,9 +1012,13 @@ class EmployeeController extends Controller
                 'employees_with_masa_kerja' => $employees->getCollection()->filter(function($emp) {
                     return isset($emp->masa_kerja) && $emp->masa_kerja !== '-' && $emp->masa_kerja !== null;
                 })->count(),
-                'sample_employee_masa_kerja' => $employees->getCollection()->first() ? [
+                'employees_with_formatted_unit' => $employees->getCollection()->filter(function($emp) {
+                    return isset($emp->unit_display_formatted);
+                })->count(),
+                'sample_employee_data' => $employees->getCollection()->first() ? [
                     'nik' => $employees->getCollection()->first()->nik ?? 'unknown',
-                    'masa_kerja' => $employees->getCollection()->first()->masa_kerja ?? 'not_set'
+                    'masa_kerja' => $employees->getCollection()->first()->masa_kerja ?? 'not_set',
+                    'unit_display_formatted' => $employees->getCollection()->first()->unit_display_formatted ?? 'not_set'
                 ] : 'no_employees'
             ]);
 
@@ -1442,8 +1516,9 @@ class EmployeeController extends Controller
     }
 
     /**
-     * CRITICAL FIX: Display the specified employee with enhanced masa kerja calculation
+     * COMPLETELY FIXED: Display the specified employee with enhanced unit display format
      * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
+     * MENAMBAHKAN format unit display dengan kode "(XX) Nama Unit" untuk konsistensi dengan dashboard
      */
     public function show(string $identifier)
     {
@@ -1485,16 +1560,31 @@ class EmployeeController extends Controller
                 $employeeData['masa_kerja'] = "-";
             }
 
+            // NEW: Format unit display dengan kode untuk konsistensi dengan dashboard
+            $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
+            
+            // NEW: Individual unit components dengan format kode
+            if (!empty($employee->kode_organisasi)) {
+                $employeeData['unit_organisasi_formatted'] = $this->formatUnitForDisplay($employee->kode_organisasi);
+            } else {
+                $employeeData['unit_organisasi_formatted'] = $employee->unit_organisasi ?? 'Unit tidak tersedia';
+            }
+
             // Convert gender dari database format (L/P) ke display format jika perlu
             if (isset($employeeData['jenis_kelamin'])) {
                 $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
             }
 
             // ENHANCED DEBUG LOGGING
-            Log::info('Employee Show Data - Comprehensive Debug', [
+            Log::info('Employee Show Data - Comprehensive Debug dengan Unit Format', [
                 'employee_id' => $employee->id,
                 'employee_nik' => $employee->nik,
                 'employee_name' => $employee->nama_lengkap,
+                'kode_organisasi' => $employee->kode_organisasi,
+                'unit_organisasi' => $employee->unit_organisasi,
+                'nama_organisasi' => $employee->nama_organisasi,
+                'unit_display_formatted' => $employeeData['unit_display_formatted'],
+                'unit_organisasi_formatted' => $employeeData['unit_organisasi_formatted'],
                 'tmt_mulai_kerja_raw' => $employee->tmt_mulai_kerja,
                 'tmt_mulai_kerja_processed' => $employeeData['tmt_mulai_kerja'] ?? 'null',
                 'tmt_berakhir_kerja_raw' => $employee->tmt_berakhir_kerja,
@@ -1507,7 +1597,7 @@ class EmployeeController extends Controller
             ]);
             
             return Inertia::render('Employees/Show', [
-                'employee' => $employeeData, // Send processed data with guaranteed masa_kerja
+                'employee' => $employeeData, // Send processed data dengan unit format dan guaranteed masa_kerja
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
@@ -1558,6 +1648,9 @@ class EmployeeController extends Controller
                     $employeeData['tmt_berakhir_kerja'] ?? null
                 );
             }
+
+            // NEW: Format unit display untuk edit form
+            $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
             
             // Format dates untuk input type="date" including ALL NEW FIELDS
             $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun', 'tmt_akhir_jabatan', 'tmt_berakhir_kerja'];
@@ -2142,7 +2235,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FIXED: Get units dari database untuk filter
+     * FIXED: Get units dari database untuk filter dengan format kode
      */
     public function getUnitsForFilter()
     {
