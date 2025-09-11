@@ -36,6 +36,26 @@ class DashboardController extends Controller
     }
 
     /**
+     * NEW: Mapping kode unit ke nama lengkap untuk double query strategy
+     * Untuk backward compatibility dengan seeder lama
+     */
+    private function getUnitCodeToNameMapping()
+    {
+        return [
+            'MO' => 'Movement Operations',
+            'ME' => 'Maintenance Equipment', 
+            'MF' => 'Movement Flight',
+            'MS' => 'Movement Service',
+            'MU' => 'Management Unit',
+            'MK' => 'Management Keuangan',
+            'MQ' => 'Management Quality',
+            'MB' => 'Management Business',
+            'EGM' => 'EGM',
+            'GM' => 'GM'
+        ];
+    }
+
+    /**
      * UPDATED: Helper method untuk format unit display dengan kode untuk grafik
      */
     private function formatUnitForChart($unitCode)
@@ -636,24 +656,26 @@ class DashboardController extends Controller
     }
 
     /**
-     * UPDATED: Get unit chart data (SDM per Unit) - Menampilkan format (XX) Nama Unit
+     * FIXED: Get unit chart data (SDM per Unit) - DOUBLE QUERY STRATEGY
      * Chart Type: Bar Chart
-     * Data: Real-time dari management karyawan dengan format unit yang benar
-     * UPDATED: Menggunakan format unit dengan kode sesuai requirement
+     * STRATEGY: Cari berdasarkan kode dulu, lalu cari berdasarkan nama lengkap
+     * Backward compatible dengan seeder lama tanpa mengubah seeder
      */
     private function getUnitChartData()
     {
         try {
             // Target units sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
+            $unitCodeToNameMapping = $this->getUnitCodeToNameMapping();
             
-            Log::info('UNIT CHART: Starting unit chart data generation with format code', [
+            Log::info('UNIT CHART: Starting DOUBLE QUERY STRATEGY for unit chart data', [
                 'target_units' => $targetUnits,
+                'unit_code_to_name_mapping' => $unitCodeToNameMapping,
                 'unit_display_mapping' => $this->getUnitDisplayMapping()
             ]);
 
-            // Query employees berdasarkan unit_organisasi
-            $query = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
+            // QUERY 1: Cari berdasarkan kode unit (data baru)
+            $codeBasedQuery = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
                 ->whereNotNull('unit_organisasi')
                 ->where('unit_organisasi', '!=', '')
                 ->whereIn('unit_organisasi', $targetUnits)
@@ -663,21 +685,67 @@ class DashboardController extends Controller
                 ->groupBy('unit_organisasi')
                 ->get();
 
-            Log::info('UNIT CHART: Raw query results', [
-                'units_found' => $query->count(),
-                'raw_data' => $query->toArray()
+            Log::info('UNIT CHART: Query 1 (Code-based) results', [
+                'units_found_by_code' => $codeBasedQuery->count(),
+                'code_based_data' => $codeBasedQuery->toArray()
             ]);
 
-            // Create complete list dengan semua target units dan format dengan kode
+            // QUERY 2: Cari berdasarkan nama lengkap (data lama dari seeder)
+            $unitFullNames = array_values($unitCodeToNameMapping);
+            $nameBasedQuery = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
+                ->whereNotNull('unit_organisasi')
+                ->where('unit_organisasi', '!=', '')
+                ->whereIn('unit_organisasi', $unitFullNames)
+                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                    return $query->where('status', 'active');
+                })
+                ->groupBy('unit_organisasi')
+                ->get();
+
+            Log::info('UNIT CHART: Query 2 (Name-based) results', [
+                'units_found_by_name' => $nameBasedQuery->count(),
+                'name_based_data' => $nameBasedQuery->toArray(),
+                'searched_names' => $unitFullNames
+            ]);
+
+            // COMBINE RESULTS: Gabungkan kedua query dan format dengan kode
+            $combinedResults = [];
+            
+            // Process code-based results
+            foreach ($codeBasedQuery as $item) {
+                $unitCode = $item->unit_organisasi;
+                if (in_array($unitCode, $targetUnits)) {
+                    $combinedResults[$unitCode] = $item->total;
+                }
+            }
+
+            // Process name-based results dan map ke kode
+            foreach ($nameBasedQuery as $item) {
+                $unitName = $item->unit_organisasi;
+                
+                // Find corresponding code for this name
+                $unitCode = array_search($unitName, $unitCodeToNameMapping);
+                
+                if ($unitCode && in_array($unitCode, $targetUnits)) {
+                    // Jika sudah ada dari code-based query, tambahkan
+                    if (isset($combinedResults[$unitCode])) {
+                        $combinedResults[$unitCode] += $item->total;
+                    } else {
+                        $combinedResults[$unitCode] = $item->total;
+                    }
+                }
+            }
+
+            // Create final result dengan semua target units dan format dengan kode
             $result = [];
             foreach ($targetUnits as $unitCode) {
-                $found = $query->firstWhere('unit_organisasi', $unitCode);
+                $count = $combinedResults[$unitCode] ?? 0;
                 $displayName = $this->formatUnitForChart($unitCode);
                 
                 $result[] = [
                     'name' => $displayName,
                     'unit_code' => $unitCode,
-                    'value' => $found ? $found->total : 0
+                    'value' => $count
                 ];
             }
 
@@ -686,11 +754,16 @@ class DashboardController extends Controller
                 return $b['value'] - $a['value'];
             });
 
-            Log::info('UNIT CHART: Generated data dengan format kode sesuai requirement', [
+            $totalEmployeesInUnits = array_sum(array_column($result, 'value'));
+
+            Log::info('UNIT CHART: DOUBLE QUERY STRATEGY completed successfully', [
                 'target_units' => $targetUnits,
-                'units_with_data' => $query->count(),
-                'result_data' => $result,
-                'total_employees_in_units' => array_sum(array_column($result, 'value'))
+                'code_based_units_found' => $codeBasedQuery->count(),
+                'name_based_units_found' => $nameBasedQuery->count(),
+                'combined_results' => $combinedResults,
+                'final_result_data' => $result,
+                'total_employees_in_units' => $totalEmployeesInUnits,
+                'strategy' => 'double_query_backward_compatible'
             ]);
 
             return $result;
@@ -1233,7 +1306,8 @@ class DashboardController extends Controller
                     'history_3_periods_only' => true,
                     'kelompok_jabatan_extended' => true,
                     'six_charts_dashboard_realtime' => true,
-                    'unit_code_format_display' => true
+                    'unit_code_format_display' => true,
+                    'double_query_strategy' => true
                 ],
                 'charts_available' => [
                     'gender_chart' => true,
@@ -1257,12 +1331,13 @@ class DashboardController extends Controller
                         'MF' => '(MF) Movement Flight',
                         'MS' => '(MS) Movement Service'
                     ],
-                    'mapping_available' => true
+                    'mapping_available' => true,
+                    'double_query_strategy' => 'Backward compatible dengan seeder lama'
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.14.0',
+                'version' => '1.15.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime_with_unit_code_format'
+                'dashboard_type' => '6_charts_realtime_with_double_query_unit_strategy'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
