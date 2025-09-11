@@ -74,7 +74,22 @@ export default function Index({ statistics = {} }) {
                 const data = await response.json();
                 console.log("Chart data received:", data);
 
-                // Debug specific chart data
+                // UPDATED: Debug unit chart data specifically to verify format
+                console.log("Unit chart data (with codes):", data.unit);
+                if (data.unit && data.unit.length > 0) {
+                    console.log(
+                        "Sample unit data:",
+                        data.unit.map((item) => ({
+                            name: item.name,
+                            value: item.value,
+                            formatted: item.name?.includes("(")
+                                ? "HAS_CODE"
+                                : "NO_CODE",
+                        }))
+                    );
+                }
+
+                // Debug other chart data
                 console.log("Age chart data:", data.age);
                 console.log("Status chart data:", data.status);
                 console.log("Jabatan chart data:", data.jabatan);
@@ -200,7 +215,7 @@ export default function Index({ statistics = {} }) {
     }, []);
 
     /**
-     * NEW: Detail Container Component for displaying breakdown information
+     * UPDATED: Detail Container Component dengan enhanced unit display
      */
     const DetailContainer = ({ data, chartType, title }) => {
         if (!data || data.length === 0) {
@@ -334,9 +349,9 @@ export default function Index({ statistics = {} }) {
                     return (
                         <div className="space-y-4">
                             <h4 className="pb-2 text-lg font-bold text-gray-900 border-b border-gray-200">
-                                Detail SDM per Unit Organisasi
+                                Detail SDM per Unit (dengan Kode Unit)
                             </h4>
-                            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                                 {data.map((item, index) => {
                                     const color =
                                         index === 0
@@ -345,29 +360,97 @@ export default function Index({ statistics = {} }) {
                                                   (index + 1) %
                                                       colorArray.length
                                               ];
+
+                                    // UPDATED: Enhanced unit name processing untuk format kode
+                                    const unitName =
+                                        item.name || "Unit Tidak Diketahui";
+                                    const hasCode =
+                                        unitName.includes("(") &&
+                                        unitName.includes(")");
+                                    const displayName = hasCode
+                                        ? unitName
+                                        : `${unitName}`;
+
+                                    // Extract unit code untuk styling khusus
+                                    const codeMatch =
+                                        unitName.match(/\(([^)]+)\)/);
+                                    const unitCode = codeMatch
+                                        ? codeMatch[1]
+                                        : "";
+
+                                    console.log(
+                                        `Unit Detail: ${unitName} -> Code: ${unitCode}, HasCode: ${hasCode}`
+                                    );
+
                                     return (
                                         <div
                                             key={index}
-                                            className="p-3 text-center bg-white border border-gray-100 rounded-lg shadow-sm"
+                                            className="p-4 transition-shadow bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md"
                                         >
-                                            <div
-                                                className="w-6 h-6 mx-auto mb-2 border-2 border-white rounded shadow-sm"
-                                                style={{
-                                                    backgroundColor: color,
-                                                }}
-                                            ></div>
-                                            <p className="mb-1 text-xs font-bold text-gray-900 uppercase">
-                                                {item.name}
-                                            </p>
-                                            <p
-                                                className="text-lg font-bold"
-                                                style={{ color: color }}
-                                            >
-                                                {item.value || 0}
-                                            </p>
+                                            <div className="flex items-center mb-3">
+                                                <div
+                                                    className="w-4 h-4 mr-3 border-2 border-white rounded shadow-sm"
+                                                    style={{
+                                                        backgroundColor: color,
+                                                    }}
+                                                ></div>
+                                                {hasCode && unitCode && (
+                                                    <span
+                                                        className="px-2 py-1 mr-2 text-xs font-bold text-white rounded"
+                                                        style={{
+                                                            backgroundColor:
+                                                                color,
+                                                        }}
+                                                    >
+                                                        {unitCode}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="mb-2 text-sm font-semibold leading-tight text-gray-900">
+                                                    {displayName}
+                                                </p>
+                                                <p
+                                                    className="text-2xl font-bold"
+                                                    style={{ color: color }}
+                                                >
+                                                    {item.value || 0}
+                                                    <span className="ml-1 text-sm font-normal text-gray-500">
+                                                        SDM
+                                                    </span>
+                                                </p>
+                                            </div>
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            {/* UPDATED: Enhanced info untuk unit chart */}
+                            <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0">
+                                        <svg
+                                            className="w-5 h-5 text-blue-400"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm text-blue-800">
+                                            <strong>Format Unit:</strong> Unit
+                                            ditampilkan dengan kode untuk
+                                            kemudahan identifikasi. Contoh: (MO)
+                                            Movement Operations, (ME)
+                                            Maintenance Equipment, dll.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );
@@ -605,9 +688,22 @@ export default function Index({ statistics = {} }) {
         return { intervals, max, interval };
     };
 
-    // FIXED: True Proportional Bar Chart Component - Clean without labels
+    // UPDATED: Enhanced Bar Chart with better unit name handling
     const Enhanced3DBarChart = ({ data, title, description, chartType }) => {
         console.log(`CHART [${chartType}]: Rendering with data:`, data);
+
+        // UPDATED: Special logging untuk unit chart
+        if (chartType === "unit" && data && data.length > 0) {
+            console.log(
+                `UNIT CHART: Processing ${data.length} units:`,
+                data.map((item) => ({
+                    name: item.name,
+                    value: item.value,
+                    hasCode: item.name?.includes("("),
+                    displayName: item.name,
+                }))
+            );
+        }
 
         if (!data || data.length === 0) {
             console.log(`CHART [${chartType}]: No data available`);
@@ -729,6 +825,13 @@ export default function Index({ statistics = {} }) {
                             {title}
                         </h3>
                         <p className="text-sm text-gray-600">{description}</p>
+                        {/* UPDATED: Special info untuk unit chart */}
+                        {chartType === "unit" && (
+                            <p className="mt-2 text-xs font-medium text-blue-600">
+                                Unit ditampilkan dengan format kode: (XX) Nama
+                                Unit
+                            </p>
+                        )}
                     </div>
 
                     {/* FIXED: Chart Container - TRUE proportional system */}
@@ -753,6 +856,16 @@ export default function Index({ statistics = {} }) {
                             >
                                 {data.map((item, index) => {
                                     const rawValue = item.value || 0;
+
+                                    // UPDATED: Enhanced unit name processing untuk tooltip
+                                    const displayName = item.name || "Unknown";
+                                    const hasCode =
+                                        displayName.includes("(") &&
+                                        displayName.includes(")");
+                                    const tooltipText =
+                                        chartType === "unit" && hasCode
+                                            ? `${displayName}: ${rawValue} SDM`
+                                            : `${displayName}: ${rawValue}`;
 
                                     // CRITICAL: TRUE proportional height using maxValue as reference
                                     const heightPixels =
@@ -784,7 +897,7 @@ export default function Index({ statistics = {} }) {
                                               ];
 
                                     console.log(
-                                        `CHART [${chartType}] Bar ${index} [${item.name}]:`,
+                                        `CHART [${chartType}] Bar ${index} [${displayName}]:`,
                                         {
                                             rawValue,
                                             maxValue,
@@ -805,6 +918,8 @@ export default function Index({ statistics = {} }) {
                                                 1
                                             )}%`,
                                             TRUE_PROPORTIONAL: true,
+                                            hasCode: hasCode,
+                                            tooltipText: tooltipText,
                                         }
                                     );
 
@@ -854,7 +969,7 @@ export default function Index({ statistics = {} }) {
                                                                 ? 0.4
                                                                 : 1,
                                                     }}
-                                                    title={`${item.name}: ${rawValue}`}
+                                                    title={tooltipText}
                                                 >
                                                     {/* Zero value indicator */}
                                                     {rawValue === 0 && (
@@ -862,6 +977,15 @@ export default function Index({ statistics = {} }) {
                                                             <div className="w-full h-0.5 bg-gray-300 rounded" />
                                                         </div>
                                                     )}
+
+                                                    {/* UPDATED: Special indicator untuk unit chart dengan kode */}
+                                                    {chartType === "unit" &&
+                                                        hasCode &&
+                                                        rawValue > 0 && (
+                                                            <div className="absolute top-1 left-1 right-1">
+                                                                <div className="w-full h-1 rounded-full bg-white/30" />
+                                                            </div>
+                                                        )}
                                                 </div>
                                             </div>
 
@@ -1408,7 +1532,7 @@ export default function Index({ statistics = {} }) {
                             </div>
                         </div>
 
-                        {/* Chart Row 2: SDM per Unit - Full Width */}
+                        {/* UPDATED: Chart Row 2: SDM per Unit - Full Width dengan Enhanced Unit Display */}
                         <div className="w-full">
                             <div
                                 className="relative p-10 overflow-hidden transition-all duration-500 bg-white border border-gray-100 shadow-xl rounded-3xl hover:shadow-2xl hover:-translate-y-2 animate-fadeInUp"
@@ -1429,7 +1553,7 @@ export default function Index({ statistics = {} }) {
                                         <Enhanced3DBarChart
                                             data={chartData.unit}
                                             title="SDM per Unit"
-                                            description="Distribusi berdasarkan unit organisasi"
+                                            description="Distribusi berdasarkan unit organisasi dengan kode unit (XX) Nama Unit"
                                             chartType="unit"
                                         />
                                         <DetailContainer

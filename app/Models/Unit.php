@@ -35,6 +35,194 @@ class Unit extends Model
     ];
 
     /**
+     * UPDATED: Unit code mapping untuk format display (XX) Nama Unit
+     * Sesuai dengan requirement user untuk dropdown dan grafik
+     */
+    const UNIT_CODE_MAPPING = [
+        'Airside' => [
+            'Movement Operations' => 'MO',
+            'Maintenance Equipment' => 'ME',
+        ],
+        'Landside' => [
+            'Movement Flight' => 'MF',
+            'Movement Service' => 'MS',
+        ],
+        'Back Office' => [
+            'Management Keuangan' => 'MK',
+            'Management Unit' => 'MU',
+        ],
+        'SSQC' => [
+            'Management Quality' => 'MQ',
+        ],
+        'Ancillary' => [
+            'Management Business' => 'MB',
+        ],
+    ];
+
+    /**
+     * NEW: Get unit code mapping untuk frontend
+     */
+    public static function getUnitCodeMapping()
+    {
+        return self::UNIT_CODE_MAPPING;
+    }
+
+    /**
+     * NEW: Get unit code berdasarkan nama unit dan unit organisasi
+     */
+    public function getUnitCode()
+    {
+        $mapping = self::UNIT_CODE_MAPPING;
+        
+        if (isset($mapping[$this->unit_organisasi][$this->name])) {
+            return $mapping[$this->unit_organisasi][$this->name];
+        }
+        
+        // Fallback untuk unit tanpa mapping (EGM, GM)
+        return $this->code ?? strtoupper(substr($this->name, 0, 2));
+    }
+
+    /**
+     * NEW: Format unit display dengan kode (XX) Nama Unit
+     */
+    public function getFormattedDisplayNameAttribute()
+    {
+        $mapping = self::UNIT_CODE_MAPPING;
+        
+        if (isset($mapping[$this->unit_organisasi][$this->name])) {
+            $code = $mapping[$this->unit_organisasi][$this->name];
+            return "({$code}) {$this->name}";
+        }
+        
+        // Fallback untuk unit tanpa mapping (EGM, GM)
+        return $this->name;
+    }
+
+    /**
+     * NEW: Static method untuk format unit dengan kode
+     */
+    public static function formatUnitWithCode($unitName, $unitOrganisasi)
+    {
+        $mapping = self::UNIT_CODE_MAPPING;
+        
+        if (isset($mapping[$unitOrganisasi][$unitName])) {
+            $code = $mapping[$unitOrganisasi][$unitName];
+            return "({$code}) {$unitName}";
+        }
+        
+        // Fallback untuk unit tanpa mapping (EGM, GM)
+        return $unitName;
+    }
+
+    /**
+     * NEW: Get semua unit dengan format kode untuk dropdown
+     */
+    public static function getUnitsWithCodeFormat()
+    {
+        return self::active()
+            ->get()
+            ->map(function($unit) {
+                return [
+                    'id' => $unit->id,
+                    'name' => $unit->name,
+                    'code' => $unit->getUnitCode(),
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'formatted_name' => $unit->formatted_display_name,
+                    'original_name' => $unit->name,
+                    'display_label' => $unit->formatted_display_name,
+                ];
+            });
+    }
+
+    /**
+     * NEW: Get units untuk unit organisasi tertentu dengan format kode
+     */
+    public static function getUnitsByOrganisasiWithCode($unitOrganisasi)
+    {
+        return self::active()
+            ->byUnitOrganisasi($unitOrganisasi)
+            ->get()
+            ->map(function($unit) {
+                return [
+                    'id' => $unit->id,
+                    'name' => $unit->name,
+                    'code' => $unit->getUnitCode(),
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'formatted_name' => $unit->formatted_display_name,
+                    'original_name' => $unit->name,
+                    'display_label' => $unit->formatted_display_name,
+                ];
+            });
+    }
+
+    /**
+     * NEW: Method untuk dashboard grafik - get unit data dengan format kode
+     */
+    public static function getUnitDataForChart()
+    {
+        $units = self::active()->with('employees')->get();
+        
+        return $units->map(function($unit) {
+            $employeeCount = $unit->employees()->count();
+            
+            return [
+                'name' => $unit->formatted_display_name, // Format dengan kode untuk grafik
+                'original_name' => $unit->name,
+                'code' => $unit->getUnitCode(),
+                'unit_organisasi' => $unit->unit_organisasi,
+                'count' => $employeeCount,
+                'value' => $employeeCount, // Alias untuk grafik
+                'label' => $unit->formatted_display_name,
+            ];
+        })->filter(function($unit) {
+            return $unit['count'] > 0; // Hanya tampilkan unit yang ada karyawannya
+        })->values();
+    }
+
+    /**
+     * UPDATED: Get unit organisasi dengan employee count untuk dashboard
+     * Menggunakan format kode unit
+     */
+    public static function getUnitOrganisasiWithEmployeeCountForChart()
+    {
+        $result = [];
+        
+        foreach (self::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
+            $units = self::active()->byUnitOrganisasi($unitOrganisasi)->with('employees')->get();
+            
+            $unitData = [];
+            $totalEmployees = 0;
+            
+            foreach ($units as $unit) {
+                $employeeCount = $unit->employees()->count();
+                $totalEmployees += $employeeCount;
+                
+                if ($employeeCount > 0) {
+                    $unitData[] = [
+                        'name' => $unit->formatted_display_name, // Format dengan kode
+                        'original_name' => $unit->name,
+                        'code' => $unit->getUnitCode(),
+                        'count' => $employeeCount,
+                        'value' => $employeeCount,
+                        'label' => $unit->formatted_display_name,
+                    ];
+                }
+            }
+            
+            if ($totalEmployees > 0) {
+                $result[] = [
+                    'unit_organisasi' => $unitOrganisasi,
+                    'total_employees' => $totalEmployees,
+                    'units' => $unitData,
+                    'units_count' => count($unitData),
+                ];
+            }
+        }
+        
+        return $result;
+    }
+
+    /**
      * Get sub units yang belongs to this unit (active only)
      */
     public function subUnits()
@@ -148,15 +336,17 @@ class Unit extends Model
     }
 
     /**
-     * Get display name for dropdown
+     * UPDATED: Get display name for dropdown dengan format kode
      */
     public function getDisplayNameAttribute()
     {
+        $formattedName = $this->formatted_display_name;
         $subUnitsCount = $this->active_sub_units_count;
+        
         if ($subUnitsCount > 0) {
-            return $this->name . " ({$subUnitsCount} sub units)";
+            return $formattedName . " ({$subUnitsCount} sub units)";
         }
-        return $this->name;
+        return $formattedName;
     }
 
     /**
@@ -228,7 +418,7 @@ class Unit extends Model
     }
 
     /**
-     * Boot method untuk auto-generate code jika tidak ada
+     * UPDATED: Boot method dengan auto-generate code yang lebih baik
      */
     protected static function boot()
     {
@@ -236,7 +426,22 @@ class Unit extends Model
         
         static::creating(function ($unit) {
             if (empty($unit->code)) {
-                $unit->code = strtoupper(str_replace(' ', '_', $unit->name));
+                // Coba dapatkan kode dari mapping terlebih dahulu
+                $mapping = self::UNIT_CODE_MAPPING;
+                if (isset($mapping[$unit->unit_organisasi][$unit->name])) {
+                    $unit->code = $mapping[$unit->unit_organisasi][$unit->name];
+                } else {
+                    // Fallback ke auto-generate
+                    $unit->code = strtoupper(str_replace(' ', '_', $unit->name));
+                }
+            }
+        });
+        
+        static::updating(function ($unit) {
+            // Update code jika nama unit berubah dan ada mapping
+            $mapping = self::UNIT_CODE_MAPPING;
+            if (isset($mapping[$unit->unit_organisasi][$unit->name])) {
+                $unit->code = $mapping[$unit->unit_organisasi][$unit->name];
             }
         });
     }

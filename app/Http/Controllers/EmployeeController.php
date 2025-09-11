@@ -723,7 +723,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat', 'like', "%{$searchTerm}%") // FIXED: Changed from alamat_lengkap to alamat
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           ->orWhere('kelompok_jabatan', 'like', "%{$searchTerm}%")
                           // NEW: Search in new fields
@@ -1023,115 +1023,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * ENHANCED: Method untuk API search (jika diperlukan untuk AJAX)
-     */
-    public function search(Request $request)
-    {
-        try {
-            $query = Employee::query();
-            
-            // Load relationships if they exist
-            if (method_exists(Employee::class, 'organization')) {
-                $query->with('organization');
-            }
-            if (method_exists(Employee::class, 'unit')) {
-                $query->with('unit');
-            }
-            if (method_exists(Employee::class, 'subUnit')) {
-                $query->with('subUnit');
-            }
-
-            // Filter untuk status aktif
-            if (Schema::hasColumn('employees', 'status')) {
-                $query->where('status', 'active');
-            }
-
-            // Apply all the same filters as index method including NEW FIELDS
-            $filterConditions = [];
-
-            // Global search with NEW FIELDS
-            if ($request->filled('search')) {
-                $searchTerm = trim($request->search);
-                
-                if (!empty($searchTerm)) {
-                    $query->where(function($q) use ($searchTerm) {
-                        $q->where('nama_lengkap', 'like', "%{$searchTerm}%")
-                          ->orWhere('nip', 'like', "%{$searchTerm}%")
-                          ->orWhere('nik', 'like', "%{$searchTerm}%")
-                          ->orWhere('nama_jabatan', 'like', "%{$searchTerm}%")
-                          ->orWhere('unit_organisasi', 'like', "%{$searchTerm}%")
-                          // NEW FIELDS
-                          ->orWhere('provider', 'like', "%{$searchTerm}%")
-                          ->orWhere('unit_kerja_kontrak', 'like', "%{$searchTerm}%")
-                          ->orWhere('grade', 'like', "%{$searchTerm}%")
-                          ->orWhere('status_kerja', 'like', "%{$searchTerm}%");
-                    });
-                    $filterConditions['search'] = $searchTerm;
-                }
-            }
-
-            // Apply the same individual filters including NEW FIELDS
-            foreach (['status_pegawai', 'kelompok_jabatan', 'unit_organisasi', 'unit_id', 'sub_unit_id', 'jenis_kelamin', 'jenis_sepatu', 'ukuran_sepatu', 'provider', 'status_kerja', 'grade'] as $filterKey) {
-                if ($request->filled($filterKey) && $request->$filterKey !== 'all') {
-                    $query->where($filterKey, $request->$filterKey);
-                    $filterConditions[$filterKey] = $request->$filterKey;
-                }
-            }
-
-            $perPage = min(max((int) $request->get('per_page', 20), 5), 100);
-            
-            $employees = $query->orderBy('created_at', 'desc')
-                             ->orderBy('nama_lengkap', 'asc')
-                             ->paginate($perPage)
-                             ->withQueryString();
-
-            // CRITICAL: Apply same masa_kerja calculation as index method
-            $employees->getCollection()->transform(function ($employee) {
-                $employeeData = $employee->toArray();
-                
-                if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
-                    $employeeData['masa_kerja'] = $this->calculateMasaKerja(
-                        $employeeData['tmt_mulai_kerja'], 
-                        $employeeData['tmt_berakhir_kerja'] ?? null
-                    );
-                } else {
-                    $employeeData['masa_kerja'] = "-";
-                }
-                
-                if (isset($employeeData['jenis_kelamin'])) {
-                    $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
-                }
-                
-                return (object) $employeeData;
-            });
-
-            // Return JSON response untuk AJAX calls
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'employees' => $employees,
-                    'statistics' => $this->getEnhancedStatistics($filterConditions),
-                    'success' => true
-                ]);
-            }
-
-            // Redirect ke index untuk non-JSON requests
-            return redirect()->route('employees.index', $request->all());
-
-        } catch (\Exception $e) {
-            Log::error('Employee Search Error: ' . $e->getMessage());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'error' => 'Terjadi kesalahan saat melakukan pencarian',
-                    'success' => false
-                ], 500);
-            }
-            
-            return redirect()->back()->with('error', 'Terjadi kesalahan saat melakukan pencarian');
-        }
-    }
-
-    /**
      * UPDATED: Show the form for creating a new employee with new field options
      */
     public function create()
@@ -1343,7 +1234,7 @@ class EmployeeController extends Controller
                 // Optional fields dengan validasi yang lebih longgar
                 'tempat_lahir' => 'nullable|string|max:100',
                 'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat' => 'nullable|string|max:500', // FIXED: Changed from alamat_lengkap to alamat
+                'alamat' => 'nullable|string|max:500',
                 'kota_domisili' => 'nullable|string|max:100',
                 'handphone' => 'nullable|string|max:20',
                 'email' => 'nullable|email|max:100|unique:employees,email',
@@ -1377,6 +1268,536 @@ class EmployeeController extends Controller
                 'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
                 'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
                 'status_pegawai.required' => 'Status pegawai wajib dipilih.',
+                'email.unique' => 'Email sudah terdaftar di sistem.',
+                // NEW FIELD MESSAGES
+                'provider.in' => 'Provider yang dipilih tidak valid.',
+                'unit_kerja_kontrak.max' => 'Unit kerja kontrak maksimal 255 karakter.',
+                'grade.max' => 'Grade maksimal 50 karakter.',
+                'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
+                'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
+                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.',
+            ]);
+
+            // Return validation errors using Inertia redirect back
+            if ($validator->fails()) {
+                Log::warning('Employee Store Validation Failed', [
+                    'errors' => $validator->errors()->toArray(),
+                    'nik' => $request->nik,
+                    'nip' => $request->nip
+                ]);
+
+                return redirect()->back()
+                    ->withErrors($validator->errors())
+                    ->withInput()
+                    ->with('error', 'Data tidak valid. Silakan periksa kembali form.');
+            }
+
+            // Prepare data for employee creation
+            $employeeData = $validator->validated();
+            
+            // Handle jenis_kelamin conversion (Support both formats)
+            if (isset($employeeData['jenis_kelamin'])) {
+                // Convert dari format apapun ke database format (L/P)
+                if ($employeeData['jenis_kelamin'] === 'Laki-laki') {
+                    $employeeData['jenis_kelamin'] = 'L';
+                } elseif ($employeeData['jenis_kelamin'] === 'Perempuan') {
+                    $employeeData['jenis_kelamin'] = 'P';
+                }
+                // Jika sudah L atau P, biarkan seperti itu
+            }
+            
+            // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
+            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($employeeData['sub_unit_id'])) {
+                $employeeData['sub_unit_id'] = null;
+            }
+
+            // NEW: Set default values untuk field baru yang tidak bisa diubah
+            $employeeData['status'] = 'active';
+            $employeeData['organization_id'] = 1; // Default organization
+            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Fixed location
+            $employeeData['cabang'] = 'DPS'; // Fixed branch
+
+            // NEW: Auto-set status kerja based on tmt_berakhir_kerja logic
+            if (isset($employeeData['tmt_berakhir_kerja']) && !empty($employeeData['tmt_berakhir_kerja'])) {
+                // Status kerja otomatis menjadi aktif saat tmt berakhir kerja diisi
+                $today = Carbon::now('Asia/Makassar');
+                $endDate = Carbon::parse($employeeData['tmt_berakhir_kerja']);
+                
+                // Auto-set berdasarkan apakah sudah melewati tanggal berakhir atau belum
+                $employeeData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
+            } else {
+                // Jika tidak ada tmt_berakhir_kerja, status kerja default Non-Aktif
+                $employeeData['status_kerja'] = 'Non-Aktif';
+            }
+
+            // FIXED: Calculate masa kerja using helper function
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
+            }
+
+            // Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
+            if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
+                $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
+                $pensionDate = clone $birthDate;
+                $pensionDate->addYears(56);
+                
+                // Apply logic: if birth date < 10th, pension on 1st of same month, else 1st of next month
+                if ($birthDate->day < 10) {
+                    $pensionDate->day = 1;
+                } else {
+                    $pensionDate->day = 1;
+                    $pensionDate->addMonth();
+                }
+                
+                $employeeData['tmt_pensiun'] = $pensionDate;
+            }
+
+            // Start database transaction
+            DB::beginTransaction();
+            
+            try {
+                // Create employee
+                $employee = Employee::create($employeeData);
+                
+                // Commit transaction
+                DB::commit();
+
+                Log::info('Employee Created Successfully', [
+                    'employee_id' => $employee->id,
+                    'employee_nik' => $employee->nik,
+                    'nik' => $employee->nik,
+                    'nip' => $employee->nip,
+                    'nama_lengkap' => $employee->nama_lengkap,
+                    'unit_organisasi' => $employee->unit_organisasi,
+                    'provider' => $employee->provider,
+                    'grade' => $employee->grade,
+                    'status_kerja' => $employee->status_kerja,
+                    'lokasi_kerja' => $employee->lokasi_kerja,
+                    'cabang' => $employee->cabang,
+                    'masa_kerja' => $employee->masa_kerja ?? 'Belum dihitung',
+                    'has_sub_unit' => !is_null($employee->sub_unit_id)
+                ]);
+
+                // Return success response
+                return redirect()->route('employees.index')
+                    ->with('success', 'Karyawan berhasil ditambahkan!')
+                    ->with('notification', [
+                        'type' => 'success',
+                        'title' => 'Berhasil!',
+                        'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
+                        'newEmployee' => [
+                            'id' => $employee->id,
+                            'nik' => $employee->nik,
+                            'nip' => $employee->nip,
+                            'nama_lengkap' => $employee->nama_lengkap,
+                            'unit_organisasi' => $employee->unit_organisasi,
+                            'provider' => $employee->provider,
+                            'grade' => $employee->grade,
+                            'status_kerja' => $employee->status_kerja,
+                            'lokasi_kerja' => $employee->lokasi_kerja,
+                            'cabang' => $employee->cabang,
+                            'created_at' => $employee->created_at->format('d/m/Y H:i:s')
+                        ]
+                    ]);
+
+            } catch (\Exception $e) {
+                // Rollback transaction
+                DB::rollBack();
+                
+                Log::error('Employee Database Creation Failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'employee_data' => $employeeData
+                ]);
+
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Terjadi kesalahan database saat menyimpan data. Error: ' . $e->getMessage())
+                    ->with('notification', [
+                        'type' => 'error',
+                        'title' => 'Gagal Menyimpan',
+                        'message' => 'Terjadi kesalahan database. Silakan coba lagi atau hubungi administrator.'
+                    ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Employee Store Failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['password'])
+            ]);
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.')
+                ->with('notification', [
+                    'type' => 'error',
+                    'title' => 'Gagal Menyimpan',
+                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator. Error: ' . $e->getMessage()
+                ]);
+        }
+    }
+
+    /**
+     * CRITICAL FIX: Display the specified employee with enhanced masa kerja calculation
+     * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
+     */
+    public function show(string $identifier)
+    {
+        try {
+            // FIXED: Find by flexible identifier (ID atau NIK)
+            $employee = Employee::findByIdentifier($identifier)->first();
+            
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
+            
+            // Load relationships if they exist
+            if (method_exists($employee, 'organization')) {
+                $employee->load('organization');
+            }
+            if (method_exists($employee, 'unit')) {
+                $employee->load('unit');
+            }
+            if (method_exists($employee, 'subUnit')) {
+                $employee->load('subUnit');
+            }
+
+            // CRITICAL FIX: Prepare employee data and ALWAYS calculate masa kerja
+            $employeeData = $employee->toArray();
+            
+            // ENHANCED: Always recalculate masa kerja to ensure it's current and accurate
+            $masaKerjaCalculated = null;
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $masaKerjaCalculated = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
+                
+                // CRITICAL: Set the calculated value
+                $employeeData['masa_kerja'] = $masaKerjaCalculated;
+            } else {
+                // If no TMT Mulai Kerja, set fallback
+                $employeeData['masa_kerja'] = "-";
+            }
+
+            // Convert gender dari database format (L/P) ke display format jika perlu
+            if (isset($employeeData['jenis_kelamin'])) {
+                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+            }
+
+            // ENHANCED DEBUG LOGGING
+            Log::info('Employee Show Data - Comprehensive Debug', [
+                'employee_id' => $employee->id,
+                'employee_nik' => $employee->nik,
+                'employee_name' => $employee->nama_lengkap,
+                'tmt_mulai_kerja_raw' => $employee->tmt_mulai_kerja,
+                'tmt_mulai_kerja_processed' => $employeeData['tmt_mulai_kerja'] ?? 'null',
+                'tmt_berakhir_kerja_raw' => $employee->tmt_berakhir_kerja,
+                'tmt_berakhir_kerja_processed' => $employeeData['tmt_berakhir_kerja'] ?? 'null',
+                'masa_kerja_from_db' => $employee->masa_kerja,
+                'masa_kerja_calculated' => $masaKerjaCalculated,
+                'masa_kerja_final' => $employeeData['masa_kerja'],
+                'has_tmt_mulai_kerja' => !empty($employee->tmt_mulai_kerja),
+                'has_tmt_berakhir_kerja' => !empty($employee->tmt_berakhir_kerja),
+            ]);
+            
+            return Inertia::render('Employees/Show', [
+                'employee' => $employeeData, // Send processed data with guaranteed masa_kerja
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Employee Show Error', [
+                'employee_identifier' => $identifier,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('employees.index')
+                ->with('error', 'Error loading employee details: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * UPDATED: Show the form for editing the specified employee dengan semua options untuk Edit.jsx
+     */
+    public function edit(string $identifier)
+    {
+        try {
+            // FIXED: Find by flexible identifier (ID atau NIK)
+            $employee = Employee::findByIdentifier($identifier)->first();
+            
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
+            
+            // Load relationships
+            if (method_exists($employee, 'unit')) {
+                $employee->load('unit');
+            }
+            if (method_exists($employee, 'subUnit')) {
+                $employee->load('subUnit');
+            }
+
+            // Prepare employee data dengan format yang konsisten
+            $employeeData = $employee->toArray();
+            
+            // Convert gender dari database format (L/P) ke display format
+            if (isset($employeeData['jenis_kelamin'])) {
+                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+            }
+            
+            // FIXED: Recalculate masa kerja to ensure it's current
+            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
+                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
+                    $employeeData['tmt_mulai_kerja'], 
+                    $employeeData['tmt_berakhir_kerja'] ?? null
+                );
+            }
+            
+            // Format dates untuk input type="date" including ALL NEW FIELDS
+            $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun', 'tmt_akhir_jabatan', 'tmt_berakhir_kerja'];
+            foreach ($dateFields as $field) {
+                if (isset($employeeData[$field]) && $employeeData[$field]) {
+                    $employeeData[$field] = Carbon::parse($employeeData[$field])->format('Y-m-d');
+                }
+            }
+            
+            // Get organizations untuk dropdown jika diperlukan
+            $organizations = $this->getOrganizationsForFilter();
+            
+            // Get unit options
+            $unitOptions = $this->getUnitOptions();
+            
+            // Get jabatan options
+            $jabatanOptions = $this->getJabatanOptions();
+
+            // Unit Organisasi options dari model Unit
+            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
+                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
+            ];
+
+            return Inertia::render('Employees/Edit', [
+                'employee' => $employeeData,
+                'organizations' => $organizations,
+                'unitOptions' => $unitOptions,
+                'jabatanOptions' => $jabatanOptions,
+                'unitOrganisasiOptions' => $unitOrganisasiOptions,
+                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
+                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
+                // UPDATED: Ensure ALL new field options are passed to Edit.jsx
+                'providerOptions' => self::PROVIDER_OPTIONS,
+                'statusKerjaOptions' => self::STATUS_KERJA_OPTIONS,
+                'success' => session('success'),
+                'error' => session('error'),
+                'message' => session('message'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Employee Edit Error', [
+                'employee_identifier' => $identifier,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('employees.index')
+                ->with('error', 'Error loading edit form: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * UPDATED: Update the specified employee in storage with COMPREHENSIVE NEW FIELD validation
+     */
+    public function update(Request $request, string $identifier)
+    {
+        try {
+            // FIXED: Find by flexible identifier
+            $employee = Employee::findByIdentifier($identifier)->first();
+            
+            if (!$employee) {
+                return redirect()->route('employees.index')
+                    ->with('error', 'Employee tidak ditemukan.');
+            }
+
+            // Get available unit organisasi options
+            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? 
+                ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'];
+
+            // Unit yang tidak memerlukan sub unit
+            $unitWithoutSubUnits = ['EGM', 'GM'];
+
+            // UPDATED: Comprehensive validation rules with ALL NEW FIELDS for Edit mode
+            $validator = Validator::make($request->all(), [
+                // Identity fields with ignore current record for unique validation
+                'nik' => [
+                    'required',
+                    'string',
+                    'size:16',
+                    'regex:/^[0-9]+$/',
+                    Rule::unique('employees', 'nik')->ignore($employee->id, 'id')
+                ],
+                'nip' => [
+                    'required',
+                    'string',
+                    'min:5',
+                    'regex:/^[0-9]+$/',
+                    Rule::unique('employees', 'nip')->ignore($employee->id, 'id')
+                ],
+                'nama_lengkap' => 'required|string|min:2|max:200',
+                'jenis_kelamin' => [
+                    'required',
+                    'string',
+                    Rule::in(['Laki-laki', 'Perempuan', 'L', 'P'])
+                ],
+                
+                // Organizational structure validation - SAME AS CREATE
+                'unit_organisasi' => [
+                    'required',
+                    'string',
+                    Rule::in($unitOrganisasiOptions)
+                ],
+                'unit_id' => [
+                    'required',
+                    'integer',
+                    'exists:units,id'
+                ],
+                'sub_unit_id' => [
+                    'nullable',
+                    'integer',
+                    function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
+                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
+                            return;
+                        }
+                        
+                        if (!$value) {
+                            $fail('Sub unit wajib diisi untuk unit organisasi ' . $request->unit_organisasi . '.');
+                        }
+                        
+                        if ($value && !SubUnit::where('id', $value)->exists()) {
+                            $fail('Sub unit yang dipilih tidak valid.');
+                        }
+                        
+                        if ($value && $request->unit_id) {
+                            $subUnit = SubUnit::find($value);
+                            if ($subUnit && $subUnit->unit_id != $request->unit_id) {
+                                $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
+                            }
+                        }
+                    }
+                ],
+                
+                // Job fields - REQUIRED
+                'nama_jabatan' => 'required|string|max:255',
+                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
+                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
+                
+                // NEW FIELD VALIDATIONS FOR EDIT MODE - COMPREHENSIVE
+                'provider' => [
+                    'nullable',
+                    'string',
+                    Rule::in(self::PROVIDER_OPTIONS)
+                ],
+                'unit_kerja_kontrak' => 'nullable|string|max:255',
+                'grade' => 'nullable|string|max:50',
+                'status_kerja' => [
+                    'required', // REQUIRED in edit mode - user can change manually
+                    'string',
+                    Rule::in(self::STATUS_KERJA_OPTIONS)
+                ],
+                
+                // NEW: Enhanced date validations for EDIT mode
+                'tmt_mulai_kerja' => 'nullable|date',
+                'tmt_berakhir_kerja' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_kerja) {
+                            $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
+                            $berakhirKerja = \Carbon\Carbon::parse($value);
+                            
+                            if ($berakhirKerja->lte($mulaiKerja)) {
+                                $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
+                            }
+                        }
+                    }
+                ],
+                'tmt_mulai_jabatan' => 'nullable|date',
+                'tmt_akhir_jabatan' => [
+                    'nullable',
+                    'date',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if ($value && $request->tmt_mulai_jabatan) {
+                            $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
+                            $akhirJabatan = \Carbon\Carbon::parse($value);
+                            
+                            if ($akhirJabatan->lte($mulaiJabatan)) {
+                                $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
+                            }
+                        }
+                    }
+                ],
+                
+                // Optional personal fields
+                'tempat_lahir' => 'nullable|string|max:100',
+                'tanggal_lahir' => 'nullable|date|before:today',
+                'alamat' => 'nullable|string|max:500',
+                'kota_domisili' => 'nullable|string|max:100',
+                'jabatan' => 'nullable|string|max:255',
+                
+                // Contact fields with ignore current record
+                'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                    Rule::unique('employees', 'email')->ignore($employee->id, 'id')
+                ],
+                
+                // Education fields
+                'pendidikan_terakhir' => 'nullable|string|max:50',
+                'pendidikan' => 'nullable|string|max:50',
+                'instansi_pendidikan' => 'nullable|string|max:255',
+                'jurusan' => 'nullable|string|max:100',
+                'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
+                
+                // Physical attributes and equipment
+                'height' => 'nullable|integer|min:100|max:250',
+                'weight' => 'nullable|integer|min:30|max:200',
+                'jenis_sepatu' => 'nullable|string|max:50',
+                'ukuran_sepatu' => 'nullable|string|max:10',
+                'seragam' => 'nullable|string|max:100',
+                
+                // BPJS fields
+                'no_bpjs_kesehatan' => 'nullable|string|max:50',
+                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
+                
+                // TMT fields
+                'tmt_pensiun' => 'nullable|date',
+                
+                // FIXED FIELDS - These should be passed but not changed
+                'lokasi_kerja' => 'string|in:Bandar Udara Ngurah Rai',
+                'cabang' => 'string|in:DPS',
+                'masa_kerja' => 'nullable|string', // This is calculated automatically
+            ], [
+                // UPDATED: Comprehensive error messages including ALL NEW FIELDS
+                'nik.required' => 'NIK wajib diisi.',
+                'nik.size' => 'NIK harus tepat 16 digit.',
+                'nik.regex' => 'NIK hanya boleh berisi angka.',
+                'nik.unique' => 'NIK sudah digunakan oleh karyawan lain.',
+                'nip.required' => 'NIP wajib diisi.',
+                'nip.min' => 'NIP minimal 5 digit.',
+                'nip.regex' => 'NIP hanya boleh berisi angka.',
+                'nip.unique' => 'NIP sudah digunakan oleh karyawan lain.',
+                'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
+                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih.',
+                'unit_organisasi.required' => 'Unit organisasi wajib dipilih.',
+                'unit_id.required' => 'Unit wajib dipilih.',
+                'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
+                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
+                'status_pegawai.required' => 'Status pegawai wajib dipilih.',
                 'email.unique' => 'Email sudah digunakan oleh karyawan lain.',
                 // NEW FIELD MESSAGES
                 'provider.in' => 'Provider yang dipilih tidak valid.',
@@ -1388,7 +1809,7 @@ class EmployeeController extends Controller
                 'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
                 'lokasi_kerja.in' => 'Lokasi kerja harus "Bandar Udara Ngurah Rai".',
                 'cabang.in' => 'Cabang harus "DPS".',
-                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED: Changed from alamat_lengkap.max to alamat.max
+                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.',
             ]);
 
             if ($validator->fails()) {
@@ -1921,7 +2342,7 @@ class EmployeeController extends Controller
                           ->orWhere('jenis_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('ukuran_sepatu', 'like', "%{$searchTerm}%")
                           ->orWhere('tempat_lahir', 'like', "%{$searchTerm}%")
-                          ->orWhere('alamat', 'like', "%{$searchTerm}%") // FIXED: Changed from alamat_lengkap to alamat
+                          ->orWhere('alamat', 'like', "%{$searchTerm}%")
                           ->orWhere('handphone', 'like', "%{$searchTerm}%")
                           // NEW FIELD SEARCHES
                           ->orWhere('provider', 'like', "%{$searchTerm}%")
@@ -2300,576 +2721,4 @@ class EmployeeController extends Controller
             'providerCount' => 0,
         ];
     }
-
-    /**
-     * UPDATED: Get default filter options for fallback with NEW FIELDS
-     */
-    private function getDefaultFilterOptions()
-    {
-        return [
-            'units' => [],
-            'positions' => [],
-            'shoe_types' => ['Pantofel', 'Safety Shoes'],
-            'shoe_sizes' => [],
-            'status_pegawai' => self::STATUS_PEGAWAI_OPTIONS,
-            'kelompok_jabatan' => self::KELOMPOK_JABATAN_OPTIONS,
-            'genders' => ['L', 'P'],
-            // NEW: Default options for new fields
-            'providers' => self::PROVIDER_OPTIONS,
-            'status_kerja' => self::STATUS_KERJA_OPTIONS,
-            'grades' => [],
-        ];
-    }
-
-    /**
-     * Get default pagination for fallback
-     */
-    private function getDefaultPagination()
-    {
-        return [
-            'current_page' => 1,
-            'last_page' => 1,
-            'per_page' => 20,
-            'total' => 0,
-            'from' => null,
-            'to' => null,
-            'has_pages' => false,
-            'has_more_pages' => false,
-            'on_first_page' => true,
-            'on_last_page' => true,
-            'next_page_url' => null,
-            'prev_page_url' => null,
-            'links' => []
-        ];
-    }
-}ajib diisi.',
-                'jenis_kelamin.required' => 'Jenis kelamin wajib dipilih.',
-                'unit_organisasi.required' => 'Unit organisasi wajib dipilih.',
-                'unit_id.required' => 'Unit wajib dipilih.',
-                'nama_jabatan.required' => 'Nama jabatan wajib diisi.',
-                'kelompok_jabatan.required' => 'Kelompok jabatan wajib dipilih.',
-                'status_pegawai.required' => 'Status pegawai wajib dipilih.',
-                'email.unique' => 'Email sudah terdaftar di sistem.',
-                // NEW FIELD MESSAGES
-                'provider.in' => 'Provider yang dipilih tidak valid.',
-                'unit_kerja_kontrak.max' => 'Unit kerja kontrak maksimal 255 karakter.',
-                'grade.max' => 'Grade maksimal 50 karakter.',
-                'tmt_berakhir_kerja.date' => 'TMT Berakhir Kerja harus berupa tanggal yang valid.',
-                'tmt_akhir_jabatan.date' => 'TMT Akhir Jabatan harus berupa tanggal yang valid.',
-                'alamat.max' => 'Alamat lengkap maksimal 500 karakter.', // FIXED: Changed from alamat_lengkap.max to alamat.max
-            ]);
-
-            // Return validation errors using Inertia redirect back
-            if ($validator->fails()) {
-                Log::warning('Employee Store Validation Failed', [
-                    'errors' => $validator->errors()->toArray(),
-                    'nik' => $request->nik,
-                    'nip' => $request->nip
-                ]);
-
-                return redirect()->back()
-                    ->withErrors($validator->errors())
-                    ->withInput()
-                    ->with('error', 'Data tidak valid. Silakan periksa kembali form.');
-            }
-
-            // Prepare data for employee creation
-            $employeeData = $validator->validated();
-            
-            // Handle jenis_kelamin conversion (Support both formats)
-            if (isset($employeeData['jenis_kelamin'])) {
-                // Convert dari format apapun ke database format (L/P)
-                if ($employeeData['jenis_kelamin'] === 'Laki-laki') {
-                    $employeeData['jenis_kelamin'] = 'L';
-                } elseif ($employeeData['jenis_kelamin'] === 'Perempuan') {
-                    $employeeData['jenis_kelamin'] = 'P';
-                }
-                // Jika sudah L atau P, biarkan seperti itu
-            }
-            
-            // Handle sub_unit_id untuk EGM dan GM (set null jika kosong)
-            if (in_array($request->unit_organisasi, $unitWithoutSubUnits) && empty($employeeData['sub_unit_id'])) {
-                $employeeData['sub_unit_id'] = null;
-            }
-
-            // NEW: Set default values untuk field baru yang tidak bisa diubah
-            $employeeData['status'] = 'active';
-            $employeeData['organization_id'] = 1; // Default organization
-            $employeeData['lokasi_kerja'] = 'Bandar Udara Ngurah Rai'; // Fixed location
-            $employeeData['cabang'] = 'DPS'; // Fixed branch
-
-            // NEW: Auto-set status kerja based on tmt_berakhir_kerja logic
-            if (isset($employeeData['tmt_berakhir_kerja']) && !empty($employeeData['tmt_berakhir_kerja'])) {
-                // Status kerja otomatis menjadi aktif saat tmt berakhir kerja diisi
-                $today = Carbon::now('Asia/Makassar');
-                $endDate = Carbon::parse($employeeData['tmt_berakhir_kerja']);
-                
-                // Auto-set berdasarkan apakah sudah melewati tanggal berakhir atau belum
-                $employeeData['status_kerja'] = $today->lte($endDate) ? 'Aktif' : 'Non-Aktif';
-            } else {
-                // Jika tidak ada tmt_berakhir_kerja, status kerja default Non-Aktif
-                $employeeData['status_kerja'] = 'Non-Aktif';
-            }
-
-            // FIXED: Calculate masa kerja using helper function
-            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
-                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
-                    $employeeData['tmt_mulai_kerja'], 
-                    $employeeData['tmt_berakhir_kerja'] ?? null
-                );
-            }
-
-            // Calculate TMT Pensiun (56 tahun dari tanggal lahir) - only if birth date provided
-            if (isset($employeeData['tanggal_lahir']) && !empty($employeeData['tanggal_lahir'])) {
-                $birthDate = Carbon::parse($employeeData['tanggal_lahir']);
-                $pensionDate = clone $birthDate;
-                $pensionDate->addYears(56);
-                
-                // Apply logic: if birth date < 10th, pension on 1st of same month, else 1st of next month
-                if ($birthDate->day < 10) {
-                    $pensionDate->day = 1;
-                } else {
-                    $pensionDate->day = 1;
-                    $pensionDate->addMonth();
-                }
-                
-                $employeeData['tmt_pensiun'] = $pensionDate;
-            }
-
-            // Start database transaction
-            DB::beginTransaction();
-            
-            try {
-                // Create employee
-                $employee = Employee::create($employeeData);
-                
-                // Commit transaction
-                DB::commit();
-
-                Log::info('Employee Created Successfully', [
-                    'employee_id' => $employee->id,
-                    'employee_nik' => $employee->nik,
-                    'nik' => $employee->nik,
-                    'nip' => $employee->nip,
-                    'nama_lengkap' => $employee->nama_lengkap,
-                    'unit_organisasi' => $employee->unit_organisasi,
-                    'provider' => $employee->provider,
-                    'grade' => $employee->grade,
-                    'status_kerja' => $employee->status_kerja,
-                    'lokasi_kerja' => $employee->lokasi_kerja,
-                    'cabang' => $employee->cabang,
-                    'masa_kerja' => $employee->masa_kerja ?? 'Belum dihitung',
-                    'has_sub_unit' => !is_null($employee->sub_unit_id)
-                ]);
-
-                // Return success response
-                return redirect()->route('employees.index')
-                    ->with('success', 'Karyawan berhasil ditambahkan!')
-                    ->with('notification', [
-                        'type' => 'success',
-                        'title' => 'Berhasil!',
-                        'message' => "Karyawan {$employee->nama_lengkap} berhasil ditambahkan ke sistem.",
-                        'newEmployee' => [
-                            'id' => $employee->id,
-                            'nik' => $employee->nik,
-                            'nip' => $employee->nip,
-                            'nama_lengkap' => $employee->nama_lengkap,
-                            'unit_organisasi' => $employee->unit_organisasi,
-                            'provider' => $employee->provider,
-                            'grade' => $employee->grade,
-                            'status_kerja' => $employee->status_kerja,
-                            'lokasi_kerja' => $employee->lokasi_kerja,
-                            'cabang' => $employee->cabang,
-                            'created_at' => $employee->created_at->format('d/m/Y H:i:s')
-                        ]
-                    ]);
-
-            } catch (\Exception $e) {
-                // Rollback transaction
-                DB::rollBack();
-                
-                Log::error('Employee Database Creation Failed', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'employee_data' => $employeeData
-                ]);
-
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', 'Terjadi kesalahan database saat menyimpan data. Error: ' . $e->getMessage())
-                    ->with('notification', [
-                        'type' => 'error',
-                        'title' => 'Gagal Menyimpan',
-                        'message' => 'Terjadi kesalahan database. Silakan coba lagi atau hubungi administrator.'
-                    ]);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Employee Store Failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->except(['password'])
-            ]);
-
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.')
-                ->with('notification', [
-                    'type' => 'error',
-                    'title' => 'Gagal Menyimpan',
-                    'message' => 'Terjadi kesalahan sistem. Silakan coba lagi atau hubungi administrator. Error: ' . $e->getMessage()
-                ]);
-        }
-    }
-
-    /**
-     * CRITICAL FIX: Display the specified employee with enhanced masa kerja calculation
-     * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
-     */
-    public function show(string $identifier)
-    {
-        try {
-            // FIXED: Find by flexible identifier (ID atau NIK)
-            $employee = Employee::findByIdentifier($identifier)->first();
-            
-            if (!$employee) {
-                return redirect()->route('employees.index')
-                    ->with('error', 'Employee tidak ditemukan.');
-            }
-            
-            // Load relationships if they exist
-            if (method_exists($employee, 'organization')) {
-                $employee->load('organization');
-            }
-            if (method_exists($employee, 'unit')) {
-                $employee->load('unit');
-            }
-            if (method_exists($employee, 'subUnit')) {
-                $employee->load('subUnit');
-            }
-
-            // CRITICAL FIX: Prepare employee data and ALWAYS calculate masa kerja
-            $employeeData = $employee->toArray();
-            
-            // ENHANCED: Always recalculate masa kerja to ensure it's current and accurate
-            $masaKerjaCalculated = null;
-            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
-                $masaKerjaCalculated = $this->calculateMasaKerja(
-                    $employeeData['tmt_mulai_kerja'], 
-                    $employeeData['tmt_berakhir_kerja'] ?? null
-                );
-                
-                // CRITICAL: Set the calculated value
-                $employeeData['masa_kerja'] = $masaKerjaCalculated;
-            } else {
-                // If no TMT Mulai Kerja, set fallback
-                $employeeData['masa_kerja'] = "-";
-            }
-
-            // Convert gender dari database format (L/P) ke display format jika perlu
-            if (isset($employeeData['jenis_kelamin'])) {
-                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
-            }
-
-            // ENHANCED DEBUG LOGGING
-            Log::info('Employee Show Data - Comprehensive Debug', [
-                'employee_id' => $employee->id,
-                'employee_nik' => $employee->nik,
-                'employee_name' => $employee->nama_lengkap,
-                'tmt_mulai_kerja_raw' => $employee->tmt_mulai_kerja,
-                'tmt_mulai_kerja_processed' => $employeeData['tmt_mulai_kerja'] ?? 'null',
-                'tmt_berakhir_kerja_raw' => $employee->tmt_berakhir_kerja,
-                'tmt_berakhir_kerja_processed' => $employeeData['tmt_berakhir_kerja'] ?? 'null',
-                'masa_kerja_from_db' => $employee->masa_kerja,
-                'masa_kerja_calculated' => $masaKerjaCalculated,
-                'masa_kerja_final' => $employeeData['masa_kerja'],
-                'has_tmt_mulai_kerja' => !empty($employee->tmt_mulai_kerja),
-                'has_tmt_berakhir_kerja' => !empty($employee->tmt_berakhir_kerja),
-            ]);
-            
-            return Inertia::render('Employees/Show', [
-                'employee' => $employeeData, // Send processed data with guaranteed masa_kerja
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Employee Show Error', [
-                'employee_identifier' => $identifier,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return redirect()->route('employees.index')
-                ->with('error', 'Error loading employee details: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * UPDATED: Show the form for editing the specified employee dengan semua options untuk Edit.jsx
-     */
-    public function edit(string $identifier)
-    {
-        try {
-            // FIXED: Find by flexible identifier (ID atau NIK)
-            $employee = Employee::findByIdentifier($identifier)->first();
-            
-            if (!$employee) {
-                return redirect()->route('employees.index')
-                    ->with('error', 'Employee tidak ditemukan.');
-            }
-            
-            // Load relationships
-            if (method_exists($employee, 'unit')) {
-                $employee->load('unit');
-            }
-            if (method_exists($employee, 'subUnit')) {
-                $employee->load('subUnit');
-            }
-
-            // Prepare employee data dengan format yang konsisten
-            $employeeData = $employee->toArray();
-            
-            // Convert gender dari database format (L/P) ke display format
-            if (isset($employeeData['jenis_kelamin'])) {
-                $employeeData['jenis_kelamin'] = $employeeData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
-            }
-            
-            // FIXED: Recalculate masa kerja to ensure it's current
-            if (isset($employeeData['tmt_mulai_kerja']) && !empty($employeeData['tmt_mulai_kerja'])) {
-                $employeeData['masa_kerja'] = $this->calculateMasaKerja(
-                    $employeeData['tmt_mulai_kerja'], 
-                    $employeeData['tmt_berakhir_kerja'] ?? null
-                );
-            }
-            
-            // Format dates untuk input type="date" including ALL NEW FIELDS
-            $dateFields = ['tanggal_lahir', 'tmt_mulai_jabatan', 'tmt_mulai_kerja', 'tmt_pensiun', 'tmt_akhir_jabatan', 'tmt_berakhir_kerja'];
-            foreach ($dateFields as $field) {
-                if (isset($employeeData[$field]) && $employeeData[$field]) {
-                    $employeeData[$field] = Carbon::parse($employeeData[$field])->format('Y-m-d');
-                }
-            }
-            
-            // Get organizations untuk dropdown jika diperlukan
-            $organizations = $this->getOrganizationsForFilter();
-            
-            // Get unit options
-            $unitOptions = $this->getUnitOptions();
-            
-            // Get jabatan options
-            $jabatanOptions = $this->getJabatanOptions();
-
-            // Unit Organisasi options dari model Unit
-            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? [
-                'EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'
-            ];
-
-            return Inertia::render('Employees/Edit', [
-                'employee' => $employeeData,
-                'organizations' => $organizations,
-                'unitOptions' => $unitOptions,
-                'jabatanOptions' => $jabatanOptions,
-                'unitOrganisasiOptions' => $unitOrganisasiOptions,
-                'statusPegawaiOptions' => self::STATUS_PEGAWAI_OPTIONS,
-                'kelompokJabatanOptions' => self::KELOMPOK_JABATAN_OPTIONS,
-                // UPDATED: Ensure ALL new field options are passed to Edit.jsx
-                'providerOptions' => self::PROVIDER_OPTIONS,
-                'statusKerjaOptions' => self::STATUS_KERJA_OPTIONS,
-                'success' => session('success'),
-                'error' => session('error'),
-                'message' => session('message'),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Employee Edit Error', [
-                'employee_identifier' => $identifier,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return redirect()->route('employees.index')
-                ->with('error', 'Error loading edit form: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * UPDATED: Update the specified employee in storage with COMPREHENSIVE NEW FIELD validation
-     */
-    public function update(Request $request, string $identifier)
-    {
-        try {
-            // FIXED: Find by flexible identifier
-            $employee = Employee::findByIdentifier($identifier)->first();
-            
-            if (!$employee) {
-                return redirect()->route('employees.index')
-                    ->with('error', 'Employee tidak ditemukan.');
-            }
-
-            // Get available unit organisasi options
-            $unitOrganisasiOptions = Unit::UNIT_ORGANISASI_OPTIONS ?? 
-                ['EGM', 'GM', 'Airside', 'Landside', 'Back Office', 'SSQC', 'Ancillary'];
-
-            // Unit yang tidak memerlukan sub unit
-            $unitWithoutSubUnits = ['EGM', 'GM'];
-
-            // UPDATED: Comprehensive validation rules with ALL NEW FIELDS for Edit mode
-            $validator = Validator::make($request->all(), [
-                // Identity fields with ignore current record for unique validation
-                'nik' => [
-                    'required',
-                    'string',
-                    'size:16',
-                    'regex:/^[0-9]+$/',
-                    Rule::unique('employees', 'nik')->ignore($employee->id, 'id')
-                ],
-                'nip' => [
-                    'required',
-                    'string',
-                    'min:5',
-                    'regex:/^[0-9]+$/',
-                    Rule::unique('employees', 'nip')->ignore($employee->id, 'id')
-                ],
-                'nama_lengkap' => 'required|string|min:2|max:200',
-                'jenis_kelamin' => [
-                    'required',
-                    'string',
-                    Rule::in(['Laki-laki', 'Perempuan', 'L', 'P'])
-                ],
-                
-                // Organizational structure validation - SAME AS CREATE
-                'unit_organisasi' => [
-                    'required',
-                    'string',
-                    Rule::in($unitOrganisasiOptions)
-                ],
-                'unit_id' => [
-                    'required',
-                    'integer',
-                    'exists:units,id'
-                ],
-                'sub_unit_id' => [
-                    'nullable',
-                    'integer',
-                    function ($attribute, $value, $fail) use ($request, $unitWithoutSubUnits) {
-                        if (in_array($request->unit_organisasi, $unitWithoutSubUnits)) {
-                            return;
-                        }
-                        
-                        if (!$value) {
-                            $fail('Sub unit wajib diisi untuk unit organisasi ' . $request->unit_organisasi . '.');
-                        }
-                        
-                        if ($value && !SubUnit::where('id', $value)->exists()) {
-                            $fail('Sub unit yang dipilih tidak valid.');
-                        }
-                        
-                        if ($value && $request->unit_id) {
-                            $subUnit = SubUnit::find($value);
-                            if ($subUnit && $subUnit->unit_id != $request->unit_id) {
-                                $fail('Sub unit tidak sesuai dengan unit yang dipilih.');
-                            }
-                        }
-                    }
-                ],
-                
-                // Job fields - REQUIRED
-                'nama_jabatan' => 'required|string|max:255',
-                'kelompok_jabatan' => ['required', Rule::in(self::KELOMPOK_JABATAN_OPTIONS)],
-                'status_pegawai' => ['required', Rule::in(self::STATUS_PEGAWAI_OPTIONS)],
-                
-                // NEW FIELD VALIDATIONS FOR EDIT MODE - COMPREHENSIVE
-                'provider' => [
-                    'nullable',
-                    'string',
-                    Rule::in(self::PROVIDER_OPTIONS)
-                ],
-                'unit_kerja_kontrak' => 'nullable|string|max:255',
-                'grade' => 'nullable|string|max:50',
-                'status_kerja' => [
-                    'required', // REQUIRED in edit mode - user can change manually
-                    'string',
-                    Rule::in(self::STATUS_KERJA_OPTIONS)
-                ],
-                
-                // NEW: Enhanced date validations for EDIT mode
-                'tmt_mulai_kerja' => 'nullable|date',
-                'tmt_berakhir_kerja' => [
-                    'nullable',
-                    'date',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->tmt_mulai_kerja) {
-                            $mulaiKerja = \Carbon\Carbon::parse($request->tmt_mulai_kerja);
-                            $berakhirKerja = \Carbon\Carbon::parse($value);
-                            
-                            if ($berakhirKerja->lte($mulaiKerja)) {
-                                $fail('TMT Berakhir Kerja harus diatas tanggal TMT Mulai Kerja.');
-                            }
-                        }
-                    }
-                ],
-                'tmt_mulai_jabatan' => 'nullable|date',
-                'tmt_akhir_jabatan' => [
-                    'nullable',
-                    'date',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($value && $request->tmt_mulai_jabatan) {
-                            $mulaiJabatan = \Carbon\Carbon::parse($request->tmt_mulai_jabatan);
-                            $akhirJabatan = \Carbon\Carbon::parse($value);
-                            
-                            if ($akhirJabatan->lte($mulaiJabatan)) {
-                                $fail('TMT Akhir Jabatan harus diatas tanggal TMT Mulai Jabatan.');
-                            }
-                        }
-                    }
-                ],
-                
-                // Optional personal fields
-                'tempat_lahir' => 'nullable|string|max:100',
-                'tanggal_lahir' => 'nullable|date|before:today',
-                'alamat' => 'nullable|string|max:500', // FIXED: Changed from alamat_lengkap to alamat
-                'kota_domisili' => 'nullable|string|max:100',
-                'jabatan' => 'nullable|string|max:255',
-                
-                // Contact fields with ignore current record
-                'handphone' => 'nullable|string|max:20|regex:/^[0-9+\-\s()]+$/',
-                'email' => [
-                    'nullable',
-                    'email',
-                    'max:255',
-                    Rule::unique('employees', 'email')->ignore($employee->id, 'id')
-                ],
-                
-                // Education fields
-                'pendidikan_terakhir' => 'nullable|string|max:50',
-                'pendidikan' => 'nullable|string|max:50',
-                'instansi_pendidikan' => 'nullable|string|max:255',
-                'jurusan' => 'nullable|string|max:100',
-                'tahun_lulus' => 'nullable|integer|min:1950|max:' . (date('Y') + 5),
-                
-                // Physical attributes and equipment
-                'height' => 'nullable|integer|min:100|max:250',
-                'weight' => 'nullable|integer|min:30|max:200',
-                'jenis_sepatu' => 'nullable|string|max:50',
-                'ukuran_sepatu' => 'nullable|string|max:10',
-                'seragam' => 'nullable|string|max:100',
-                
-                // BPJS fields
-                'no_bpjs_kesehatan' => 'nullable|string|max:50',
-                'no_bpjs_ketenagakerjaan' => 'nullable|string|max:50',
-                
-                // TMT fields
-                'tmt_pensiun' => 'nullable|date',
-                
-                // FIXED FIELDS - These should be passed but not changed
-                'lokasi_kerja' => 'string|in:Bandar Udara Ngurah Rai',
-                'cabang' => 'string|in:DPS',
-                'masa_kerja' => 'nullable|string', // This is calculated automatically
-            ], [
-                // UPDATED: Comprehensive error messages including ALL NEW FIELDS
-                'nik.required' => 'NIK wajib diisi.',
-                'nik.size' => 'NIK harus tepat 16 digit.',
-                'nik.regex' => 'NIK hanya boleh berisi angka.',
-                'nik.unique' => 'NIK sudah digunakan oleh karyawan lain.',
-                'nip.required' => 'NIP wajib diisi.',
-                'nip.min' => 'NIP minimal 5 digit.',
-                'nip.regex' => 'NIP hanya boleh berisi angka.',
-                'nip.unique' => 'NIP sudah digunakan oleh karyawan lain.',
-                'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
+}
