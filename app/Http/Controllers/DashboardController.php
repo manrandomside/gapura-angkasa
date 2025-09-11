@@ -16,6 +16,35 @@ use Illuminate\Support\Facades\Schema;
 class DashboardController extends Controller
 {
     /**
+     * UPDATED: Unit code mapping untuk format display (XX) Nama Unit di grafik
+     * Sama dengan mapping di EmployeeController untuk konsistensi
+     */
+    private function getUnitDisplayMapping()
+    {
+        return [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'MO' => '(MO) Movement Operations',
+            'ME' => '(ME) Maintenance Equipment',
+            'MF' => '(MF) Movement Flight',
+            'MS' => '(MS) Movement Service',
+            'MU' => '(MU) Management Unit',
+            'MK' => '(MK) Management Keuangan',
+            'MQ' => '(MQ) Management Quality',
+            'MB' => '(MB) Management Business',
+        ];
+    }
+
+    /**
+     * UPDATED: Helper method untuk format unit display dengan kode untuk grafik
+     */
+    private function formatUnitForChart($unitCode)
+    {
+        $mapping = $this->getUnitDisplayMapping();
+        return $mapping[$unitCode] ?? $unitCode;
+    }
+
+    /**
      * Display dashboard index for GAPURA ANGKASA SDM System
      */
     public function index()
@@ -607,16 +636,23 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Get unit chart data (SDM per Unit) - Sesuai requirement EXACT
+     * UPDATED: Get unit chart data (SDM per Unit) - Menampilkan format (XX) Nama Unit
      * Chart Type: Bar Chart
-     * Data: EGM, GM, MO, MF, MS, MU, MK, MQ, ME, MB
+     * Data: Real-time dari management karyawan dengan format unit yang benar
+     * UPDATED: Menggunakan format unit dengan kode sesuai requirement
      */
     private function getUnitChartData()
     {
         try {
-            // Sesuai requirement EXACT dari user
+            // Target units sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             
+            Log::info('UNIT CHART: Starting unit chart data generation with format code', [
+                'target_units' => $targetUnits,
+                'unit_display_mapping' => $this->getUnitDisplayMapping()
+            ]);
+
+            // Query employees berdasarkan unit_organisasi
             $query = Employee::select('unit_organisasi', DB::raw('count(*) as total'))
                 ->whereNotNull('unit_organisasi')
                 ->where('unit_organisasi', '!=', '')
@@ -627,12 +663,20 @@ class DashboardController extends Controller
                 ->groupBy('unit_organisasi')
                 ->get();
 
-            // Create complete list dengan semua target units
+            Log::info('UNIT CHART: Raw query results', [
+                'units_found' => $query->count(),
+                'raw_data' => $query->toArray()
+            ]);
+
+            // Create complete list dengan semua target units dan format dengan kode
             $result = [];
-            foreach ($targetUnits as $unit) {
-                $found = $query->firstWhere('unit_organisasi', $unit);
+            foreach ($targetUnits as $unitCode) {
+                $found = $query->firstWhere('unit_organisasi', $unitCode);
+                $displayName = $this->formatUnitForChart($unitCode);
+                
                 $result[] = [
-                    'name' => $unit,
+                    'name' => $displayName,
+                    'unit_code' => $unitCode,
                     'value' => $found ? $found->total : 0
                 ];
             }
@@ -642,18 +686,26 @@ class DashboardController extends Controller
                 return $b['value'] - $a['value'];
             });
 
-            Log::debug('UNIT CHART: Generated data sesuai requirement', [
+            Log::info('UNIT CHART: Generated data dengan format kode sesuai requirement', [
                 'target_units' => $targetUnits,
                 'units_with_data' => $query->count(),
-                'result_data' => $result
+                'result_data' => $result,
+                'total_employees_in_units' => array_sum(array_column($result, 'value'))
             ]);
 
             return $result;
         } catch (\Exception $e) {
             Log::error('Unit Chart Data Error: ' . $e->getMessage());
-            return array_map(function($unit) {
-                return ['name' => $unit, 'value' => 0];
-            }, ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB']);
+            
+            // Return default dengan format yang benar
+            $defaultUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
+            return array_map(function($unitCode) {
+                return [
+                    'name' => $this->formatUnitForChart($unitCode),
+                    'unit_code' => $unitCode,
+                    'value' => 0
+                ];
+            }, $defaultUnits);
         }
     }
 
@@ -1180,7 +1232,8 @@ class DashboardController extends Controller
                     'organizational_structure' => $unitModelAvailable && $subUnitModelAvailable,
                     'history_3_periods_only' => true,
                     'kelompok_jabatan_extended' => true,
-                    'six_charts_dashboard_realtime' => true
+                    'six_charts_dashboard_realtime' => true,
+                    'unit_code_format_display' => true
                 ],
                 'charts_available' => [
                     'gender_chart' => true,
@@ -1196,10 +1249,20 @@ class DashboardController extends Controller
                     'working' => $historyMethodsWorking,
                     'periods_supported' => ['today', 'this_week', 'total_period']
                 ],
+                'unit_display_format' => [
+                    'format' => '(XX) Nama Unit',
+                    'examples' => [
+                        'MO' => '(MO) Movement Operations',
+                        'ME' => '(ME) Maintenance Equipment',
+                        'MF' => '(MF) Movement Flight',
+                        'MS' => '(MS) Movement Service'
+                    ],
+                    'mapping_available' => true
+                ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.13.0',
+                'version' => '1.14.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime_fixed_exact_requirements'
+                'dashboard_type' => '6_charts_realtime_with_unit_code_format'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -1687,7 +1750,7 @@ class DashboardController extends Controller
 
     /**
      * Export to CSV
-     * UPDATED: Include new dashboard data structure
+     * UPDATED: Include new dashboard data structure with unit code format
      */
     private function exportToCsv($statistics, $organizationData)
     {
@@ -1722,11 +1785,11 @@ class DashboardController extends Controller
             
             fputcsv($file, ['']);
             
-            // Organization breakdown
+            // Organization breakdown dengan format unit code
             fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);
-            fputcsv($file, ['Unit Organisasi', 'Jumlah Karyawan']);
+            fputcsv($file, ['Unit Organisasi', 'Kode Unit', 'Jumlah Karyawan']);
             foreach ($organizationData as $org) {
-                fputcsv($file, [$org['name'], $org['value']]);
+                fputcsv($file, [$org['name'], $org['unit_code'] ?? '', $org['value']]);
             }
             
             fclose($file);
