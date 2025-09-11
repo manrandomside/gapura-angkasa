@@ -290,6 +290,52 @@ const convertJenisKelaminToDisplay = (jenisKelamin) => {
     return jenisKelamin; // fallback
 };
 
+// UPDATED: Function untuk format unit display dengan kode
+const formatUnitDisplay = (unit, unitOrganisasi) => {
+    // Mapping kode unit berdasarkan unit organisasi
+    const unitCodeMapping = {
+        Airside: {
+            "Movement Operations": "MO",
+            "Maintenance Equipment": "ME",
+        },
+        Landside: {
+            "Movement Flight": "MF",
+            "Movement Service": "MS",
+        },
+        "Back Office": {
+            "Management Keuangan": "MK",
+            "Management Unit": "MU",
+        },
+        SSQC: {
+            "Management Quality": "MQ",
+        },
+        Ancillary: {
+            "Management Business": "MB",
+        },
+    };
+
+    const unitName = unit.name || unit.label || unit;
+
+    // Cari kode unit berdasarkan unit organisasi dan nama unit
+    if (unitOrganisasi && unitCodeMapping[unitOrganisasi]) {
+        const code = unitCodeMapping[unitOrganisasi][unitName];
+        if (code) {
+            return `(${code}) ${unitName}`;
+        }
+    }
+
+    // Fallback ke nama unit saja jika tidak ditemukan mapping
+    return unitName;
+};
+
+// UPDATED: Function untuk mendapatkan kode unit dari display name
+const getUnitCodeFromDisplay = (displayName) => {
+    if (!displayName) return null;
+
+    const match = displayName.match(/^\(([A-Z]+)\)/);
+    return match ? match[1] : null;
+};
+
 // FIXED: Helper function to calculate masa kerja with proper range (simplified)
 const calculateMasaKerja = (tmtMulaiKerja, tmtBerakhirKerja = null) => {
     if (!tmtMulaiKerja) return "";
@@ -1265,6 +1311,7 @@ export default function Edit({
         </div>
     );
 
+    // UPDATED: renderWorkSection dengan format unit display yang baru
     const renderWorkSection = () => {
         // Determine if sub unit is required
         const isSubUnitRequired =
@@ -1313,7 +1360,10 @@ export default function Edit({
                             required={true}
                             options={availableUnits.map((unit) => ({
                                 value: unit.id,
-                                label: unit.name,
+                                label: formatUnitDisplay(
+                                    unit,
+                                    data.unit_organisasi
+                                ),
                             }))}
                             placeholder={
                                 loadingUnits
@@ -1376,7 +1426,7 @@ export default function Edit({
                         />
                     </div>
 
-                    {/* Preview Struktur Organisasi */}
+                    {/* UPDATED: Preview Struktur Organisasi dengan format yang baru */}
                     {data.unit_organisasi && (
                         <div className="p-3 mt-4 border border-green-200 rounded-lg bg-green-50">
                             <h4 className="mb-2 text-sm font-medium text-green-800">
@@ -1392,11 +1442,12 @@ export default function Edit({
                                     <>
                                         <span>→</span>
                                         <span className="px-2 py-1 bg-green-100 rounded">
-                                            {
+                                            {formatUnitDisplay(
                                                 availableUnits.find(
                                                     (u) => u.id == data.unit_id
-                                                )?.name
-                                            }
+                                                ),
+                                                data.unit_organisasi
+                                            )}
                                         </span>
                                     </>
                                 )}
