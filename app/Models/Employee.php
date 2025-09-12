@@ -123,12 +123,14 @@ class Employee extends Model
     ];
 
     /**
-     * FIXED: Appends untuk History Modal - CRITICAL
-     * Menambahkan accessor yang diperlukan untuk History Modal
+     * UPDATED: Appends untuk History Modal dan Unit Display - CRITICAL
+     * Menambahkan accessor yang diperlukan untuk History Modal dan format unit
      */
     protected $appends = [
         'organizational_structure',
         'unit_display',
+        'unit_organisasi_formatted',
+        'unit_display_formatted',
         'initials'
     ];
 
@@ -275,6 +277,168 @@ class Employee extends Model
                 'sub_unit_id' => $this->sub_unit_id ?? 'null'
             ]);
             return null;
+        }
+    }
+
+    // =====================================================
+    // NEW UNIT DISPLAY ACCESSORS - CONSISTENCY WITH DASHBOARD
+    // =====================================================
+
+    /**
+     * UPDATED: Unit display mapping untuk format (XX) Nama Unit - konsisten dengan DashboardController
+     * Mapping berdasarkan field kode_organisasi dari seeder
+     */
+    private function getUnitDisplayMapping()
+    {
+        return [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'MO' => '(MO) Movement Operations',
+            'ME' => '(ME) Maintenance Equipment',
+            'MF' => '(MF) Movement Flight',
+            'MS' => '(MS) Movement Service',
+            'MU' => '(MU) Management Unit',
+            'MK' => '(MK) Management Keuangan',
+            'MQ' => '(MQ) Management Quality',
+            'MB' => '(MB) Management Business',
+        ];
+    }
+
+    /**
+     * UPDATED: Legacy unit code mapping untuk backward compatibility
+     * Digunakan jika kode_organisasi tidak tersedia
+     */
+    private function getLegacyUnitCodeMapping()
+    {
+        return [
+            'Airside' => [
+                'Movement Operations' => 'MO',
+                'Maintenance Equipment' => 'ME',
+            ],
+            'Landside' => [
+                'Movement Flight' => 'MF',
+                'Movement Service' => 'MS',
+            ],
+            'Back Office' => [
+                'Management Keuangan' => 'MK',
+                'Management Unit' => 'MU',
+            ],
+            'SSQC' => [
+                'Management Quality' => 'MQ',
+            ],
+            'Ancillary' => [
+                'Management Business' => 'MB',
+            ],
+        ];
+    }
+
+    /**
+     * NEW: Accessor untuk unit organisasi dengan format kode - konsisten dengan dashboard
+     * Priority 1: kode_organisasi, Priority 2: legacy mapping, Priority 3: original value
+     */
+    public function getUnitOrganisasiFormattedAttribute()
+    {
+        try {
+            // Priority 1: Gunakan kode_organisasi untuk mapping langsung
+            if (!empty($this->kode_organisasi)) {
+                $mapping = $this->getUnitDisplayMapping();
+                $formatted = $mapping[$this->kode_organisasi] ?? null;
+                
+                if ($formatted) {
+                    Log::debug('Unit organisasi formatted using kode_organisasi', [
+                        'employee_id' => $this->id,
+                        'kode_organisasi' => $this->kode_organisasi,
+                        'formatted' => $formatted
+                    ]);
+                    return $formatted;
+                }
+            }
+
+            // Priority 2: Gunakan legacy mapping jika ada unit relationship
+            if (!empty($this->unit_organisasi) && $this->relationLoaded('unit') && $this->unit) {
+                $legacyMapping = $this->getLegacyUnitCodeMapping();
+                
+                if (isset($legacyMapping[$this->unit_organisasi][$this->unit->name])) {
+                    $code = $legacyMapping[$this->unit_organisasi][$this->unit->name];
+                    $formatted = "({$code}) {$this->unit->name}";
+                    
+                    Log::debug('Unit organisasi formatted using legacy mapping', [
+                        'employee_id' => $this->id,
+                        'unit_organisasi' => $this->unit_organisasi,
+                        'unit_name' => $this->unit->name,
+                        'formatted' => $formatted
+                    ]);
+                    return $formatted;
+                }
+            }
+
+            // Priority 3: Fallback ke unit_organisasi original
+            Log::debug('Unit organisasi using fallback', [
+                'employee_id' => $this->id,
+                'unit_organisasi' => $this->unit_organisasi
+            ]);
+            return $this->unit_organisasi ?: 'Unit tidak tersedia';
+
+        } catch (\Exception $e) {
+            Log::warning('Unit organisasi formatted accessor error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown'
+            ]);
+            return $this->unit_organisasi ?: 'Unit tidak tersedia';
+        }
+    }
+
+    /**
+     * UPDATED: Accessor untuk unit display lengkap dengan format yang benar
+     * Unit organisasi tetap original, unit diformat dengan kode
+     */
+    public function getUnitDisplayFormattedAttribute()
+    {
+        try {
+            $parts = [];
+
+            // Part 1: Unit organisasi (tetap original, tidak diformat)
+            if ($this->unit_organisasi) {
+                $parts[] = $this->unit_organisasi;
+            }
+
+            // Part 2: Unit dengan format kode (menggunakan unit_formatted)
+            $unitFormatted = $this->unit_formatted;
+            if ($unitFormatted && $unitFormatted !== 'Unit tidak tersedia' && $unitFormatted !== $this->unit_organisasi) {
+                $parts[] = $unitFormatted;
+            }
+
+            // Part 3: Sub unit name (tetap original)
+            if ($this->relationLoaded('subUnit') && $this->subUnit) {
+                $parts[] = $this->subUnit->name;
+            }
+
+            // Gabungkan dengan separator
+            $fullDisplay = implode(' > ', $parts);
+            
+            // Tambahkan nama organisasi jika tersedia dan berbeda
+            if (!empty($this->nama_organisasi) && 
+                $this->nama_organisasi !== $this->unit_organisasi &&
+                !str_contains($fullDisplay, $this->nama_organisasi)) {
+                $fullDisplay .= ' - ' . $this->nama_organisasi;
+            }
+
+            Log::debug('Unit display formatted accessor result', [
+                'employee_id' => $this->id,
+                'kode_organisasi' => $this->kode_organisasi,
+                'unit_organisasi' => $this->unit_organisasi,
+                'unit_formatted' => $unitFormatted,
+                'sub_unit_name' => $this->subUnit->name ?? null,
+                'nama_organisasi' => $this->nama_organisasi,
+                'formatted_result' => $fullDisplay
+            ]);
+
+            return $fullDisplay ?: 'Unit tidak tersedia';
+
+        } catch (\Exception $e) {
+            Log::warning('Unit display formatted accessor error: ' . $e->getMessage(), [
+                'employee_id' => $this->id ?? 'unknown'
+            ]);
+            return $this->unit_organisasi ?: 'Unit tidak tersedia';
         }
     }
 
@@ -431,7 +595,7 @@ class Employee extends Model
     {
         try {
             $structure = [
-                'unit_organisasi' => $this->unit_organisasi,
+                'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version
                 'unit' => null,
                 'sub_unit' => null,
                 'full_structure' => null
@@ -483,7 +647,7 @@ class Employee extends Model
                 }
             }
 
-            // Build full structure string for display
+            // Build full structure string for display using formatted unit organisasi
             $fullStructureParts = [];
             
             if ($structure['unit_organisasi']) {
@@ -491,7 +655,10 @@ class Employee extends Model
             }
             
             if ($structure['unit'] && !empty($structure['unit']['name'])) {
-                $fullStructureParts[] = $structure['unit']['name'];
+                // Only add unit name if not already covered in formatted unit organisasi
+                if (!str_contains($structure['unit_organisasi'], $structure['unit']['name'])) {
+                    $fullStructureParts[] = $structure['unit']['name'];
+                }
             }
             
             if ($structure['sub_unit'] && !empty($structure['sub_unit']['name'])) {
@@ -533,19 +700,23 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Enhanced unit display attribute dengan better fallback
+     * UPDATED: Enhanced unit display attribute dengan better fallback dan format kode
      */
     public function getUnitDisplayAttribute()
     {
         try {
-            $display = $this->unit_organisasi ?? 'Unit tidak tersedia';
+            // Use formatted unit organisasi as base
+            $display = $this->unit_organisasi_formatted ?? 'Unit tidak tersedia';
             
             if ($this->relationLoaded('unit') && $this->unit) {
-                $display .= ' > ' . $this->unit->name;
+                // Only add unit name if not already covered in formatted unit organisasi
+                if (!str_contains($display, $this->unit->name)) {
+                    $display .= ' > ' . $this->unit->name;
+                }
             } else if ($this->unit_id) {
                 try {
                     $unit = Unit::find($this->unit_id);
-                    if ($unit) {
+                    if ($unit && !str_contains($display, $unit->name)) {
                         $display .= ' > ' . $unit->name;
                     }
                 } catch (\Exception $e) {
@@ -1706,8 +1877,8 @@ class Employee extends Model
             'nip' => $this->nip,
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
-            'unit_organisasi' => $this->unit_organisasi,
-            'unit_display' => $this->unit_display,
+            'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version
+            'unit_display' => $this->unit_display_formatted, // Use formatted version
             'kelompok_jabatan' => $this->kelompok_jabatan,
             'provider' => $this->provider,
             'grade' => $this->grade,
@@ -1728,7 +1899,7 @@ class Employee extends Model
             'nik' => $this->nik,
             'nip' => $this->nip,
             'nama' => $this->nama_lengkap,
-            'unit' => $this->unit_organisasi,
+            'unit' => $this->unit_organisasi_formatted, // Use formatted version
             'jabatan' => $this->nama_jabatan,
             'status' => $this->status_pegawai,
             'status_kerja' => $this->status_kerja,
@@ -1804,6 +1975,7 @@ class Employee extends Model
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi' => $employee->unit_organisasi,
+                    'unit_organisasi_formatted' => $employee->unit_organisasi_formatted,
                     'unit_id' => $employee->unit_id,
                     'sub_unit_id' => $employee->sub_unit_id,
                     'provider' => $employee->provider,
@@ -1851,6 +2023,7 @@ class Employee extends Model
                     'employee_id' => $employee->id,
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
+                    'unit_organisasi_formatted' => $employee->unit_organisasi_formatted,
                     'updated_at' => $employee->updated_at
                 ]);
             } catch (\Exception $e) {

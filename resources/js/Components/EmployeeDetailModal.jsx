@@ -37,39 +37,156 @@ const EmployeeDetailModal = ({
 
     if (!isOpen || !employee) return null;
 
-    // Helper function untuk get unit name dari relasi database
+    // UPDATED: Helper function untuk get unit name dengan format kode dari controller
     const getUnitName = () => {
+        // Priority 1: Gunakan data unit yang sudah diformat dari controller jika tersedia
+        if (employee.unit_display_formatted) {
+            // Extract unit name portion dari format "(XX) Nama Unit - Nama Organisasi"
+            const formatted = employee.unit_display_formatted;
+            if (formatted.includes(" - ")) {
+                const parts = formatted.split(" - ");
+                if (parts.length > 1) {
+                    return parts[0]; // Return "(XX) Nama Unit" part
+                }
+            }
+            return formatted;
+        }
+
+        // Priority 2: Gunakan kode_organisasi untuk mapping jika tersedia
+        if (employee.kode_organisasi) {
+            const unitDisplayMapping = {
+                EGM: "EGM",
+                GM: "GM",
+                MO: "(MO) Movement Operations",
+                ME: "(ME) Maintenance Equipment",
+                MF: "(MF) Movement Flight",
+                MS: "(MS) Movement Service",
+                MU: "(MU) Management Unit",
+                MK: "(MK) Management Keuangan",
+                MQ: "(MQ) Management Quality",
+                MB: "(MB) Management Business",
+            };
+
+            const formatted = unitDisplayMapping[employee.kode_organisasi];
+            if (formatted) {
+                return formatted;
+            }
+        }
+
+        // Priority 3: Fallback ke relasi database dengan format kode
         if (employee.unit && employee.unit.name) {
+            // Coba format dengan kode jika ada unit_organisasi
+            if (employee.unit_organisasi) {
+                const unitCodeMapping = {
+                    Airside: {
+                        "Movement Operations": "MO",
+                        "Maintenance Equipment": "ME",
+                    },
+                    Landside: {
+                        "Movement Flight": "MF",
+                        "Movement Service": "MS",
+                    },
+                    "Back Office": {
+                        "Management Keuangan": "MK",
+                        "Management Unit": "MU",
+                    },
+                    SSQC: {
+                        "Management Quality": "MQ",
+                    },
+                    Ancillary: {
+                        "Management Business": "MB",
+                    },
+                };
+
+                if (
+                    unitCodeMapping[employee.unit_organisasi] &&
+                    unitCodeMapping[employee.unit_organisasi][
+                        employee.unit.name
+                    ]
+                ) {
+                    const code =
+                        unitCodeMapping[employee.unit_organisasi][
+                            employee.unit.name
+                        ];
+                    return `(${code}) ${employee.unit.name}`;
+                }
+            }
             return employee.unit.name;
         }
+
+        // Priority 4: Fallback ke unit_id atau default
         return employee.unit_id || "-";
     };
 
-    // Helper function untuk get sub unit name dari relasi database
+    // UPDATED: Helper function untuk get sub unit name dengan format yang konsisten
     const getSubUnitName = () => {
+        // Priority 1: Gunakan relasi database jika tersedia
         if (employee.sub_unit && employee.sub_unit.name) {
             return employee.sub_unit.name;
         }
-        // Check if unit organisasi has no sub units (EGM, GM)
+
+        // Priority 2: Check if unit organisasi has no sub units (EGM, GM)
         if (["EGM", "GM"].includes(employee.unit_organisasi)) {
             return "-";
         }
+
+        // Priority 3: Fallback ke sub_unit_id atau default
         return employee.sub_unit_id || "-";
     };
 
-    // Helper function untuk format display struktur organisasi lengkap
+    // UPDATED: Helper function untuk get unit organisasi dengan format kode
+    const getUnitOrganisasiFormatted = () => {
+        // Priority 1: Gunakan data yang sudah diformat dari controller
+        if (employee.unit_organisasi_formatted) {
+            return employee.unit_organisasi_formatted;
+        }
+
+        // Priority 2: Gunakan kode_organisasi untuk mapping
+        if (employee.kode_organisasi) {
+            const unitDisplayMapping = {
+                EGM: "EGM",
+                GM: "GM",
+                MO: "(MO) Movement Operations",
+                ME: "(ME) Maintenance Equipment",
+                MF: "(MF) Movement Flight",
+                MS: "(MS) Movement Service",
+                MU: "(MU) Management Unit",
+                MK: "(MK) Management Keuangan",
+                MQ: "(MQ) Management Quality",
+                MB: "(MB) Management Business",
+            };
+
+            const formatted = unitDisplayMapping[employee.kode_organisasi];
+            if (formatted) {
+                return formatted;
+            }
+        }
+
+        // Priority 3: Fallback ke unit_organisasi original
+        return employee.unit_organisasi || "-";
+    };
+
+    // UPDATED: Helper function untuk format display struktur organisasi lengkap dengan kode
     const getOrganizationStructure = () => {
         const parts = [];
 
-        if (employee.unit_organisasi) {
-            parts.push(employee.unit_organisasi);
+        // Gunakan unit organisasi yang sudah diformat dengan kode
+        const unitOrganisasi = getUnitOrganisasiFormatted();
+        if (unitOrganisasi && unitOrganisasi !== "-") {
+            parts.push(unitOrganisasi);
         }
 
+        // Gunakan unit name yang sudah diformat dengan kode
         const unitName = getUnitName();
-        if (unitName && unitName !== "-") {
+        if (
+            unitName &&
+            unitName !== "-" &&
+            !unitOrganisasi.includes(unitName)
+        ) {
             parts.push(unitName);
         }
 
+        // Gunakan sub unit name
         const subUnitName = getSubUnitName();
         if (subUnitName && subUnitName !== "-") {
             parts.push(subUnitName);
@@ -444,6 +561,26 @@ const EmployeeDetailModal = ({
         masa_kerja: masaKerjaResult,
     });
 
+    // UPDATED: Get formatted values for debugging
+    const unitOrganisasiFormatted = getUnitOrganisasiFormatted();
+    const unitNameFormatted = getUnitName();
+    const subUnitNameFormatted = getSubUnitName();
+
+    console.log("EmployeeDetailModal: Unit formatting debug", {
+        employee_nik: employee?.nik,
+        original_unit_organisasi: employee.unit_organisasi,
+        unit_organisasi_formatted: unitOrganisasiFormatted,
+        original_unit_name: employee.unit?.name,
+        unit_name_formatted: unitNameFormatted,
+        original_sub_unit_name: employee.sub_unit?.name,
+        sub_unit_name_formatted: subUnitNameFormatted,
+        kode_organisasi: employee.kode_organisasi,
+        nama_organisasi: employee.nama_organisasi,
+        unit_display_formatted_from_controller: employee.unit_display_formatted,
+        unit_organisasi_formatted_from_controller:
+            employee.unit_organisasi_formatted,
+    });
+
     // Delete Confirmation Modal
     const DeleteConfirmationModal = () => {
         if (!showDeleteConfirm) return null;
@@ -491,7 +628,7 @@ const EmployeeDetailModal = ({
                                             NIP: {employee.nip || "-"}
                                         </p>
                                         <p className="text-sm text-gray-600">
-                                            {employee.unit_organisasi || "-"}
+                                            {unitOrganisasiOriginal || "-"}
                                         </p>
                                     </div>
                                 </div>
@@ -574,25 +711,156 @@ const EmployeeDetailModal = ({
                                             NIP: {employee.nip || "-"}
                                         </p>
 
-                                        {/* Breakdown detail struktur organisasi */}
+                                        {/* COMPLETELY UPDATED: Breakdown detail struktur organisasi dengan format kode lengkap */}
                                         <div className="flex flex-wrap gap-2 text-sm">
-                                            {employee.unit_organisasi && (
-                                                <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
-                                                    {employee.unit_organisasi}
-                                                </span>
-                                            )}
-                                            {getUnitName() !== "-" && (
-                                                <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
-                                                    Unit: {getUnitName()}
-                                                </span>
-                                            )}
-                                            {getSubUnitName() !== "-" &&
-                                                !["EGM", "GM"].includes(
-                                                    employee.unit_organisasi
-                                                ) && (
+                                            {/* STRATEGY 1: Tampilkan unit organisasi dengan format kode jika tersedia */}
+                                            {(() => {
+                                                // Priority 1: Gunakan kode_organisasi untuk mapping unit
+                                                if (employee.kode_organisasi) {
+                                                    const unitDisplayMapping = {
+                                                        EGM: "EGM",
+                                                        GM: "GM",
+                                                        MO: "(MO) Movement Operations",
+                                                        ME: "(ME) Maintenance Equipment",
+                                                        MF: "(MF) Movement Flight",
+                                                        MS: "(MS) Movement Service",
+                                                        MU: "(MU) Management Unit",
+                                                        MK: "(MK) Management Keuangan",
+                                                        MQ: "(MQ) Management Quality",
+                                                        MB: "(MB) Management Business",
+                                                    };
+
+                                                    const formattedUnit =
+                                                        unitDisplayMapping[
+                                                            employee
+                                                                .kode_organisasi
+                                                        ];
+                                                    if (formattedUnit) {
+                                                        return (
+                                                            <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
+                                                                {formattedUnit}
+                                                            </span>
+                                                        );
+                                                    }
+                                                }
+
+                                                // Priority 2: Fallback menggunakan unit_organisasi + unit dengan mapping kode
+                                                if (employee.unit_organisasi) {
+                                                    const unitCodeMapping = {
+                                                        Airside: {
+                                                            "Movement Operations":
+                                                                "MO",
+                                                            "Maintenance Equipment":
+                                                                "ME",
+                                                        },
+                                                        Landside: {
+                                                            "Movement Flight":
+                                                                "MF",
+                                                            "Movement Service":
+                                                                "MS",
+                                                        },
+                                                        "Back Office": {
+                                                            "Management Keuangan":
+                                                                "MK",
+                                                            "Management Unit":
+                                                                "MU",
+                                                        },
+                                                        SSQC: {
+                                                            "Management Quality":
+                                                                "MQ",
+                                                        },
+                                                        Ancillary: {
+                                                            "Management Business":
+                                                                "MB",
+                                                        },
+                                                    };
+
+                                                    // Jika ada unit.name dan bisa dimapping ke kode
+                                                    if (
+                                                        employee.unit &&
+                                                        employee.unit.name &&
+                                                        unitCodeMapping[
+                                                            employee
+                                                                .unit_organisasi
+                                                        ] &&
+                                                        unitCodeMapping[
+                                                            employee
+                                                                .unit_organisasi
+                                                        ][employee.unit.name]
+                                                    ) {
+                                                        const code =
+                                                            unitCodeMapping[
+                                                                employee
+                                                                    .unit_organisasi
+                                                            ][
+                                                                employee.unit
+                                                                    .name
+                                                            ];
+                                                        return (
+                                                            <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
+                                                                ({code}){" "}
+                                                                {
+                                                                    employee
+                                                                        .unit
+                                                                        .name
+                                                                }
+                                                            </span>
+                                                        );
+                                                    }
+
+                                                    // Fallback: tampilkan unit_organisasi saja jika tidak bisa dimapping
+                                                    return (
+                                                        <span className="inline-block px-3 py-1 font-semibold text-green-100 rounded-full bg-white/20">
+                                                            {
+                                                                employee.unit_organisasi
+                                                            }
+                                                        </span>
+                                                    );
+                                                }
+
+                                                return null;
+                                            })()}
+
+                                            {/* STRATEGY 2: Tampilkan unit jika berbeda dari unit organisasi dan belum ter-cover di atas */}
+                                            {(() => {
+                                                // Hanya tampilkan unit terpisah jika tidak sama dengan unit organisasi
+                                                if (
+                                                    employee.unit &&
+                                                    employee.unit.name &&
+                                                    employee.unit.name !==
+                                                        employee.unit_organisasi &&
+                                                    !employee.kode_organisasi
+                                                ) {
+                                                    return (
+                                                        <span className="inline-block px-3 py-1 font-semibold text-blue-100 rounded-full bg-white/20">
+                                                            Unit:{" "}
+                                                            {employee.unit.name}
+                                                        </span>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+
+                                            {/* STRATEGY 3: Selalu tampilkan sub unit jika tersedia */}
+                                            {employee.sub_unit &&
+                                                employee.sub_unit.name && (
                                                     <span className="inline-block px-3 py-1 font-semibold text-purple-100 rounded-full bg-white/20">
                                                         Sub Unit:{" "}
-                                                        {getSubUnitName()}
+                                                        {employee.sub_unit.name}
+                                                    </span>
+                                                )}
+
+                                            {/* STRATEGY 4: Fallback untuk nama_organisasi jika tersedia dan berbeda */}
+                                            {employee.nama_organisasi &&
+                                                employee.nama_organisasi !==
+                                                    employee.unit_organisasi &&
+                                                (!employee.unit ||
+                                                    employee.nama_organisasi !==
+                                                        employee.unit.name) && (
+                                                    <span className="inline-block px-3 py-1 font-semibold text-yellow-100 rounded-full bg-white/20">
+                                                        {
+                                                            employee.nama_organisasi
+                                                        }
                                                     </span>
                                                 )}
                                         </div>
@@ -610,24 +878,24 @@ const EmployeeDetailModal = ({
                         {/* Content */}
                         <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 px-8 py-8 max-h-[80vh] overflow-y-auto">
                             <div className="space-y-8">
-                                {/* 1. Data Pekerjaan - PALING ATAS dengan urutan yang diminta */}
+                                {/* 1. Data Pekerjaan - PALING ATAS dengan format kode yang konsisten */}
                                 <DetailCard
                                     title="Data Pekerjaan"
                                     icon={Building2}
                                 >
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                        {/* Urutan sesuai permintaan */}
+                                        {/* UPDATED: Urutan sesuai permintaan dengan format kode */}
                                         <FieldRow
                                             label="Unit Organisasi"
-                                            value={employee.unit_organisasi}
+                                            value={unitOrganisasiFormatted}
                                         />
                                         <FieldRow
                                             label="Unit"
-                                            value={getUnitName()}
+                                            value={unitNameFormatted}
                                         />
                                         <FieldRow
                                             label="Sub Unit"
-                                            value={getSubUnitName()}
+                                            value={subUnitNameFormatted}
                                         />
                                         <FieldRow
                                             label="Nama Jabatan"
