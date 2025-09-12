@@ -68,22 +68,22 @@ class EmployeeController extends Controller
     ];
 
     /**
-     * FIXED: Unit display mapping untuk format (XX) Nama Unit - sesuai dengan DashboardController
-     * Konsisten dengan field kode_organisasi dari seeder
+     * FIXED: Unit display mapping untuk format KODE SAJA - konsisten dengan dashboard grafik
+     * CRITICAL CHANGE: Hanya return kode unit, bukan nama panjang
      */
     private function getUnitDisplayMapping()
     {
         return [
             'EGM' => 'EGM',
             'GM' => 'GM',
-            'MO' => '(MO) Movement Operations',
-            'ME' => '(ME) Maintenance Equipment',
-            'MF' => '(MF) Movement Flight',
-            'MS' => '(MS) Movement Service',
-            'MU' => '(MU) Management Unit',
-            'MK' => '(MK) Management Keuangan',
-            'MQ' => '(MQ) Management Quality',
-            'MB' => '(MB) Management Business',
+            'MO' => 'MO',
+            'ME' => 'ME',
+            'MF' => 'MF',
+            'MS' => 'MS',
+            'MU' => 'MU',
+            'MK' => 'MK',
+            'MQ' => 'MQ',
+            'MB' => 'MB',
         ];
     }
 
@@ -108,8 +108,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Unit code mapping untuk format display (XX) Nama Unit
-     * LEGACY - Masih digunakan untuk backward compatibility
+     * UPDATED: Unit code mapping untuk format display - SIMPLIFIED ke kode saja
+     * CRITICAL CHANGE: Mapping langsung ke kode unit, bukan nama panjang
      */
     private function getUnitCodeMapping()
     {
@@ -136,29 +136,30 @@ class EmployeeController extends Controller
     }
 
     /**
-     * NEW: Format employee unit display dengan kode untuk konsistensi dengan dashboard
-     * Menggunakan field kode_organisasi dari employee
+     * FIXED: Format employee unit display dengan KODE SAJA untuk konsistensi dengan dashboard
+     * CRITICAL CHANGE: Hanya return kode unit, bukan format "(XX) Nama Unit"
      */
     private function formatEmployeeUnitDisplay($employee)
     {
         try {
-            // Prioritas: gunakan kode_organisasi jika tersedia (data terbaru)
+            // Priority 1: gunakan kode_organisasi jika tersedia (data terbaru)
             if (!empty($employee->kode_organisasi)) {
                 $unitCode = $employee->kode_organisasi;
                 $mapping = $this->getUnitDisplayMapping();
-                $displayName = $mapping[$unitCode] ?? $unitCode;
-                
-                // Tambahkan nama organisasi jika tersedia
-                if (!empty($employee->nama_organisasi)) {
-                    return $displayName . ' - ' . $employee->nama_organisasi;
-                }
-                
-                return $displayName;
+                return $mapping[$unitCode] ?? $unitCode; // Return kode saja
             }
             
-            // Fallback: gunakan unit_organisasi dengan mapping lama
+            // Priority 2: gunakan unit relationship dengan fallback ke kode
+            if (!empty($employee->unit_organisasi) && method_exists($employee, 'unit') && $employee->unit) {
+                // Coba ambil kode dari unit relationship
+                if (!empty($employee->unit->code)) {
+                    return $employee->unit->code;
+                }
+            }
+            
+            // Priority 3: gunakan mapping dari unit_organisasi ke kode default
             if (!empty($employee->unit_organisasi)) {
-                return $this->formatUnitWithCode($employee->unit_organisasi, $employee->unit_organisasi);
+                return $this->getUnitCodeFromUnitOrganisasi($employee->unit_organisasi);
             }
             
             return 'Unit tidak tersedia';
@@ -170,28 +171,52 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Helper method untuk format unit display dengan kode (XX) Nama Unit
+     * FIXED: Helper method untuk format unit display dengan KODE SAJA
+     * CRITICAL CHANGE: Hanya return kode unit, bukan format "(XX) Nama Unit"
      */
     private function formatUnitWithCode($unitName, $unitOrganisasi)
     {
         $mapping = $this->getUnitCodeMapping();
         
         if (isset($mapping[$unitOrganisasi][$unitName])) {
-            $code = $mapping[$unitOrganisasi][$unitName];
-            return "({$code}) {$unitName}";
+            return $mapping[$unitOrganisasi][$unitName]; // Return kode saja
         }
         
-        // Fallback untuk unit tanpa mapping (EGM, GM)
+        // Fallback untuk unit tanpa mapping (EGM, GM) - return as is
+        if (in_array($unitName, ['EGM', 'GM'])) {
+            return $unitName;
+        }
+        
+        // Last fallback
         return $unitName;
     }
 
     /**
-     * NEW: Helper method untuk format unit berdasarkan kode_organisasi
+     * FIXED: Helper method untuk format unit berdasarkan kode_organisasi - KODE SAJA
+     * CRITICAL CHANGE: Hanya return kode unit
      */
     private function formatUnitForDisplay($unitCode)
     {
         $mapping = $this->getUnitDisplayMapping();
-        return $mapping[$unitCode] ?? $unitCode;
+        return $mapping[$unitCode] ?? $unitCode; // Return kode saja
+    }
+
+    /**
+     * NEW: Helper untuk mapping unit_organisasi ke kode unit default
+     */
+    private function getUnitCodeFromUnitOrganisasi($unitOrganisasi)
+    {
+        $mapping = [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'Airside' => 'MO', // Default Airside ke MO
+            'Landside' => 'MF', // Default Landside ke MF
+            'Back Office' => 'MU', // Default Back Office ke MU
+            'SSQC' => 'MQ',
+            'Ancillary' => 'MB'
+        ];
+        
+        return $mapping[$unitOrganisasi] ?? $unitOrganisasi;
     }
 
     /**
@@ -267,13 +292,12 @@ class EmployeeController extends Controller
     }
 
     // =====================================================
-    // UNIT/SUBUNIT API METHODS - UPDATED WITH UNIT CODE FORMAT
+    // UNIT/SUBUNIT API METHODS - UPDATED WITH UNIT CODE FORMAT ONLY
     // =====================================================
 
     /**
-     * UPDATED: Get units berdasarkan unit organisasi untuk cascading dropdown
-     * Format response: {success: true/false, data: [], message: ''}
-     * UPDATED: Mengembalikan unit dengan format (XX) Nama Unit
+     * FIXED: Get units berdasarkan unit organisasi untuk cascading dropdown
+     * CRITICAL CHANGE: Response hanya berisi kode unit, bukan nama panjang
      */
     public function getUnits(Request $request)
     {
@@ -309,15 +333,15 @@ class EmployeeController extends Controller
 
             // Check if Unit model exists
             if (!class_exists('App\Models\Unit')) {
-                // UPDATED: Fallback ke static data dengan nama unit lengkap
+                // FIXED: Fallback ke static data dengan KODE UNIT SAJA
                 $staticStructure = [
                     'EGM' => ['EGM'],
                     'GM' => ['GM'],
-                    'Airside' => ['Movement Operations', 'Maintenance Equipment'],
-                    'Landside' => ['Movement Flight', 'Movement Service'],
-                    'Back Office' => ['Management Unit', 'Management Keuangan'],
-                    'SSQC' => ['Management Quality'],
-                    'Ancillary' => ['Management Business'],
+                    'Airside' => ['MO', 'ME'], // Return kode saja
+                    'Landside' => ['MF', 'MS'], // Return kode saja
+                    'Back Office' => ['MU', 'MK'], // Return kode saja
+                    'SSQC' => ['MQ'], // Return kode saja
+                    'Ancillary' => ['MB'], // Return kode saja
                 ];
                 
                 $units = $staticStructure[$unitOrganisasi] ?? [];
@@ -330,23 +354,22 @@ class EmployeeController extends Controller
                     ]);
                 }
                 
-                // UPDATED: Format unit dengan kode (XX) Nama Unit
-                $response = array_map(function($unitName) use ($unitOrganisasi) {
-                    $formattedName = $this->formatUnitWithCode($unitName, $unitOrganisasi);
+                // FIXED: Format unit dengan KODE SAJA
+                $response = array_map(function($unitCode) use ($unitOrganisasi) {
                     return [
-                        'value' => $formattedName,
-                        'label' => $formattedName,
-                        'id' => $unitName,
-                        'code' => $this->getUnitCode($unitName, $unitOrganisasi),
-                        'name' => $unitName,
-                        'original_name' => $unitName
+                        'value' => $unitCode, // Kode saja
+                        'label' => $unitCode, // Kode saja
+                        'id' => $unitCode,
+                        'code' => $unitCode,
+                        'name' => $unitCode, // Konsistensi: name juga kode
+                        'original_name' => $unitCode
                     ];
                 }, $units);
                 
                 return response()->json([
                     'success' => true,
                     'data' => $response,
-                    'message' => 'Units loaded from static data with code format'
+                    'message' => 'Units loaded from static data with code format only'
                 ]);
             }
 
@@ -364,36 +387,35 @@ class EmployeeController extends Controller
             ]);
 
             if ($units->isEmpty()) {
-                // UPDATED: Fallback ke static data dengan format kode
+                // FIXED: Fallback ke static data dengan KODE SAJA
                 $staticStructure = [
                     'EGM' => ['EGM'],
                     'GM' => ['GM'],
-                    'Airside' => ['Movement Operations', 'Maintenance Equipment'],
-                    'Landside' => ['Movement Flight', 'Movement Service'],
-                    'Back Office' => ['Management Unit', 'Management Keuangan'],
-                    'SSQC' => ['Management Quality'],
-                    'Ancillary' => ['Management Business'],
+                    'Airside' => ['MO', 'ME'],
+                    'Landside' => ['MF', 'MS'],
+                    'Back Office' => ['MU', 'MK'],
+                    'SSQC' => ['MQ'],
+                    'Ancillary' => ['MB'],
                 ];
                 
                 $staticUnits = $staticStructure[$unitOrganisasi] ?? [];
                 
                 if (!empty($staticUnits)) {
-                    $response = array_map(function($unitName) use ($unitOrganisasi) {
-                        $formattedName = $this->formatUnitWithCode($unitName, $unitOrganisasi);
+                    $response = array_map(function($unitCode) use ($unitOrganisasi) {
                         return [
-                            'value' => $formattedName,
-                            'label' => $formattedName,
-                            'id' => $unitName,
-                            'code' => $this->getUnitCode($unitName, $unitOrganisasi),
-                            'name' => $unitName,
-                            'original_name' => $unitName
+                            'value' => $unitCode, // Kode saja
+                            'label' => $unitCode, // Kode saja
+                            'id' => $unitCode,
+                            'code' => $unitCode,
+                            'name' => $unitCode, // Konsistensi: name juga kode
+                            'original_name' => $unitCode
                         ];
                     }, $staticUnits);
                     
                     return response()->json([
                         'success' => true,
                         'data' => $response,
-                        'message' => 'Units loaded from static fallback with code format'
+                        'message' => 'Units loaded from static fallback with code format only'
                     ]);
                 }
                 
@@ -404,15 +426,15 @@ class EmployeeController extends Controller
                 ]);
             }
 
-            // UPDATED: Format units dari database dengan kode (XX) Nama Unit
+            // FIXED: Format units dari database dengan KODE SAJA
+            // Berdasarkan perubahan UnitSeeder, unit.name sekarang sudah berisi kode
             $response = $units->map(function($unit) {
-                $formattedName = $this->formatUnitWithCode($unit->name, $unit->unit_organisasi);
                 return [
-                    'value' => $formattedName,
-                    'label' => $formattedName,
+                    'value' => $unit->name, // Unit.name sekarang sudah kode
+                    'label' => $unit->name, // Unit.name sekarang sudah kode
                     'id' => $unit->id,
                     'code' => $unit->code,
-                    'name' => $unit->name,
+                    'name' => $unit->name, // Unit.name sekarang sudah kode
                     'original_name' => $unit->name
                 ];
             });
@@ -420,7 +442,7 @@ class EmployeeController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $response->toArray(),
-                'message' => 'Units loaded successfully with code format'
+                'message' => 'Units loaded successfully with code format only'
             ]);
 
         } catch (\Exception $e) {
@@ -439,7 +461,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Helper method untuk mendapatkan kode unit
+     * FIXED: Helper method untuk mendapatkan kode unit - SIMPLIFIED
      */
     private function getUnitCode($unitName, $unitOrganisasi)
     {
@@ -493,15 +515,6 @@ class EmployeeController extends Controller
                     'MK' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
                     'MQ' => ['Avsec', 'Safety Quality Control'],
                     'MB' => ['GPL', 'GLC', 'Joumpa'],
-                    // Support untuk nama unit lengkap juga
-                    'Movement Operations' => ['Flops', 'Depco', 'Ramp', 'Load Control', 'Load Master', 'ULD Control', 'Cargo Import', 'Cargo Export'],
-                    'Maintenance Equipment' => ['GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance', 'BTT Operator', 'Line Maintenance'],
-                    'Movement Flight' => ['KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways', 'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili', 'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines', 'Sichuan Airlines', 'Aeroflot', 'Charter Flight'],
-                    'Movement Service' => ['MPGA', 'QG', 'IP'],
-                    'Management Unit' => ['Human Resources & General Affair', 'Fasilitas & Sarana'],
-                    'Management Keuangan' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
-                    'Management Quality' => ['Avsec', 'Safety Quality Control'],
-                    'Management Business' => ['GPL', 'GLC', 'Joumpa'],
                 ];
                 
                 $unit = $unitName ?: $unitId;
@@ -537,7 +550,8 @@ class EmployeeController extends Controller
             if ($unitId) {
                 $unitRecord = Unit::find($unitId);
             } elseif ($unitName) {
-                $unitRecord = Unit::where('name', $unitName)->first();
+                // FIXED: Cari berdasarkan name yang sekarang sudah kode atau code field
+                $unitRecord = Unit::where('name', $unitName)->orWhere('code', $unitName)->first();
             }
             
             if (!$unitRecord) {
@@ -582,15 +596,6 @@ class EmployeeController extends Controller
                     'MK' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
                     'MQ' => ['Avsec', 'Safety Quality Control'],
                     'MB' => ['GPL', 'GLC', 'Joumpa'],
-                    // Support untuk nama unit lengkap
-                    'Movement Operations' => ['Flops', 'Depco', 'Ramp', 'Load Control', 'Load Master', 'ULD Control', 'Cargo Import', 'Cargo Export'],
-                    'Maintenance Equipment' => ['GSE Operator P/B', 'GSE Operator A/C', 'GSE Maintenance', 'BTT Operator', 'Line Maintenance'],
-                    'Movement Flight' => ['KLM', 'Qatar', 'Korean Air', 'Vietjet Air', 'Scoot', 'Thai Airways', 'China Airlines', 'China Southern', 'Indigo', 'Xiamen Air', 'Aero Dili', 'Jeju Air', 'Hongkong Airlines', 'Air Busan', 'Vietnam Airlines', 'Sichuan Airlines', 'Aeroflot', 'Charter Flight'],
-                    'Movement Service' => ['MPGA', 'QG', 'IP'],
-                    'Management Unit' => ['Human Resources & General Affair', 'Fasilitas & Sarana'],
-                    'Management Keuangan' => ['Accounting', 'Budgeting', 'Treassury', 'Tax'],
-                    'Management Quality' => ['Avsec', 'Safety Quality Control'],
-                    'Management Business' => ['GPL', 'GLC', 'Joumpa'],
                 ];
                 
                 $staticSubUnits = $staticStructure[$unitRecord->name] ?? $staticStructure[$unitRecord->code] ?? [];
@@ -709,11 +714,12 @@ class EmployeeController extends Controller
                         ->get();
                     
                     foreach ($units as $unit) {
-                        $formattedName = $this->formatUnitWithCode($unit->name, $unit->unit_organisasi);
+                        // FIXED: Gunakan kode saja, bukan format "(XX) Nama Unit"
+                        $unitCode = $unit->name; // Unit.name sekarang sudah kode
                         $hierarchy[$unitOrg]['units'][] = [
                             'id' => $unit->id,
-                            'name' => $unit->name,
-                            'formatted_name' => $formattedName,
+                            'name' => $unit->name, // Sudah kode
+                            'formatted_name' => $unitCode, // Kode saja
                             'code' => $unit->code
                         ];
                         
@@ -738,7 +744,7 @@ class EmployeeController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $hierarchy,
-                'message' => 'Complete hierarchy loaded with unit code format'
+                'message' => 'Complete hierarchy loaded with unit code format only'
             ]);
             
         } catch (\Exception $e) {
@@ -971,7 +977,7 @@ class EmployeeController extends Controller
                     $employeeData['masa_kerja'] = "-";
                 }
 
-                // ADDED: Format unit display dengan kode untuk konsistensi
+                // FIXED: Format unit display dengan KODE SAJA untuk konsistensi
                 $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
                 
                 // Convert gender dari database format (L/P) ke display format untuk consistency
@@ -1516,9 +1522,9 @@ class EmployeeController extends Controller
     }
 
     /**
-     * COMPLETELY FIXED: Display the specified employee with enhanced unit display format
+     * COMPLETELY FIXED: Display the specified employee with enhanced unit display format - KODE SAJA
      * Parameter sekarang menggunakan flexible identifier (ID atau NIK)
-     * MENAMBAHKAN format unit display dengan kode "(XX) Nama Unit" untuk konsistensi dengan dashboard
+     * FIXED: Format unit display dengan KODE SAJA untuk konsistensi dengan dashboard
      */
     public function show(string $identifier)
     {
@@ -1560,14 +1566,14 @@ class EmployeeController extends Controller
                 $employeeData['masa_kerja'] = "-";
             }
 
-            // NEW: Format unit display dengan kode untuk konsistensi dengan dashboard
+            // FIXED: Format unit display dengan KODE SAJA untuk konsistensi dengan dashboard
             $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
             
-            // NEW: Individual unit components dengan format kode
+            // FIXED: Individual unit components dengan KODE SAJA
             if (!empty($employee->kode_organisasi)) {
                 $employeeData['unit_organisasi_formatted'] = $this->formatUnitForDisplay($employee->kode_organisasi);
             } else {
-                $employeeData['unit_organisasi_formatted'] = $employee->unit_organisasi ?? 'Unit tidak tersedia';
+                $employeeData['unit_organisasi_formatted'] = $this->getUnitCodeFromUnitOrganisasi($employee->unit_organisasi);
             }
 
             // Convert gender dari database format (L/P) ke display format jika perlu
@@ -1576,7 +1582,7 @@ class EmployeeController extends Controller
             }
 
             // ENHANCED DEBUG LOGGING
-            Log::info('Employee Show Data - Comprehensive Debug dengan Unit Format', [
+            Log::info('Employee Show Data - Comprehensive Debug dengan Unit Format KODE SAJA', [
                 'employee_id' => $employee->id,
                 'employee_nik' => $employee->nik,
                 'employee_name' => $employee->nama_lengkap,
@@ -1597,7 +1603,7 @@ class EmployeeController extends Controller
             ]);
             
             return Inertia::render('Employees/Show', [
-                'employee' => $employeeData, // Send processed data dengan unit format dan guaranteed masa_kerja
+                'employee' => $employeeData, // Send processed data dengan unit format KODE SAJA dan guaranteed masa_kerja
             ]);
         } catch (\Exception $e) {
             Log::error('Employee Show Error', [
@@ -1649,7 +1655,7 @@ class EmployeeController extends Controller
                 );
             }
 
-            // NEW: Format unit display untuk edit form
+            // FIXED: Format unit display dengan KODE SAJA untuk edit form
             $employeeData['unit_display_formatted'] = $this->formatEmployeeUnitDisplay($employee);
             
             // Format dates untuk input type="date" including ALL NEW FIELDS
@@ -2151,7 +2157,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * UPDATED: Enhanced filter options dengan data dari database + ALL NEW FIELDS
+     * FIXED: Enhanced filter options dengan data dari database + ALL NEW FIELDS
+     * CRITICAL: Units sekarang menggunakan KODE SAJA
      */
     public function getFilterOptions()
     {
@@ -2182,7 +2189,7 @@ class EmployeeController extends Controller
                 'jenis_sepatu' => ['Pantofel', 'Safety Shoes'],
                 'ukuran_sepatu' => ['36', '37', '38', '39', '40', '41', '42', '43', '44'],
 
-                // FIXED: Unit dan sub unit options dari database
+                // FIXED: Unit dan sub unit options dari database dengan KODE SAJA
                 'units' => $this->getUnitsForFilter(),
                 'sub_units' => $this->getSubUnitsForFilter(),
 
@@ -2235,7 +2242,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FIXED: Get units dari database untuk filter dengan format kode
+     * FIXED: Get units dari database untuk filter dengan KODE SAJA
+     * CRITICAL CHANGE: Mengembalikan kode unit saja, bukan format "(XX) Nama Unit"
      */
     public function getUnitsForFilter()
     {
@@ -2250,14 +2258,14 @@ class EmployeeController extends Controller
                       ->orderBy('name')
                       ->get()
                       ->map(function($unit) {
-                          $formattedName = $this->formatUnitWithCode($unit->name, $unit->unit_organisasi);
+                          // FIXED: Unit.name sekarang sudah kode, gunakan langsung
                           return [
                               'id' => $unit->id,
-                              'name' => $unit->name,
-                              'formatted_name' => $formattedName,
+                              'name' => $unit->name, // Sudah kode
+                              'formatted_name' => $unit->name, // Kode saja
                               'code' => $unit->code,
                               'unit_organisasi' => $unit->unit_organisasi,
-                              'label' => $formattedName,
+                              'label' => $unit->name, // Kode saja
                           ];
                       })
                       ->toArray();
@@ -2286,7 +2294,7 @@ class EmployeeController extends Controller
                                   'name' => $subUnit->name,
                                   'code' => $subUnit->code,
                                   'unit_id' => $subUnit->unit_id,
-                                  'unit_name' => $subUnit->unit ? $subUnit->unit->name : '',
+                                  'unit_name' => $subUnit->unit ? $subUnit->unit->name : '', // Unit.name sudah kode
                                   'unit_organisasi' => $subUnit->unit ? $subUnit->unit->unit_organisasi : '',
                                   'label' => $subUnit->name,
                               ];

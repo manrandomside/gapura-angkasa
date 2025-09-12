@@ -16,22 +16,22 @@ use Illuminate\Support\Facades\Schema;
 class DashboardController extends Controller
 {
     /**
-     * UPDATED: Unit code mapping untuk format display (XX) Nama Unit di grafik
-     * Sama dengan mapping di EmployeeController untuk konsistensi
+     * FIXED: Unit code mapping untuk format display KODE SAJA - konsisten dengan EmployeeController
+     * CRITICAL CHANGE: Hanya return kode unit, bukan format "(XX) Nama Unit"
      */
     private function getUnitDisplayMapping()
     {
         return [
             'EGM' => 'EGM',
             'GM' => 'GM',
-            'MO' => '(MO) Movement Operations',
-            'ME' => '(ME) Maintenance Equipment',
-            'MF' => '(MF) Movement Flight',
-            'MS' => '(MS) Movement Service',
-            'MU' => '(MU) Management Unit',
-            'MK' => '(MK) Management Keuangan',
-            'MQ' => '(MQ) Management Quality',
-            'MB' => '(MB) Management Business',
+            'MO' => 'MO',
+            'ME' => 'ME',
+            'MF' => 'MF',
+            'MS' => 'MS',
+            'MU' => 'MU',
+            'MK' => 'MK',
+            'MQ' => 'MQ',
+            'MB' => 'MB',
         ];
     }
 
@@ -56,12 +56,13 @@ class DashboardController extends Controller
     }
 
     /**
-     * UPDATED: Helper method untuk format unit display dengan kode untuk grafik
+     * FIXED: Helper method untuk format unit display dengan KODE SAJA untuk grafik
+     * CRITICAL CHANGE: Return kode saja, bukan format "(XX) Nama Unit"
      */
     private function formatUnitForChart($unitCode)
     {
         $mapping = $this->getUnitDisplayMapping();
-        return $mapping[$unitCode] ?? $unitCode;
+        return $mapping[$unitCode] ?? $unitCode; // Return kode saja
     }
 
     /**
@@ -222,7 +223,7 @@ class DashboardController extends Controller
                 'safe_mode' => true
             ]);
 
-            // FIXED: Safe data mapping dengan format unit display
+            // FIXED: Safe data mapping dengan format unit display KODE SAJA
             $historyData = $employees->map(function ($employee) {
                 $organizationalStructure = $this->buildOrganizationalStructureSafe($employee);
                 
@@ -272,16 +273,17 @@ class DashboardController extends Controller
                     'total_employees_found' => $historyData->count(),
                     'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
                     'safe_mode' => true,
-                    'method_version' => 'fixed_safe_v3.0_3periods'
+                    'method_version' => 'fixed_safe_v3.0_3periods_kode_unit_only'
                 ]
             ];
 
-            Log::info('HISTORY API: Successfully fetched employee history (3 periods)', [
+            Log::info('HISTORY API: Successfully fetched employee history (3 periods, kode unit only)', [
                 'total_employees' => $historyData->count(),
                 'period' => '30 days',
                 'summary_today' => $summary['today'] ?? 0,
                 'summary_week' => $summary['this_week'] ?? 0,
-                'summary_total' => $summary['total_period'] ?? 0
+                'summary_total' => $summary['total_period'] ?? 0,
+                'unit_display_format' => 'kode_only'
             ]);
 
             return response()->json($response);
@@ -329,7 +331,7 @@ class DashboardController extends Controller
             // Calculate summary with only 3 periods
             $summary = $this->calculateHistorySummarySafe($startDate, $endDate);
 
-            // Get latest employees for preview
+            // Get latest employees for preview dengan format unit KODE SAJA
             $latestEmployees = Employee::select([
                     'id', 'nip', 'nik', 'nama_lengkap', 'unit_organisasi', 
                     'kode_organisasi', 'nama_organisasi', 'unit_id', 'sub_unit_id', 
@@ -655,9 +657,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * COMPLETELY FIXED: Get unit chart data (SDM per Unit) - MENGGUNAKAN FIELD KODE_ORGANISASI
+     * COMPLETELY FIXED: Get unit chart data (SDM per Unit) - KODE SAJA untuk konsistensi
      * Chart Type: Bar Chart
-     * STRATEGI BARU: Query berdasarkan field kode_organisasi dari seeder, bukan unit_organisasi
+     * CRITICAL CHANGE: Menggunakan KODE UNIT SAJA, bukan format "(XX) Nama Unit"
      */
     private function getUnitChartData()
     {
@@ -665,9 +667,9 @@ class DashboardController extends Controller
             // Target units sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             
-            Log::info('UNIT CHART: Starting FIXED STRATEGY using kode_organisasi field', [
+            Log::info('UNIT CHART: Starting FIXED STRATEGY using kode_organisasi field - KODE SAJA', [
                 'target_units' => $targetUnits,
-                'strategy' => 'kode_organisasi_based',
+                'strategy' => 'kode_organisasi_based_kode_only',
                 'unit_display_mapping' => $this->getUnitDisplayMapping()
             ]);
 
@@ -687,7 +689,7 @@ class DashboardController extends Controller
                 'raw_data' => $unitData->toArray()
             ]);
 
-            // Create result dengan semua target units
+            // Create result dengan semua target units - KODE SAJA
             $result = [];
             $foundUnits = [];
             
@@ -695,10 +697,10 @@ class DashboardController extends Controller
             foreach ($unitData as $item) {
                 $unitCode = $item->kode_organisasi;
                 $count = $item->total;
-                $displayName = $this->formatUnitForChart($unitCode);
+                $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
                 
                 $result[] = [
-                    'name' => $displayName,
+                    'name' => $displayName, // Kode saja
                     'unit_code' => $unitCode,
                     'value' => $count
                 ];
@@ -709,10 +711,10 @@ class DashboardController extends Controller
             // Tambahkan unit yang tidak ditemukan dengan value 0
             foreach ($targetUnits as $unitCode) {
                 if (!in_array($unitCode, $foundUnits)) {
-                    $displayName = $this->formatUnitForChart($unitCode);
+                    $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
                     
                     $result[] = [
-                        'name' => $displayName,
+                        'name' => $displayName, // Kode saja
                         'unit_code' => $unitCode,
                         'value' => 0
                     ];
@@ -726,24 +728,25 @@ class DashboardController extends Controller
 
             $totalEmployeesInUnits = array_sum(array_column($result, 'value'));
 
-            Log::info('UNIT CHART: FIXED STRATEGY completed successfully', [
+            Log::info('UNIT CHART: FIXED STRATEGY completed - KODE SAJA format', [
                 'target_units' => $targetUnits,
                 'found_units' => $foundUnits,
                 'missing_units' => array_diff($targetUnits, $foundUnits),
                 'final_result_data' => $result,
                 'total_employees_in_units' => $totalEmployeesInUnits,
-                'strategy' => 'kode_organisasi_field_based'
+                'strategy' => 'kode_organisasi_field_based_kode_only',
+                'display_format' => 'kode_unit_only'
             ]);
 
             return $result;
         } catch (\Exception $e) {
             Log::error('Unit Chart Data Error: ' . $e->getMessage());
             
-            // Return default dengan format yang benar
+            // Return default dengan format KODE SAJA
             $defaultUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             return array_map(function($unitCode) {
                 return [
-                    'name' => $this->formatUnitForChart($unitCode),
+                    'name' => $this->formatUnitForChart($unitCode), // Kode saja
                     'unit_code' => $unitCode,
                     'value' => 0
                 ];
@@ -1088,35 +1091,52 @@ class DashboardController extends Controller
     }
 
     // =====================================================
-    // HELPER METHODS
+    // FIXED HELPER METHODS
     // =====================================================
 
     /**
-     * NEW: Format employee unit display dengan kode untuk konsistensi
-     * Menggabungkan kode_organisasi dengan nama_organisasi
+     * FIXED: Format employee unit display dengan KODE SAJA untuk konsistensi
+     * CRITICAL CHANGE: Hanya return kode unit, bukan format "(XX) Nama Unit"
      */
     private function formatEmployeeUnitDisplay($employee)
     {
         try {
             if (!empty($employee->kode_organisasi)) {
                 $unitCode = $employee->kode_organisasi;
-                $displayName = $this->formatUnitForChart($unitCode);
+                $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
                 
-                // Tambahkan nama organisasi jika tersedia
-                if (!empty($employee->nama_organisasi)) {
-                    return $displayName . ' - ' . $employee->nama_organisasi;
-                }
-                
-                return $displayName;
+                return $displayName; // Kode saja tanpa nama organisasi
             }
             
-            // Fallback ke unit_organisasi jika kode_organisasi tidak ada
-            return $employee->unit_organisasi ?? 'Unit tidak tersedia';
+            // Fallback: mapping dari unit_organisasi ke kode default
+            if (!empty($employee->unit_organisasi)) {
+                return $this->getUnitCodeFromUnitOrganisasi($employee->unit_organisasi);
+            }
+            
+            return 'Unit tidak tersedia';
             
         } catch (\Exception $e) {
             Log::warning('Format employee unit display error: ' . $e->getMessage());
             return $employee->unit_organisasi ?? 'Unit tidak tersedia';
         }
+    }
+
+    /**
+     * NEW: Helper untuk mapping unit_organisasi ke kode unit default
+     */
+    private function getUnitCodeFromUnitOrganisasi($unitOrganisasi)
+    {
+        $mapping = [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'Airside' => 'MO', // Default Airside ke MO
+            'Landside' => 'MF', // Default Landside ke MF
+            'Back Office' => 'MU', // Default Back Office ke MU
+            'SSQC' => 'MQ',
+            'Ancillary' => 'MB'
+        ];
+        
+        return $mapping[$unitOrganisasi] ?? $unitOrganisasi;
     }
 
     /**
@@ -1305,20 +1325,21 @@ class DashboardController extends Controller
                     'periods_supported' => ['today', 'this_week', 'total_period']
                 ],
                 'unit_display_format' => [
-                    'format' => '(XX) Nama Unit',
+                    'format' => 'KODE SAJA',
                     'examples' => [
-                        'MO' => '(MO) Movement Operations',
-                        'ME' => '(ME) Maintenance Equipment',
-                        'MF' => '(MF) Movement Flight',
-                        'MS' => '(MS) Movement Service'
+                        'MO' => 'MO',
+                        'ME' => 'ME',
+                        'MF' => 'MF',
+                        'MS' => 'MS'
                     ],
                     'mapping_available' => true,
-                    'strategy' => 'Menggunakan field kode_organisasi dari seeder'
+                    'strategy' => 'Menggunakan field kode_organisasi dari seeder - KODE SAJA',
+                    'consistency_status' => 'FIXED - Consistent with dashboard chart'
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.16.0',
+                'version' => '1.17.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime_with_kode_organisasi_strategy'
+                'dashboard_type' => '6_charts_realtime_with_kode_unit_only_strategy'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -1361,7 +1382,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * FIXED: Build organizational structure untuk employee - SAFE VERSION dengan unit format
+     * FIXED: Build organizational structure untuk employee - SAFE VERSION dengan unit KODE SAJA
+     * CRITICAL CHANGE: Unit name sekarang berisi kode saja, bukan nama panjang
      */
     private function buildOrganizationalStructureSafe($employee)
     {
@@ -1382,7 +1404,7 @@ class DashboardController extends Controller
                     if ($unit) {
                         $structure['unit'] = [
                             'id' => $unit->id,
-                            'name' => $unit->name,
+                            'name' => $unit->name, // Unit.name sekarang sudah kode
                             'code' => $unit->code ?? null
                         ];
                     }
@@ -1413,7 +1435,7 @@ class DashboardController extends Controller
                 }
             }
 
-            // Build full structure string untuk display dengan format unit
+            // Build full structure string untuk display dengan KODE SAJA
             $fullStructureParts = [];
             
             if ($structure['unit_organisasi'] && $structure['unit_organisasi'] !== 'Tidak tersedia') {
@@ -1421,7 +1443,7 @@ class DashboardController extends Controller
             }
             
             if ($structure['unit'] && !empty($structure['unit']['name'])) {
-                $fullStructureParts[] = $structure['unit']['name'];
+                $fullStructureParts[] = $structure['unit']['name']; // Sudah kode
             }
             
             if ($structure['sub_unit'] && !empty($structure['sub_unit']['name'])) {
@@ -1431,7 +1453,7 @@ class DashboardController extends Controller
             // Create full structure string
             $structure['full_structure'] = implode(' > ', $fullStructureParts);
             
-            // Enhanced structure dengan format kode
+            // Enhanced structure dengan format KODE SAJA
             if (!empty($structure['kode_organisasi'])) {
                 $formattedUnitDisplay = $this->formatEmployeeUnitDisplay($employee);
                 $structure['unit_display_formatted'] = $formattedUnitDisplay;
@@ -1551,7 +1573,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get recent activities data - SAFE VERSION dengan enhanced logging
+     * Get recent activities data - SAFE VERSION dengan enhanced logging dan KODE SAJA
      */
     private function getRecentActivitiesData()
     {
@@ -1567,7 +1589,7 @@ class DashboardController extends Controller
                         'type' => 'employee_added',
                         'title' => 'Karyawan Baru Ditambahkan',
                         'description' => $employee->nama_lengkap . ' - ' . ($employee->jabatan ?? $employee->nama_jabatan ?? 'Jabatan tidak tersedia'),
-                        'unit' => $this->formatEmployeeUnitDisplay($employee),
+                        'unit' => $this->formatEmployeeUnitDisplay($employee), // Kode saja
                         'timestamp' => $employee->created_at,
                         'icon' => 'user-plus',
                         'color' => 'green',
@@ -1586,7 +1608,7 @@ class DashboardController extends Controller
                         'type' => 'employee_updated',
                         'title' => 'Data Karyawan Diperbarui',
                         'description' => $employee->nama_lengkap . ' - ' . ($employee->jabatan ?? $employee->nama_jabatan ?? 'Jabatan tidak tersedia'),
-                        'unit' => $this->formatEmployeeUnitDisplay($employee),
+                        'unit' => $this->formatEmployeeUnitDisplay($employee), // Kode saja
                         'timestamp' => $employee->updated_at,
                         'icon' => 'edit',
                         'color' => 'blue',
@@ -1599,10 +1621,11 @@ class DashboardController extends Controller
                 ->values()
                 ->take(15);
 
-            Log::debug('HELPER: Recent activities generated', [
+            Log::debug('HELPER: Recent activities generated dengan KODE SAJA', [
                 'total_activities' => $activities->count(),
                 'recent_employees' => $recentEmployees->count(),
-                'updated_employees' => $updatedEmployees->count()
+                'updated_employees' => $updatedEmployees->count(),
+                'unit_display_format' => 'kode_only'
             ]);
 
             return [
@@ -1809,7 +1832,7 @@ class DashboardController extends Controller
 
     /**
      * Export to CSV
-     * UPDATED: Include new dashboard data structure with unit code format
+     * UPDATED: Include new dashboard data structure dengan unit KODE SAJA
      */
     private function exportToCsv($statistics, $organizationData)
     {
@@ -1844,9 +1867,9 @@ class DashboardController extends Controller
             
             fputcsv($file, ['']);
             
-            // Organization breakdown dengan format unit code
+            // Organization breakdown dengan KODE SAJA
             fputcsv($file, ['DISTRIBUSI PER UNIT ORGANISASI']);
-            fputcsv($file, ['Unit Organisasi', 'Kode Unit', 'Jumlah Karyawan']);
+            fputcsv($file, ['Unit Organisasi (Kode Saja)', 'Kode Unit', 'Jumlah Karyawan']);
             foreach ($organizationData as $org) {
                 fputcsv($file, [$org['name'], $org['unit_code'] ?? '', $org['value']]);
             }
