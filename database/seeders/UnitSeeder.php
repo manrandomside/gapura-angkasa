@@ -12,8 +12,8 @@ class UnitSeeder extends Seeder
 {
     /**
      * Run the database seeds.
-     * FIXED: Enhanced Unit Seeder untuk GAPURA ANGKASA SDM System
-     * CRITICAL: Mendukung History Modal functionality
+     * UPDATED: Enhanced Unit Seeder dengan konsistensi kode unit 
+     * CRITICAL: Field name sekarang berisi kode unit untuk konsistensi sistem
      * Struktur: Unit Organisasi -> Unit -> Sub Unit (parent-child)
      */
     public function run(): void
@@ -110,7 +110,7 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create complete unit structure untuk Gapura Angkasa
+     * UPDATED: Create complete unit structure dengan konsistensi kode
      */
     private function createUnitStructure()
     {
@@ -139,14 +139,14 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create unit tanpa sub unit dengan enhanced logging
+     * UPDATED: Create unit tanpa sub unit dengan kode unit konsisten
      */
-    private function createUnitWithoutSubUnits($unitOrganisasi, $unitName, $description)
+    private function createUnitWithoutSubUnits($unitOrganisasi, $unitCode, $description)
     {
         try {
             $unit = Unit::create([
-                'name' => $unitName,
-                'code' => $unitName,
+                'name' => $unitCode, // UPDATED: Field name sekarang berisi kode unit
+                'code' => $unitCode,
                 'unit_organisasi' => $unitOrganisasi,
                 'description' => $description,
                 'is_active' => true
@@ -155,13 +155,14 @@ class UnitSeeder extends Seeder
             Log::info("UnitSeeder: Created unit without sub units", [
                 'unit_id' => $unit->id,
                 'unit_organisasi' => $unitOrganisasi,
-                'unit_name' => $unitName
+                'unit_name' => $unitCode, // Log menggunakan kode
+                'unit_code' => $unitCode
             ]);
             
-            $this->command->info("✓ Created {$unitOrganisasi} unit: {$unitName}");
+            $this->command->info("✓ Created {$unitOrganisasi} unit: {$unitCode}");
             
         } catch (\Exception $e) {
-            Log::error("UnitSeeder: Failed to create unit {$unitName}", [
+            Log::error("UnitSeeder: Failed to create unit {$unitCode}", [
                 'unit_organisasi' => $unitOrganisasi,
                 'error' => $e->getMessage()
             ]);
@@ -170,13 +171,13 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create Airside units dengan sub units dan enhanced error handling
+     * UPDATED: Create Airside units dengan kode unit konsisten
      */
     private function createAirsideUnits()
     {
         $airsideUnits = [
             [
-                'name' => 'Movement Operations',
+                'name' => 'MO', // UPDATED: Name field berisi kode unit
                 'code' => 'MO',
                 'description' => 'Movement Operations Unit - Airside',
                 'sub_units' => [
@@ -191,7 +192,7 @@ class UnitSeeder extends Seeder
                 ]
             ],
             [
-                'name' => 'Maintenance Equipment',
+                'name' => 'ME', // UPDATED: Name field berisi kode unit
                 'code' => 'ME',
                 'description' => 'Maintenance Equipment Unit - Airside',
                 'sub_units' => [
@@ -208,13 +209,13 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create Landside units dengan sub units
+     * UPDATED: Create Landside units dengan kode unit konsisten
      */
     private function createLandsideUnits()
     {
         $landsideUnits = [
             [
-                'name' => 'Movement Flight',
+                'name' => 'MF', // UPDATED: Name field berisi kode unit
                 'code' => 'MF',
                 'description' => 'Movement Flight Unit - Landside',
                 'sub_units' => [
@@ -239,7 +240,7 @@ class UnitSeeder extends Seeder
                 ]
             ],
             [
-                'name' => 'Movement Service',
+                'name' => 'MS', // UPDATED: Name field berisi kode unit
                 'code' => 'MS',
                 'description' => 'Movement Service Unit - Landside',
                 'sub_units' => [
@@ -254,13 +255,13 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create Back Office units dengan sub units
+     * UPDATED: Create Back Office units dengan kode unit konsisten
      */
     private function createBackOfficeUnits()
     {
         $backOfficeUnits = [
             [
-                'name' => 'Management Unit',
+                'name' => 'MU', // UPDATED: Name field berisi kode unit
                 'code' => 'MU',
                 'description' => 'Management Unit - Back Office',
                 'sub_units' => [
@@ -269,7 +270,7 @@ class UnitSeeder extends Seeder
                 ]
             ],
             [
-                'name' => 'Management Keuangan',
+                'name' => 'MK', // UPDATED: Name field berisi kode unit
                 'code' => 'MK',
                 'description' => 'Management Keuangan Unit - Back Office',
                 'sub_units' => [
@@ -285,13 +286,13 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create SSQC units dengan sub units
+     * UPDATED: Create SSQC units dengan kode unit konsisten
      */
     private function createSSQCUnits()
     {
         $ssqcUnits = [
             [
-                'name' => 'Management Quality',
+                'name' => 'MQ', // UPDATED: Name field berisi kode unit
                 'code' => 'MQ',
                 'description' => 'Safety Security Quality Control Unit',
                 'sub_units' => [
@@ -305,13 +306,13 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Create Ancillary units dengan sub units
+     * UPDATED: Create Ancillary units dengan kode unit konsisten
      */
     private function createAncillaryUnits()
     {
         $ancillaryUnits = [
             [
-                'name' => 'Management Business',
+                'name' => 'MB', // UPDATED: Name field berisi kode unit
                 'code' => 'MB',
                 'description' => 'Management Business Unit - Ancillary',
                 'sub_units' => [
@@ -326,15 +327,15 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Helper method untuk create units with sub units dengan comprehensive error handling
+     * UPDATED: Helper method dengan kode unit konsisten
      */
     private function createUnitsWithSubUnits($unitOrganisasi, $unitsData)
     {
         foreach ($unitsData as $unitData) {
             try {
-                // Create unit
+                // Create unit dengan name berisi kode unit
                 $unit = Unit::create([
-                    'name' => $unitData['name'],
+                    'name' => $unitData['name'], // Sekarang berisi kode unit
                     'code' => $unitData['code'],
                     'unit_organisasi' => $unitOrganisasi,
                     'description' => $unitData['description'],
@@ -344,7 +345,7 @@ class UnitSeeder extends Seeder
                 Log::info("UnitSeeder: Created unit", [
                     'unit_id' => $unit->id,
                     'unit_organisasi' => $unitOrganisasi,
-                    'unit_name' => $unitData['name'],
+                    'unit_name' => $unitData['name'], // Log kode unit
                     'unit_code' => $unitData['code']
                 ]);
                 
@@ -366,7 +367,7 @@ class UnitSeeder extends Seeder
                             'sub_unit_id' => $subUnit->id,
                             'sub_unit_name' => $subUnitName,
                             'unit_id' => $unit->id,
-                            'unit_name' => $unitData['name']
+                            'unit_code' => $unitData['name'] // Log kode unit
                         ]);
                         
                     } catch (\Exception $subUnitError) {
@@ -416,7 +417,7 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Validate created data untuk memastikan structure benar
+     * UPDATED: Validate created data dengan konsistensi kode unit
      */
     private function validateCreatedData()
     {
@@ -473,6 +474,12 @@ class UnitSeeder extends Seeder
             $errors[] = "Found {$orphanedSubUnits} orphaned sub units without parent units";
         }
         
+        // UPDATED: Validate bahwa field name berisi kode unit
+        $unitsWithInconsistentName = Unit::whereRaw('name != code')->count();
+        if ($unitsWithInconsistentName > 0) {
+            $errors[] = "Found {$unitsWithInconsistentName} units with inconsistent name and code fields";
+        }
+        
         if (!empty($errors)) {
             Log::error('UnitSeeder: Data validation failed', ['errors' => $errors]);
             
@@ -489,7 +496,7 @@ class UnitSeeder extends Seeder
     }
     
     /**
-     * FIXED: Display comprehensive summary hasil seeding
+     * UPDATED: Display comprehensive summary dengan unit code consistency
      */
     private function displaySummary()
     {
@@ -530,17 +537,19 @@ class UnitSeeder extends Seeder
         }
         
         $this->command->info('');
-        $this->command->info('✓ Unit structure ready for History Modal!');
+        $this->command->info('✓ Unit structure ready with consistent unit codes!');
+        $this->command->info('✓ Field name and code consistency established!');
         $this->command->info('✓ Cascading dropdown functionality enabled!');
         $this->command->info('✓ Parent-child relationships established!');
         $this->command->info('');
         
         // Log final summary
-        Log::info('UnitSeeder: Seeding completed successfully', [
+        Log::info('UnitSeeder: Seeding completed successfully with unit code consistency', [
             'total_unit_organisasi' => $unitOrganisasiCount,
             'total_units' => $totalUnits,
             'total_sub_units' => $totalSubUnits,
-            'breakdown' => $breakdown->toArray()
+            'breakdown' => $breakdown->toArray(),
+            'unit_code_consistency' => 'name field now contains unit codes'
         ]);
     }
 }

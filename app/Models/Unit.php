@@ -35,8 +35,26 @@ class Unit extends Model
     ];
 
     /**
-     * UPDATED: Unit code mapping untuk format display (XX) Nama Unit
-     * Sesuai dengan requirement user untuk dropdown dan grafik
+     * UPDATED: Unit display mapping dari kode unit ke nama panjang
+     * Digunakan untuk format display UI (XX) Nama Panjang
+     * CRITICAL: Sekarang field name berisi kode unit, bukan nama panjang
+     */
+    const UNIT_DISPLAY_MAPPING = [
+        'MO' => 'Movement Operations',
+        'ME' => 'Maintenance Equipment',
+        'MF' => 'Movement Flight',
+        'MS' => 'Movement Service',
+        'MK' => 'Management Keuangan',
+        'MU' => 'Management Unit',
+        'MQ' => 'Management Quality',
+        'MB' => 'Management Business',
+        'EGM' => 'EGM',
+        'GM' => 'GM'
+    ];
+
+    /**
+     * LEGACY: Unit code mapping untuk backward compatibility
+     * Tetap dipertahankan untuk fallback jika diperlukan
      */
     const UNIT_CODE_MAPPING = [
         'Airside' => [
@@ -60,62 +78,71 @@ class Unit extends Model
     ];
 
     /**
-     * NEW: Get unit code mapping untuk frontend
+     * NEW: Get unit display mapping untuk frontend
      */
-    public static function getUnitCodeMapping()
+    public static function getUnitDisplayMapping()
     {
-        return self::UNIT_CODE_MAPPING;
+        return self::UNIT_DISPLAY_MAPPING;
     }
 
     /**
-     * NEW: Get unit code berdasarkan nama unit dan unit organisasi
+     * UPDATED: Get unit code - sekarang field name sudah berisi kode unit
      */
     public function getUnitCode()
     {
-        $mapping = self::UNIT_CODE_MAPPING;
-        
-        if (isset($mapping[$this->unit_organisasi][$this->name])) {
-            return $mapping[$this->unit_organisasi][$this->name];
-        }
-        
-        // Fallback untuk unit tanpa mapping (EGM, GM)
-        return $this->code ?? strtoupper(substr($this->name, 0, 2));
+        // Field name sekarang berisi kode unit
+        return $this->name ?? $this->code;
     }
 
     /**
-     * NEW: Format unit display dengan kode (XX) Nama Unit
+     * NEW: Get unit long name untuk display
+     */
+    public function getUnitLongName()
+    {
+        $mapping = self::UNIT_DISPLAY_MAPPING;
+        $unitCode = $this->getUnitCode();
+        
+        return $mapping[$unitCode] ?? $unitCode;
+    }
+
+    /**
+     * UPDATED: Format unit display dengan kode (XX) Nama Panjang
+     * Menggunakan mapping dari kode ke nama panjang
      */
     public function getFormattedDisplayNameAttribute()
     {
-        $mapping = self::UNIT_CODE_MAPPING;
+        $unitCode = $this->getUnitCode();
+        $longName = $this->getUnitLongName();
         
-        if (isset($mapping[$this->unit_organisasi][$this->name])) {
-            $code = $mapping[$this->unit_organisasi][$this->name];
-            return "({$code}) {$this->name}";
+        // Untuk EGM dan GM, tampilkan kode saja
+        if (in_array($unitCode, ['EGM', 'GM'])) {
+            return $unitCode;
         }
         
-        // Fallback untuk unit tanpa mapping (EGM, GM)
-        return $this->name;
+        // Format: (XX) Nama Panjang
+        return "({$unitCode}) {$longName}";
     }
 
     /**
-     * NEW: Static method untuk format unit dengan kode
+     * UPDATED: Static method untuk format unit dengan kode
+     * Menggunakan unit code yang sudah ada di field name
      */
-    public static function formatUnitWithCode($unitName, $unitOrganisasi)
+    public static function formatUnitWithCode($unitCode, $unitOrganisasi = null)
     {
-        $mapping = self::UNIT_CODE_MAPPING;
+        $mapping = self::UNIT_DISPLAY_MAPPING;
+        $longName = $mapping[$unitCode] ?? $unitCode;
         
-        if (isset($mapping[$unitOrganisasi][$unitName])) {
-            $code = $mapping[$unitOrganisasi][$unitName];
-            return "({$code}) {$unitName}";
+        // Untuk EGM dan GM, tampilkan kode saja
+        if (in_array($unitCode, ['EGM', 'GM'])) {
+            return $unitCode;
         }
         
-        // Fallback untuk unit tanpa mapping (EGM, GM)
-        return $unitName;
+        // Format: (XX) Nama Panjang
+        return "({$unitCode}) {$longName}";
     }
 
     /**
-     * NEW: Get semua unit dengan format kode untuk dropdown
+     * UPDATED: Get semua unit dengan format kode untuk dropdown
      */
     public static function getUnitsWithCodeFormat()
     {
@@ -124,18 +151,18 @@ class Unit extends Model
             ->map(function($unit) {
                 return [
                     'id' => $unit->id,
-                    'name' => $unit->name,
+                    'name' => $unit->name, // Sekarang berisi kode unit
                     'code' => $unit->getUnitCode(),
                     'unit_organisasi' => $unit->unit_organisasi,
                     'formatted_name' => $unit->formatted_display_name,
-                    'original_name' => $unit->name,
+                    'long_name' => $unit->getUnitLongName(),
                     'display_label' => $unit->formatted_display_name,
                 ];
             });
     }
 
     /**
-     * NEW: Get units untuk unit organisasi tertentu dengan format kode
+     * UPDATED: Get units untuk unit organisasi tertentu dengan format kode
      */
     public static function getUnitsByOrganisasiWithCode($unitOrganisasi)
     {
@@ -145,18 +172,18 @@ class Unit extends Model
             ->map(function($unit) {
                 return [
                     'id' => $unit->id,
-                    'name' => $unit->name,
+                    'name' => $unit->name, // Sekarang berisi kode unit
                     'code' => $unit->getUnitCode(),
                     'unit_organisasi' => $unit->unit_organisasi,
                     'formatted_name' => $unit->formatted_display_name,
-                    'original_name' => $unit->name,
+                    'long_name' => $unit->getUnitLongName(),
                     'display_label' => $unit->formatted_display_name,
                 ];
             });
     }
 
     /**
-     * NEW: Method untuk dashboard grafik - get unit data dengan format kode
+     * UPDATED: Method untuk dashboard grafik - get unit data dengan format kode
      */
     public static function getUnitDataForChart()
     {
@@ -167,8 +194,8 @@ class Unit extends Model
             
             return [
                 'name' => $unit->formatted_display_name, // Format dengan kode untuk grafik
-                'original_name' => $unit->name,
                 'code' => $unit->getUnitCode(),
+                'long_name' => $unit->getUnitLongName(),
                 'unit_organisasi' => $unit->unit_organisasi,
                 'count' => $employeeCount,
                 'value' => $employeeCount, // Alias untuk grafik
@@ -200,8 +227,8 @@ class Unit extends Model
                 if ($employeeCount > 0) {
                     $unitData[] = [
                         'name' => $unit->formatted_display_name, // Format dengan kode
-                        'original_name' => $unit->name,
                         'code' => $unit->getUnitCode(),
+                        'long_name' => $unit->getUnitLongName(),
                         'count' => $employeeCount,
                         'value' => $employeeCount,
                         'label' => $unit->formatted_display_name,
@@ -328,11 +355,12 @@ class Unit extends Model
     }
 
     /**
-     * Get full name dengan prefix unit organisasi
+     * UPDATED: Get full name dengan prefix unit organisasi
+     * Menggunakan kode unit bukan nama panjang
      */
     public function getFullNameAttribute()
     {
-        return $this->unit_organisasi . ' - ' . $this->name;
+        return $this->unit_organisasi . ' - ' . $this->getUnitCode();
     }
 
     /**
@@ -418,31 +446,84 @@ class Unit extends Model
     }
 
     /**
-     * UPDATED: Boot method dengan auto-generate code yang lebih baik
+     * UPDATED: Boot method dengan auto-generate code yang konsisten
+     * Field name dan code sekarang sama-sama berisi kode unit
      */
     protected static function boot()
     {
         parent::boot();
         
         static::creating(function ($unit) {
-            if (empty($unit->code)) {
-                // Coba dapatkan kode dari mapping terlebih dahulu
-                $mapping = self::UNIT_CODE_MAPPING;
-                if (isset($mapping[$unit->unit_organisasi][$unit->name])) {
-                    $unit->code = $mapping[$unit->unit_organisasi][$unit->name];
-                } else {
-                    // Fallback ke auto-generate
-                    $unit->code = strtoupper(str_replace(' ', '_', $unit->name));
-                }
+            // Pastikan name dan code konsisten berisi kode unit
+            if (empty($unit->code) && !empty($unit->name)) {
+                $unit->code = $unit->name;
+            }
+            
+            if (empty($unit->name) && !empty($unit->code)) {
+                $unit->name = $unit->code;
+            }
+            
+            // Jika keduanya kosong, auto-generate dari unit_organisasi
+            if (empty($unit->name) && empty($unit->code)) {
+                $generatedCode = strtoupper(substr($unit->unit_organisasi, 0, 2));
+                $unit->name = $generatedCode;
+                $unit->code = $generatedCode;
             }
         });
         
         static::updating(function ($unit) {
-            // Update code jika nama unit berubah dan ada mapping
-            $mapping = self::UNIT_CODE_MAPPING;
-            if (isset($mapping[$unit->unit_organisasi][$unit->name])) {
-                $unit->code = $mapping[$unit->unit_organisasi][$unit->name];
+            // Pastikan name dan code tetap sinkron
+            if ($unit->isDirty('name')) {
+                $unit->code = $unit->name;
+            }
+            
+            if ($unit->isDirty('code')) {
+                $unit->name = $unit->code;
             }
         });
+    }
+
+    /**
+     * NEW: Get unit code from unit name (untuk backward compatibility)
+     */
+    public static function getCodeFromName($unitName)
+    {
+        // Karena sekarang name berisi kode, langsung return name
+        $unit = self::where('name', $unitName)->first();
+        return $unit ? $unit->getUnitCode() : $unitName;
+    }
+
+    /**
+     * NEW: Get unit name from unit code (untuk backward compatibility)  
+     */
+    public static function getNameFromCode($unitCode)
+    {
+        $mapping = self::UNIT_DISPLAY_MAPPING;
+        return $mapping[$unitCode] ?? $unitCode;
+    }
+
+    /**
+     * NEW: Check if unit requires sub units based on unit organisasi
+     */
+    public function requiresSubUnits()
+    {
+        $unitsWithoutSubUnits = ['EGM', 'GM'];
+        return !in_array($this->unit_organisasi, $unitsWithoutSubUnits);
+    }
+
+    /**
+     * NEW: Get unit by code
+     */
+    public static function findByCode($code)
+    {
+        return self::where('name', $code)->orWhere('code', $code)->first();
+    }
+
+    /**
+     * NEW: Get formatted name untuk consistency dengan sistem lama
+     */
+    public function getFormattedName()
+    {
+        return $this->formatted_display_name;
     }
 }
