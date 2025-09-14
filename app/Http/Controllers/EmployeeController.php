@@ -1148,6 +1148,7 @@ class EmployeeController extends Controller
 
     /**
      * UPDATED: Store a newly created employee with comprehensive validation and NEW FIELDS
+     * NIK CHANGED TO OPTIONAL
      */
     public function store(Request $request)
     {
@@ -1183,11 +1184,11 @@ class EmployeeController extends Controller
             // Unit organisasi yang tidak memiliki sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // UPDATED: Enhanced validation rules with NEW FIELDS
+            // UPDATED: Enhanced validation rules with NEW FIELDS - NIK MADE OPTIONAL
             $validator = Validator::make($request->all(), [
-                // Required identity fields
+                // CHANGED: NIK is now optional (nullable instead of required)
                 'nik' => [
-                    'required',
+                    'nullable',
                     'string',
                     'size:16',
                     'regex:/^[0-9]+$/',
@@ -1332,8 +1333,7 @@ class EmployeeController extends Controller
                 'weight' => 'nullable|integer|min:30|max:200',
                 'seragam' => 'nullable|string|max:100',
             ], [
-                // UPDATED: Custom error messages including NEW FIELDS
-                'nik.required' => 'NIK wajib diisi.',
+                // UPDATED: Custom error messages - REMOVED NIK required message
                 'nik.size' => 'NIK harus tepat 16 digit.',
                 'nik.regex' => 'NIK hanya boleh berisi angka.',
                 'nik.unique' => 'NIK sudah terdaftar di sistem.',
@@ -1709,6 +1709,7 @@ class EmployeeController extends Controller
 
     /**
      * UPDATED: Update the specified employee in storage with COMPREHENSIVE NEW FIELD validation
+     * NIK CHANGED TO OPTIONAL
      */
     public function update(Request $request, string $identifier)
     {
@@ -1728,11 +1729,11 @@ class EmployeeController extends Controller
             // Unit yang tidak memerlukan sub unit
             $unitWithoutSubUnits = ['EGM', 'GM'];
 
-            // UPDATED: Comprehensive validation rules with ALL NEW FIELDS for Edit mode
+            // UPDATED: Comprehensive validation rules with ALL NEW FIELDS for Edit mode - NIK MADE OPTIONAL
             $validator = Validator::make($request->all(), [
-                // Identity fields with ignore current record for unique validation
+                // CHANGED: NIK is now optional (nullable instead of required)
                 'nik' => [
-                    'required',
+                    'nullable',
                     'string',
                     'size:16',
                     'regex:/^[0-9]+$/',
@@ -1881,8 +1882,7 @@ class EmployeeController extends Controller
                 'cabang' => 'string|in:DPS',
                 'masa_kerja' => 'nullable|string', // This is calculated automatically
             ], [
-                // UPDATED: Comprehensive error messages including ALL NEW FIELDS
-                'nik.required' => 'NIK wajib diisi.',
+                // UPDATED: Comprehensive error messages including ALL NEW FIELDS - REMOVED NIK required message
                 'nik.size' => 'NIK harus tepat 16 digit.',
                 'nik.regex' => 'NIK hanya boleh berisi angka.',
                 'nik.unique' => 'NIK sudah digunakan oleh karyawan lain.',
