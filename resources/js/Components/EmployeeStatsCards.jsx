@@ -102,7 +102,7 @@ const EmployeeStatsCards = ({
         }
     }, [isRefreshing, onStatsUpdate, employees]);
 
-    // Calculate fallback statistics from employees data
+    // FIXED: Calculate fallback statistics - pastikan hanya gunakan unit_organisasi, bukan unit.name
     const calculateFallbackStats = useCallback((employeesData) => {
         if (!employeesData || !Array.isArray(employeesData)) return {};
 
@@ -126,10 +126,16 @@ const EmployeeStatsCards = ({
         ).length;
         const tadTotal = tadPaketSDM + tadPaketPekerjaan + tadLegacy;
 
-        // Unique units calculation
+        // FIXED: Unique units calculation - hanya gunakan unit_organisasi yang benar
+        // Tidak menggunakan emp.unit.name yang sekarang berisi kode unit
         const uniqueUnits = [
             ...new Set(
-                employeesData.map((emp) => emp.unit_organisasi).filter(Boolean)
+                employeesData
+                    .map((emp) => {
+                        // Priority: gunakan unit_organisasi langsung
+                        return emp.unit_organisasi;
+                    })
+                    .filter(Boolean) // Hapus nilai null/undefined
             ),
         ].length;
 
@@ -188,7 +194,7 @@ const EmployeeStatsCards = ({
         }
     }, [refreshStatistics, handleEmployeeDeleted, onStatsUpdate]);
 
-    // Enhanced stats calculation with timezone support
+    // FIXED: Enhanced stats calculation dengan defensive coding untuk unit
     const enhancedStats = useMemo(() => {
         const data = employees?.data || [];
 
@@ -309,6 +315,29 @@ const EmployeeStatsCards = ({
             }),
         };
     }, [statistics, employees, currentTime, timezone, refreshKey]);
+
+    // FIXED: Helper function untuk display unit info karyawan baru - hindari unit.name panjang
+    const getEmployeeUnitDisplay = useCallback((employee) => {
+        if (!employee) return "-";
+
+        // Priority 1: Gunakan unit_organisasi yang sudah benar
+        if (employee.unit_organisasi) {
+            return employee.unit_organisasi;
+        }
+
+        // Priority 2: Gunakan kode_organisasi sebagai fallback
+        if (employee.kode_organisasi) {
+            return employee.kode_organisasi;
+        }
+
+        // Priority 3: Jika ada unit relationship, pastikan ambil kode bukan nama panjang
+        if (employee.unit && employee.unit.name) {
+            // unit.name sekarang berisi kode unit seperti "MK", "MO" bukan nama panjang
+            return employee.unit.name;
+        }
+
+        return "-";
+    }, []);
 
     const statsCards = [
         {
@@ -471,7 +500,7 @@ const EmployeeStatsCards = ({
                                     {card.subtitle}
                                 </div>
 
-                                {/* Additional info for new employees */}
+                                {/* FIXED: Additional info untuk karyawan baru dengan unit display yang benar */}
                                 {card.isNew &&
                                     card.newEmployees &&
                                     card.newEmployees.length > 0 && (
@@ -491,6 +520,16 @@ const EmployeeStatsCards = ({
                                                         card.newEmployees[0]
                                                             ?.nama_lengkap
                                                     }
+                                                    {card.newEmployees[0] && (
+                                                        <span className="ml-1 text-gray-500">
+                                                            (
+                                                            {getEmployeeUnitDisplay(
+                                                                card
+                                                                    .newEmployees[0]
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    )}
                                                     {card.newEmployees.length >
                                                         1 && (
                                                         <span className="text-gray-500">
