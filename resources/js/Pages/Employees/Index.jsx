@@ -207,6 +207,31 @@ export default function Index({
         },
     };
 
+    // FIXED: Helper function untuk format unit display - unit sekarang berisi kode
+    const formatUnitDisplay = (unit) => {
+        if (!unit) return "-";
+
+        // unit sekarang berisi kode unit seperti "MK", "MO"
+        // Tidak perlu mapping lagi karena backend sudah diperbaiki
+        return unit;
+    };
+
+    // FIXED: Helper function untuk get unit display dari employee
+    const getEmployeeUnitDisplay = (employee) => {
+        // Priority 1: Gunakan unit.name langsung karena sekarang berisi kode unit
+        if (employee.unit && employee.unit.name) {
+            return formatUnitDisplay(employee.unit.name);
+        }
+
+        // Priority 2: Fallback ke kode_organisasi jika tidak ada relasi unit
+        if (employee.kode_organisasi) {
+            return employee.kode_organisasi;
+        }
+
+        // Priority 3: Default fallback
+        return "-";
+    };
+
     // FIXED: Enhanced updateUnits dengan kombinasi static data dan API validation
     const updateUnitsWithAPI = async (unitOrganisasi) => {
         if (!unitOrganisasi || unitOrganisasi === "all") {
@@ -1820,7 +1845,7 @@ export default function Index({
                         </div>
                     </div>
 
-                    {/* ENHANCED: Active Filters Display dengan Unit dan Sub Unit */}
+                    {/* FIXED: Active Filters Display dengan Unit yang menggunakan kode */}
                     {hasActiveFilters() && (
                         <div className="mt-6 animate-fadeIn">
                             <div className="flex flex-wrap items-center gap-3">

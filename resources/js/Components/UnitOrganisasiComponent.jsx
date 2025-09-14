@@ -296,6 +296,15 @@ const UnitOrganisasiComponent = ({
         }
     };
 
+    // FIXED: Helper function untuk format unit display - unit.name sekarang berisi kode unit
+    const formatUnitDisplay = (unit) => {
+        if (!unit || !unit.name) return "Unit tidak dikenal";
+
+        // unit.name sekarang berisi kode unit seperti "MK", "MO"
+        // Tidak perlu mapping lagi karena backend sudah diperbaiki
+        return unit.name;
+    };
+
     const DropdownField = ({
         label,
         name,
@@ -507,7 +516,7 @@ const UnitOrganisasiComponent = ({
                     )}
                 </div>
 
-                {/* Preview organisasi structure */}
+                {/* FIXED: Preview organisasi structure dengan format kode yang konsisten */}
                 {(data.unit_organisasi || data.unit_id || data.sub_unit_id) && (
                     <div className="p-4 mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
                         <h4 className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-700">
@@ -515,21 +524,28 @@ const UnitOrganisasiComponent = ({
                             Preview Struktur Organisasi:
                         </h4>
                         <div className="flex flex-wrap items-center gap-2 text-sm text-gray-800">
+                            {/* Unit Organisasi Badge - tetap original */}
                             {data.unit_organisasi && (
                                 <span className="px-3 py-1 bg-[#439454] text-white rounded-full font-medium">
                                     {data.unit_organisasi}
                                 </span>
                             )}
+
+                            {/* Unit Badge - menampilkan kode unit */}
                             {data.unit_id && unitOptions.length > 0 && (
                                 <>
                                     <span className="text-gray-400">→</span>
                                     <span className="px-3 py-1 font-medium text-blue-800 bg-blue-100 rounded-full">
-                                        {unitOptions.find(
-                                            (u) => u.id == data.unit_id
-                                        )?.name || `Unit ID: ${data.unit_id}`}
+                                        {formatUnitDisplay(
+                                            unitOptions.find(
+                                                (u) => u.id == data.unit_id
+                                            )
+                                        )}
                                     </span>
                                 </>
                             )}
+
+                            {/* Sub Unit Badge atau No Sub Unit indicator */}
                             {isSubUnitRequired ? (
                                 data.sub_unit_id &&
                                 subUnitOptions.length > 0 && (
