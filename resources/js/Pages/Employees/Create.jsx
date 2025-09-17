@@ -671,13 +671,13 @@ export default function Create({
 
         switch (fieldName) {
             case "nik":
+                // UPDATED: NIK validation - Hapus validasi required, hanya validasi format jika ada value
                 if (value && !/^[0-9]+$/.test(value)) {
                     error = "NIK hanya boleh berisi angka";
                 } else if (value && value.length !== 16) {
                     error = "NIK harus tepat 16 digit";
-                } else if (!value || value.trim() === "") {
-                    error = "NIK wajib diisi";
                 }
+                // REMOVED: NIK required validation
                 break;
             case "nip":
                 if (value && !/^[0-9]+$/.test(value)) {
@@ -940,10 +940,10 @@ export default function Create({
         validateField(name, value);
     };
 
-    // Conditional validation untuk sub_unit_id berdasarkan unit_organisasi
+    // UPDATED: Conditional validation untuk sub_unit_id berdasarkan unit_organisasi - NIK REMOVED FROM REQUIRED
     const validateRequiredFields = () => {
         const requiredFields = {
-            nik: "NIK wajib diisi",
+            // REMOVED: nik: "NIK wajib diisi" - NIK is now optional
             nip: "NIP wajib diisi",
             nama_lengkap: "Nama lengkap wajib diisi",
             jenis_kelamin: "Jenis kelamin wajib dipilih",
@@ -1042,9 +1042,9 @@ export default function Create({
             }
         });
 
-        // Ensure required fields are not null
+        // UPDATED: Ensure required fields are not null - NIK REMOVED
         const requiredFieldsForBackend = [
-            "nik",
+            // REMOVED: "nik" - NIK is now optional
             "nip",
             "nama_lengkap",
             "jenis_kelamin",
@@ -1187,7 +1187,7 @@ export default function Create({
         }
     };
 
-    // renderPersonalSection
+    // UPDATED: renderPersonalSection - NIK made optional
     const renderPersonalSection = () => (
         <div className="space-y-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -1199,14 +1199,14 @@ export default function Create({
                 <InputField
                     name="nik"
                     label="NIK"
-                    required={true}
+                    required={false} // UPDATED: Changed from true to false
                     placeholder="Contoh: 1234567890123456"
                     icon={User}
                     value={data.nik}
                     onChange={handleInputChange}
                     onBlur={handleInputBlur}
                     error={errors.nik || formValidation.nik}
-                    hint="Nomor Induk Kependudukan (16 digit) - WAJIB DIISI DENGAN BENAR"
+                    hint="Optional - Kosongkan jika belum ada" // UPDATED: Changed hint text
                 />
                 <InputField
                     name="nip"
