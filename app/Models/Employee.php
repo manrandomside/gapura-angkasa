@@ -230,7 +230,7 @@ class Employee extends Model
     ];
 
     // =====================================================
-    // ENHANCED RELATIONSHIPS - FIXED FOR HISTORY FUNCTIONALITY
+    // ENHANCED RELATIONSHIPS - FIXED FOR REAL-TIME FUNCTIONALITY
     // =====================================================
 
     /**
@@ -247,8 +247,8 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Enhanced Unit relationship dengan comprehensive error handling
-     * Employee belongs to Unit - CRITICAL untuk history functionality
+     * CRITICAL FIX: Enhanced Unit relationship untuk real-time chart updates
+     * Employee belongs to Unit - CRITICAL untuk real-time dashboard functionality
      */
     public function unit()
     {
@@ -264,8 +264,8 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Enhanced SubUnit relationship dengan comprehensive error handling  
-     * Employee belongs to SubUnit - CRITICAL untuk history functionality
+     * CRITICAL FIX: Enhanced SubUnit relationship untuk real-time functionality  
+     * Employee belongs to SubUnit - CRITICAL untuk real-time dashboard functionality
      */
     public function subUnit()
     {
@@ -281,32 +281,32 @@ class Employee extends Model
     }
 
     // =====================================================
-    // UPDATED UNIT DISPLAY ACCESSORS - CONSISTENCY WITH UNIT MODEL
+    // FIXED UNIT DISPLAY ACCESSORS - CONSISTENCY WITH DASHBOARD CONTROLLER
     // =====================================================
 
     /**
-     * UPDATED: Unit display mapping untuk format (XX) Nama Unit - konsisten dengan DashboardController
-     * Mapping berdasarkan field kode_organisasi dari seeder
+     * FIXED: Unit display mapping untuk format KODE SAJA - konsisten dengan DashboardController
+     * CRITICAL CHANGE: Sekarang menggunakan format KODE SAJA, bukan "(XX) Nama Unit"
      */
     private function getUnitDisplayMapping()
     {
         return [
             'EGM' => 'EGM',
             'GM' => 'GM',
-            'MO' => '(MO) Movement Operations',
-            'ME' => '(ME) Maintenance Equipment',
-            'MF' => '(MF) Movement Flight',
-            'MS' => '(MS) Movement Service',
-            'MU' => '(MU) Management Unit',
-            'MK' => '(MK) Management Keuangan',
-            'MQ' => '(MQ) Management Quality',
-            'MB' => '(MB) Management Business',
+            'MO' => 'MO',
+            'ME' => 'ME',
+            'MF' => 'MF',
+            'MS' => 'MS',
+            'MU' => 'MU',
+            'MK' => 'MK',
+            'MQ' => 'MQ',
+            'MB' => 'MB',
         ];
     }
 
     /**
-     * UPDATED: Unit long name mapping dari kode unit ke nama panjang
-     * Digunakan untuk display purposes
+     * UPDATED: Unit long name mapping dari kode unit ke nama panjang (untuk referensi saja)
+     * Digunakan hanya untuk dokumentasi, display tetap menggunakan kode saja
      */
     private function getUnitLongNameMapping()
     {
@@ -325,106 +325,99 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Legacy unit code mapping untuk backward compatibility
-     * Tetap dipertahankan untuk fallback jika diperlukan
+     * FIXED: Helper method untuk format unit display dengan KODE SAJA
+     * CRITICAL: Konsisten dengan DashboardController formatUnitForChart()
      */
-    private function getLegacyUnitCodeMapping()
+    private function formatUnitForDisplay($unitCode)
     {
-        return [
-            'Airside' => [
-                'Movement Operations' => 'MO',
-                'Maintenance Equipment' => 'ME',
-            ],
-            'Landside' => [
-                'Movement Flight' => 'MF',
-                'Movement Service' => 'MS',
-            ],
-            'Back Office' => [
-                'Management Keuangan' => 'MK',
-                'Management Unit' => 'MU',
-            ],
-            'SSQC' => [
-                'Management Quality' => 'MQ',
-            ],
-            'Ancillary' => [
-                'Management Business' => 'MB',
-            ],
-        ];
+        $mapping = $this->getUnitDisplayMapping();
+        return $mapping[$unitCode] ?? $unitCode; // Return kode saja
     }
 
     /**
-     * UPDATED: Accessor untuk unit organisasi dengan format kode - konsisten dengan dashboard
-     * CRITICAL: Field unit.name sekarang berisi kode unit, bukan nama panjang
+     * COMPLETELY FIXED: Accessor untuk unit organisasi dengan format KODE SAJA - konsisten dengan dashboard
+     * CRITICAL CHANGE: Sekarang unit.name berisi kode unit, display menggunakan KODE SAJA
      */
     public function getUnitOrganisasiFormattedAttribute()
     {
         try {
-            // Priority 1: Gunakan kode_organisasi untuk mapping langsung
-            if (!empty($this->kode_organisasi)) {
-                $mapping = $this->getUnitDisplayMapping();
-                $formatted = $mapping[$this->kode_organisasi] ?? null;
-                
-                if ($formatted) {
-                    Log::debug('Unit organisasi formatted using kode_organisasi', [
-                        'employee_id' => $this->id,
-                        'kode_organisasi' => $this->kode_organisasi,
-                        'formatted' => $formatted
-                    ]);
-                    return $formatted;
-                }
-            }
-
-            // Priority 2: Gunakan unit relationship - unit.name sekarang berisi kode unit
-            if ($this->relationLoaded('unit') && $this->unit) {
-                $unitCode = $this->unit->name; // Unit.name sekarang berisi kode unit
-                $mapping = $this->getUnitDisplayMapping();
-                $formatted = $mapping[$unitCode] ?? $unitCode;
-                
-                Log::debug('Unit organisasi formatted using unit relationship', [
-                    'employee_id' => $this->id,
-                    'unit_code' => $unitCode,
-                    'formatted' => $formatted
-                ]);
-                return $formatted;
-            } else if ($this->unit_id) {
-                // Fallback: load unit jika belum loaded
+            // Priority 1: Use unit relation if available (RECOMMENDED for real-time)
+            if (!empty($this->unit_id) && class_exists('App\Models\Unit')) {
                 try {
-                    $unit = Unit::find($this->unit_id);
+                    $unit = $this->relationLoaded('unit') ? $this->unit : Unit::find($this->unit_id);
                     if ($unit) {
-                        $unitCode = $unit->name; // Unit.name berisi kode unit
-                        $mapping = $this->getUnitDisplayMapping();
-                        $formatted = $mapping[$unitCode] ?? $unitCode;
+                        // Unit.name atau Unit.code berisi kode unit
+                        $unitCode = $unit->code ?? $unit->name;
+                        $displayName = $this->formatUnitForDisplay($unitCode);
                         
-                        Log::debug('Unit organisasi formatted using unit fallback', [
+                        Log::debug('Unit organisasi formatted using unit relation (REAL-TIME)', [
                             'employee_id' => $this->id,
+                            'unit_id' => $this->unit_id,
                             'unit_code' => $unitCode,
-                            'formatted' => $formatted
+                            'formatted' => $displayName
                         ]);
-                        return $formatted;
+                        return $displayName;
                     }
-                } catch (\Exception $e) {
-                    Log::debug('Unit fallback loading failed: ' . $e->getMessage());
+                } catch (\Exception $unitError) {
+                    Log::debug('Unit relation access failed: ' . $unitError->getMessage());
                 }
             }
 
-            // Priority 3: Fallback ke unit_organisasi original (tetap tidak diformat)
-            Log::debug('Unit organisasi using fallback', [
-                'employee_id' => $this->id,
-                'unit_organisasi' => $this->unit_organisasi
-            ]);
-            return $this->unit_organisasi ?: 'Unit tidak tersedia';
+            // Priority 2: Use kode_organisasi field (fallback)
+            if (!empty($this->kode_organisasi)) {
+                $displayName = $this->formatUnitForDisplay($this->kode_organisasi);
+                
+                Log::debug('Unit organisasi formatted using kode_organisasi fallback', [
+                    'employee_id' => $this->id,
+                    'kode_organisasi' => $this->kode_organisasi,
+                    'formatted' => $displayName
+                ]);
+                return $displayName;
+            }
+
+            // Priority 3: Mapping dari unit_organisasi ke kode default
+            if (!empty($this->unit_organisasi)) {
+                $mappedCode = $this->getUnitCodeFromUnitOrganisasi($this->unit_organisasi);
+                Log::debug('Unit organisasi using unit_organisasi mapping', [
+                    'employee_id' => $this->id,
+                    'unit_organisasi' => $this->unit_organisasi,
+                    'mapped_code' => $mappedCode
+                ]);
+                return $mappedCode;
+            }
+
+            return 'Unit tidak tersedia';
 
         } catch (\Exception $e) {
             Log::warning('Unit organisasi formatted accessor error: ' . $e->getMessage(), [
                 'employee_id' => $this->id ?? 'unknown'
             ]);
-            return $this->unit_organisasi ?: 'Unit tidak tersedia';
+            return $this->unit_organisasi ?? 'Unit tidak tersedia';
         }
     }
 
     /**
-     * UPDATED: Accessor untuk unit display lengkap dengan format yang benar
-     * Unit organisasi tetap original, unit diformat dengan kode
+     * FIXED: Helper untuk mapping unit_organisasi ke kode unit default
+     * Konsisten dengan DashboardController
+     */
+    private function getUnitCodeFromUnitOrganisasi($unitOrganisasi)
+    {
+        $mapping = [
+            'EGM' => 'EGM',
+            'GM' => 'GM',
+            'Airside' => 'MO', // Default Airside ke MO
+            'Landside' => 'MF', // Default Landside ke MF
+            'Back Office' => 'MU', // Default Back Office ke MU
+            'SSQC' => 'MQ',
+            'Ancillary' => 'MB'
+        ];
+        
+        return $mapping[$unitOrganisasi] ?? $unitOrganisasi;
+    }
+
+    /**
+     * COMPLETELY FIXED: Accessor untuk unit display lengkap dengan format KODE SAJA
+     * CRITICAL: Konsisten dengan DashboardController approach untuk real-time updates
      */
     public function getUnitDisplayFormattedAttribute()
     {
@@ -436,46 +429,34 @@ class Employee extends Model
                 $parts[] = $this->unit_organisasi;
             }
 
-            // Part 2: Unit dengan format kode - unit.name sekarang berisi kode
-            if ($this->relationLoaded('unit') && $this->unit) {
-                $unitCode = $this->unit->name; // Unit.name berisi kode unit
-                $mapping = $this->getUnitDisplayMapping();
-                $unitFormatted = $mapping[$unitCode] ?? $unitCode;
-                
-                // Hanya tambahkan jika belum ada di unit_organisasi
-                if (!str_contains($parts[0] ?? '', $unitCode) && 
-                    $unitFormatted !== ($parts[0] ?? '')) {
-                    $parts[] = $unitFormatted;
-                }
-            } else if ($this->unit_id) {
+            // Part 2: Unit dengan format KODE SAJA - PRIORITY: use unit relation
+            if (!empty($this->unit_id) && class_exists('App\Models\Unit')) {
                 try {
-                    $unit = Unit::find($this->unit_id);
+                    $unit = $this->relationLoaded('unit') ? $this->unit : Unit::find($this->unit_id);
                     if ($unit) {
-                        $unitCode = $unit->name; // Unit.name berisi kode unit
-                        $mapping = $this->getUnitDisplayMapping();
-                        $unitFormatted = $mapping[$unitCode] ?? $unitCode;
+                        $unitCode = $unit->code ?? $unit->name; // Unit.name berisi kode unit
+                        $unitFormatted = $this->formatUnitForDisplay($unitCode);
                         
+                        // Hanya tambahkan jika belum ada di unit_organisasi
                         if (!str_contains($parts[0] ?? '', $unitCode) && 
                             $unitFormatted !== ($parts[0] ?? '')) {
-                            $parts[] = $unitFormatted;
+                            $parts[] = $unitFormatted; // KODE SAJA
                         }
                     }
-                } catch (\Exception $e) {
-                    Log::debug('Unit display fallback error: ' . $e->getMessage());
+                } catch (\Exception $unitError) {
+                    Log::debug('Unit display relation failed: ' . $unitError->getMessage());
                 }
             }
 
             // Part 3: Sub unit name (tetap original)
-            if ($this->relationLoaded('subUnit') && $this->subUnit) {
-                $parts[] = $this->subUnit->name;
-            } else if ($this->sub_unit_id) {
+            if (!empty($this->sub_unit_id) && class_exists('App\Models\SubUnit')) {
                 try {
-                    $subUnit = SubUnit::find($this->sub_unit_id);
+                    $subUnit = $this->relationLoaded('subUnit') ? $this->subUnit : SubUnit::find($this->sub_unit_id);
                     if ($subUnit) {
                         $parts[] = $subUnit->name;
                     }
-                } catch (\Exception $e) {
-                    Log::debug('SubUnit display fallback error: ' . $e->getMessage());
+                } catch (\Exception $subUnitError) {
+                    Log::debug('SubUnit display relation failed: ' . $subUnitError->getMessage());
                 }
             }
 
@@ -489,14 +470,13 @@ class Employee extends Model
                 $fullDisplay .= ' - ' . $this->nama_organisasi;
             }
 
-            Log::debug('Unit display formatted accessor result', [
+            Log::debug('Unit display formatted result - REAL-TIME COMPATIBLE', [
                 'employee_id' => $this->id,
-                'kode_organisasi' => $this->kode_organisasi,
+                'unit_id' => $this->unit_id,
                 'unit_organisasi' => $this->unit_organisasi,
-                'unit_code' => $this->unit->name ?? null,
-                'sub_unit_name' => $this->subUnit->name ?? null,
-                'nama_organisasi' => $this->nama_organisasi,
-                'formatted_result' => $fullDisplay
+                'unit_code_from_relation' => $unit->code ?? $unit->name ?? null,
+                'formatted_result' => $fullDisplay,
+                'real_time_approach' => 'unit_relation_based'
             ]);
 
             return $fullDisplay ?: 'Unit tidak tersedia';
@@ -505,7 +485,7 @@ class Employee extends Model
             Log::warning('Unit display formatted accessor error: ' . $e->getMessage(), [
                 'employee_id' => $this->id ?? 'unknown'
             ]);
-            return $this->unit_organisasi ?: 'Unit tidak tersedia';
+            return $this->unit_organisasi ?? 'Unit tidak tersedia';
         }
     }
 
@@ -651,57 +631,43 @@ class Employee extends Model
     }
 
     // =====================================================
-    // UPDATED ENHANCED ACCESSORS - CRITICAL FOR HISTORY MODAL
+    // UPDATED ENHANCED ACCESSORS - CRITICAL FOR HISTORY MODAL & REAL-TIME
     // =====================================================
 
     /**
-     * UPDATED: Enhanced organizational structure accessor 
-     * CRITICAL: Digunakan oleh DashboardController untuk history modal
+     * COMPLETELY FIXED: Enhanced organizational structure accessor untuk real-time compatibility
+     * CRITICAL: Digunakan oleh DashboardController untuk history modal dengan real-time support
      */
     public function getOrganizationalStructureAttribute()
     {
         try {
             $structure = [
-                'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version
+                'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version with KODE SAJA
                 'unit' => null,
                 'sub_unit' => null,
                 'full_structure' => null
             ];
 
-            // Try to get unit from relationship
-            if ($this->relationLoaded('unit') && $this->unit) {
-                $structure['unit'] = [
-                    'id' => $this->unit->id,
-                    'name' => $this->unit->name, // Sekarang berisi kode unit
-                    'code' => $this->unit->code ?? $this->unit->name
-                ];
-            } else if ($this->unit_id) {
-                // Fallback: load unit if not already loaded
+            // PRIORITY: Try to get unit from relationship (REAL-TIME APPROACH)
+            if (!empty($this->unit_id) && class_exists('App\Models\Unit')) {
                 try {
-                    $unit = Unit::find($this->unit_id);
+                    $unit = $this->relationLoaded('unit') ? $this->unit : Unit::find($this->unit_id);
                     if ($unit) {
                         $structure['unit'] = [
                             'id' => $unit->id,
-                            'name' => $unit->name, // Sekarang berisi kode unit
+                            'name' => $unit->code ?? $unit->name, // Prioritize code, fallback to name
                             'code' => $unit->code ?? $unit->name
                         ];
                     }
                 } catch (\Exception $unitError) {
-                    Log::debug('Unit fallback loading failed: ' . $unitError->getMessage());
+                    Log::debug('Organizational structure unit loading failed: ' . $unitError->getMessage());
                 }
             }
 
             // Try to get sub unit from relationship
-            if ($this->relationLoaded('subUnit') && $this->subUnit) {
-                $structure['sub_unit'] = [
-                    'id' => $this->subUnit->id,
-                    'name' => $this->subUnit->name,
-                    'code' => $this->subUnit->code ?? null
-                ];
-            } else if ($this->sub_unit_id) {
-                // Fallback: load sub unit if not already loaded
+            if (!empty($this->sub_unit_id) && class_exists('App\Models\SubUnit')) {
                 try {
-                    $subUnit = SubUnit::find($this->sub_unit_id);
+                    $subUnit = $this->relationLoaded('subUnit') ? $this->subUnit : SubUnit::find($this->sub_unit_id);
                     if ($subUnit) {
                         $structure['sub_unit'] = [
                             'id' => $subUnit->id,
@@ -710,19 +676,19 @@ class Employee extends Model
                         ];
                     }
                 } catch (\Exception $subUnitError) {
-                    Log::debug('SubUnit fallback loading failed: ' . $subUnitError->getMessage());
+                    Log::debug('Organizational structure subUnit loading failed: ' . $subUnitError->getMessage());
                 }
             }
 
-            // Build full structure string for display using formatted unit organisasi
+            // Build full structure string for display using formatted unit organisasi (KODE SAJA)
             $fullStructureParts = [];
             
             if ($structure['unit_organisasi']) {
-                $fullStructureParts[] = $structure['unit_organisasi'];
+                $fullStructureParts[] = $structure['unit_organisasi']; // Already formatted with KODE SAJA
             }
             
             if ($structure['unit'] && !empty($structure['unit']['name'])) {
-                // Unit name sekarang berisi kode, tambahkan jika belum ada di formatted unit organisasi
+                // Unit name berisi kode, tambahkan jika belum ada di formatted unit organisasi
                 if (!str_contains($structure['unit_organisasi'] ?? '', $structure['unit']['name'])) {
                     $fullStructureParts[] = $structure['unit']['name']; // Kode unit
                 }
@@ -744,9 +710,11 @@ class Employee extends Model
                 $structure['full_structure'] = 'Struktur organisasi tidak tersedia';
             }
 
-            Log::debug('Organizational structure accessor called', [
+            Log::debug('Organizational structure accessor - REAL-TIME COMPATIBLE', [
                 'employee_id' => $this->id,
-                'full_structure' => $structure['full_structure']
+                'unit_id' => $this->unit_id,
+                'full_structure' => $structure['full_structure'],
+                'approach' => 'unit_relation_based_for_realtime'
             ]);
 
             return $structure;
@@ -767,44 +735,40 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Enhanced unit display attribute dengan better fallback dan format kode
+     * FIXED: Enhanced unit display attribute dengan real-time support dan format KODE SAJA
+     * CRITICAL: Menggunakan pendekatan yang sama dengan DashboardController
      */
     public function getUnitDisplayAttribute()
     {
         try {
-            // Use formatted unit organisasi as base
+            // Use formatted unit organisasi as base (KODE SAJA format)
             $display = $this->unit_organisasi_formatted ?? 'Unit tidak tersedia';
             
-            if ($this->relationLoaded('unit') && $this->unit) {
-                $unitCode = $this->unit->name; // Unit.name berisi kode unit
-                // Hanya tambahkan jika kode unit belum ada di display
-                if (!str_contains($display, $unitCode)) {
-                    $display .= ' > ' . $unitCode;
-                }
-            } else if ($this->unit_id) {
+            // REAL-TIME APPROACH: Try unit relation first
+            if (!empty($this->unit_id) && class_exists('App\Models\Unit')) {
                 try {
-                    $unit = Unit::find($this->unit_id);
+                    $unit = $this->relationLoaded('unit') ? $this->unit : Unit::find($this->unit_id);
                     if ($unit) {
-                        $unitCode = $unit->name; // Unit.name berisi kode unit
+                        $unitCode = $unit->code ?? $unit->name; // Unit code
+                        // Hanya tambahkan jika kode unit belum ada di display
                         if (!str_contains($display, $unitCode)) {
-                            $display .= ' > ' . $unitCode;
+                            $display .= ' > ' . $unitCode; // KODE SAJA
                         }
                     }
                 } catch (\Exception $e) {
-                    Log::debug('Unit display fallback error: ' . $e->getMessage());
+                    Log::debug('Unit display unit relation error: ' . $e->getMessage());
                 }
             }
             
-            if ($this->relationLoaded('subUnit') && $this->subUnit) {
-                $display .= ' > ' . $this->subUnit->name;
-            } else if ($this->sub_unit_id) {
+            // Sub unit (tetap original name)
+            if (!empty($this->sub_unit_id) && class_exists('App\Models\SubUnit')) {
                 try {
-                    $subUnit = SubUnit::find($this->sub_unit_id);
+                    $subUnit = $this->relationLoaded('subUnit') ? $this->subUnit : SubUnit::find($this->sub_unit_id);
                     if ($subUnit) {
                         $display .= ' > ' . $subUnit->name;
                     }
                 } catch (\Exception $e) {
-                    Log::debug('SubUnit display fallback error: ' . $e->getMessage());
+                    Log::debug('Unit display subUnit relation error: ' . $e->getMessage());
                 }
             }
             
@@ -907,7 +871,7 @@ class Employee extends Model
     }
 
     // =====================================================
-    // ENHANCED SCOPES UNTUK HISTORY MODAL - CRITICAL
+    // ENHANCED SCOPES UNTUK REAL-TIME & HISTORY MODAL - CRITICAL
     // =====================================================
 
     /**
@@ -962,8 +926,8 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Enhanced Global Search Scope dengan error handling yang lebih baik
-     * Compatible dengan unit code system
+     * FIXED: Enhanced Global Search Scope untuk real-time compatibility
+     * Compatible dengan unit relation system untuk real-time updates
      */
     public function scopeGlobalSearch(Builder $query, $term)
     {
@@ -998,7 +962,7 @@ class Employee extends Model
               ->orWhere('unit_kerja_kontrak', 'like', $searchTerm) // NEW: Include unit_kerja_kontrak in search
               ->orWhere('grade', 'like', $searchTerm); // NEW: Include grade in search
               
-            // UPDATED: Search dalam unit dan sub unit dengan unit code awareness
+            // CRITICAL FIX: Search dalam unit dan sub unit dengan real-time capability
             try {
                 $q->orWhereHas('unit', function ($unitQuery) use ($searchTerm) {
                     $unitQuery->where('name', 'like', $searchTerm) // Unit.name berisi kode unit
@@ -1029,7 +993,8 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Filter berdasarkan unit dengan nama atau ID - Enhanced untuk unit code
+     * CRITICAL FIX: Filter berdasarkan unit dengan real-time support - Enhanced untuk unit relation
+     * CRITICAL: Menggunakan unit relation untuk real-time updates
      */
     public function scopeByUnit(Builder $query, $unitValue)
     {
@@ -1037,12 +1002,12 @@ class Employee extends Model
             return $query;
         }
         
-        // Jika numeric, cari berdasarkan unit_id
+        // PRIORITY: Jika numeric, cari berdasarkan unit_id (REAL-TIME APPROACH)
         if (is_numeric($unitValue)) {
             return $query->where('unit_id', $unitValue);
         }
         
-        // Jika bukan numeric, cari berdasarkan kode unit dalam relationship
+        // PRIORITY: Jika bukan numeric, cari berdasarkan unit relation (REAL-TIME APPROACH)
         try {
             return $query->whereHas('unit', function ($unitQuery) use ($unitValue) {
                 $unitQuery->where('name', $unitValue) // Unit.name berisi kode unit
@@ -1057,7 +1022,7 @@ class Employee extends Model
     }
 
     /**
-     * FIXED: Filter berdasarkan sub unit dengan nama atau ID - Enhanced untuk history
+     * FIXED: Filter berdasarkan sub unit dengan nama atau ID - Enhanced untuk real-time
      */
     public function scopeBySubUnit(Builder $query, $subUnitValue)
     {
@@ -1495,11 +1460,11 @@ class Employee extends Model
     }
 
     // =====================================================
-    // STATIC METHODS - OPTIMIZED FOR DASHBOARD & PAGINATION
+    // STATIC METHODS - OPTIMIZED FOR DASHBOARD & PAGINATION WITH REAL-TIME SUPPORT
     // =====================================================
 
     /**
-     * UPDATED: Get comprehensive statistics untuk dashboard dengan field baru
+     * UPDATED: Get comprehensive statistics untuk dashboard dengan field baru dan real-time support
      */
     public static function getComprehensiveStatistics()
     {
@@ -1750,13 +1715,13 @@ class Employee extends Model
     }
 
     /**
-     * ENHANCED: Pagination dengan filter dan search - method utama untuk controller
-     * UPDATED: Load unit dan sub unit relationships untuk history functionality
+     * CRITICAL FIX: Enhanced Pagination dengan filter dan search - REAL-TIME SUPPORT
+     * UPDATED: Load unit dan sub unit relationships untuk real-time functionality
      */
     public static function paginateWithFilters(array $filters = [], int $perPage = 20)
     {
         return self::active()
-                   ->with(['organization', 'unit', 'subUnit'])
+                   ->with(['organization', 'unit', 'subUnit']) // CRITICAL: Load relationships for real-time
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->paginate($perPage)
@@ -1849,13 +1814,13 @@ class Employee extends Model
     }
 
     /**
-     * ENHANCED: Get export data dengan filter dan proper relationship loading
-     * UPDATED: Load unit dan sub unit untuk export dengan history support
+     * CRITICAL FIX: Enhanced Get export data dengan filter dan proper relationship loading
+     * UPDATED: Load unit dan sub unit untuk export dengan real-time support
      */
     public static function getExportData(array $filters = [])
     {
         return self::active()
-                   ->with(['unit', 'subUnit'])
+                   ->with(['unit', 'subUnit']) // CRITICAL: Load relationships for real-time
                    ->applyFilters($filters)
                    ->orderBy('nama_lengkap', 'asc')
                    ->get();
@@ -1939,7 +1904,7 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Generate ID card data dengan field baru
+     * UPDATED: Generate ID card data dengan field baru dan real-time support
      */
     public function getIdCardData()
     {
@@ -1949,8 +1914,8 @@ class Employee extends Model
             'nip' => $this->nip,
             'nama_lengkap' => $this->nama_lengkap,
             'jabatan' => $this->nama_jabatan ?: $this->jabatan,
-            'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version
-            'unit_display' => $this->unit_display_formatted, // Use formatted version
+            'unit_organisasi' => $this->unit_organisasi_formatted, // Use formatted version with KODE SAJA
+            'unit_display' => $this->unit_display_formatted, // Use formatted version with KODE SAJA
             'kelompok_jabatan' => $this->kelompok_jabatan,
             'provider' => $this->provider,
             'grade' => $this->grade,
@@ -1962,7 +1927,7 @@ class Employee extends Model
     }
 
     /**
-     * UPDATED: Method untuk mendapatkan informasi ringkas employee dengan field baru
+     * UPDATED: Method untuk mendapatkan informasi ringkas employee dengan field baru dan real-time support
      */
     public function getSummaryAttribute()
     {
@@ -1971,7 +1936,7 @@ class Employee extends Model
             'nik' => $this->nik,
             'nip' => $this->nip,
             'nama' => $this->nama_lengkap,
-            'unit' => $this->unit_organisasi_formatted, // Use formatted version
+            'unit' => $this->unit_organisasi_formatted, // Use formatted version with KODE SAJA
             'jabatan' => $this->nama_jabatan,
             'status' => $this->status_pegawai,
             'status_kerja' => $this->status_kerja,
@@ -1982,11 +1947,11 @@ class Employee extends Model
     }
 
     // =====================================================
-    // UPDATED BOOT METHOD - AUTO CALCULATIONS WITH NEW FIELDS
+    // UPDATED BOOT METHOD - AUTO CALCULATIONS WITH NEW FIELDS & REAL-TIME LOGGING
     // =====================================================
 
     /**
-     * UPDATED: Boot method dengan logika untuk field baru
+     * CRITICAL FIX: Boot method dengan enhanced logging untuk real-time tracking
      */
     protected static function boot()
     {
@@ -2039,10 +2004,10 @@ class Employee extends Model
             $employee->updateCalculatedFields();
         });
 
-        // ENHANCED: Event ketika employee dibuat (untuk history tracking)
+        // CRITICAL FIX: Enhanced Event ketika employee dibuat (untuk real-time tracking)
         static::created(function ($employee) {
             try {
-                Log::info('EMPLOYEE CREATED: New employee added to system', [
+                Log::info('EMPLOYEE CREATED - REAL-TIME TRACKING: New employee added to system', [
                     'employee_id' => $employee->id,
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
@@ -2053,7 +2018,9 @@ class Employee extends Model
                     'provider' => $employee->provider,
                     'grade' => $employee->grade,
                     'status_kerja' => $employee->status_kerja,
-                    'created_at' => $employee->created_at
+                    'created_at' => $employee->created_at,
+                    'real_time_tracking' => true,
+                    'dashboard_impact' => 'Unit chart will be updated via unit_id relation'
                 ]);
             } catch (\Exception $e) {
                 Log::warning('Employee creation logging failed: ' . $e->getMessage());
@@ -2088,15 +2055,23 @@ class Employee extends Model
             }
         });
 
-        // ENHANCED: Event ketika employee di-update (untuk history tracking)
+        // CRITICAL FIX: Enhanced Event ketika employee di-update (untuk real-time tracking)
         static::updated(function ($employee) {
             try {
-                Log::info('EMPLOYEE UPDATED: Employee data modified', [
+                // Check apakah unit_id berubah (critical untuk real-time chart update)
+                $unitChanged = $employee->isDirty('unit_id');
+                
+                Log::info('EMPLOYEE UPDATED - REAL-TIME TRACKING: Employee data modified', [
                     'employee_id' => $employee->id,
                     'nik' => $employee->nik,
                     'nama_lengkap' => $employee->nama_lengkap,
                     'unit_organisasi_formatted' => $employee->unit_organisasi_formatted,
-                    'updated_at' => $employee->updated_at
+                    'unit_id_changed' => $unitChanged,
+                    'old_unit_id' => $unitChanged ? $employee->getOriginal('unit_id') : null,
+                    'new_unit_id' => $employee->unit_id,
+                    'updated_at' => $employee->updated_at,
+                    'real_time_tracking' => true,
+                    'dashboard_impact' => $unitChanged ? 'Unit chart will be updated due to unit_id change' : 'No unit chart impact'
                 ]);
             } catch (\Exception $e) {
                 Log::warning('Employee update logging failed: ' . $e->getMessage());

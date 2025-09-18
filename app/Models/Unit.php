@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class Unit extends Model
 {
@@ -36,8 +37,8 @@ class Unit extends Model
 
     /**
      * UPDATED: Unit display mapping dari kode unit ke nama panjang
-     * Digunakan untuk format display UI (XX) Nama Panjang
-     * CRITICAL: Sekarang field name berisi kode unit, bukan nama panjang
+     * Digunakan untuk dokumentasi/referensi, tapi dashboard menggunakan KODE SAJA
+     * CRITICAL: Field name berisi kode unit untuk konsistensi dengan dashboard
      */
     const UNIT_DISPLAY_MAPPING = [
         'MO' => 'Movement Operations',
@@ -86,16 +87,17 @@ class Unit extends Model
     }
 
     /**
-     * UPDATED: Get unit code - sekarang field name sudah berisi kode unit
+     * CRITICAL FIX: Get unit code - prioritas field code, fallback ke name
+     * Field name dan code sekarang sama-sama berisi kode unit untuk real-time consistency
      */
     public function getUnitCode()
     {
-        // Field name sekarang berisi kode unit
-        return $this->name ?? $this->code;
+        // Priority: code field, fallback to name field (both contain unit codes)
+        return $this->code ?? $this->name;
     }
 
     /**
-     * NEW: Get unit long name untuk display
+     * NEW: Get unit long name untuk display (reference only)
      */
     public function getUnitLongName()
     {
@@ -106,8 +108,8 @@ class Unit extends Model
     }
 
     /**
-     * UPDATED: Format unit display dengan kode (XX) Nama Panjang
-     * Menggunakan mapping dari kode ke nama panjang
+     * UPDATED: Format unit display dengan kode (XX) Nama Panjang - UNTUK UI FORM SAJA
+     * Dashboard menggunakan KODE SAJA dari getUnitCodeForDashboard()
      */
     public function getFormattedDisplayNameAttribute()
     {
@@ -119,134 +121,41 @@ class Unit extends Model
             return $unitCode;
         }
         
-        // Format: (XX) Nama Panjang
+        // Format: (XX) Nama Panjang - HANYA UNTUK UI FORM
         return "({$unitCode}) {$longName}";
     }
 
     /**
-     * UPDATED: Static method untuk format unit dengan kode
-     * Menggunakan unit code yang sudah ada di field name
+     * CRITICAL NEW: Get unit code untuk dashboard - KODE SAJA format
+     * CRITICAL: Method ini digunakan oleh DashboardController untuk konsistensi
      */
-    public static function formatUnitWithCode($unitCode, $unitOrganisasi = null)
+    public function getUnitCodeForDashboard()
     {
-        $mapping = self::UNIT_DISPLAY_MAPPING;
-        $longName = $mapping[$unitCode] ?? $unitCode;
-        
-        // Untuk EGM dan GM, tampilkan kode saja
-        if (in_array($unitCode, ['EGM', 'GM'])) {
-            return $unitCode;
-        }
-        
-        // Format: (XX) Nama Panjang
-        return "({$unitCode}) {$longName}";
+        // Return KODE SAJA untuk dashboard consistency
+        return $this->getUnitCode();
     }
 
     /**
-     * UPDATED: Get semua unit dengan format kode untuk dropdown
+     * CRITICAL NEW: Format unit untuk dashboard dengan KODE SAJA
+     * CRITICAL: Konsisten dengan DashboardController.formatUnitForChart()
      */
-    public static function getUnitsWithCodeFormat()
+    public function getFormattedForDashboard()
     {
-        return self::active()
-            ->get()
-            ->map(function($unit) {
-                return [
-                    'id' => $unit->id,
-                    'name' => $unit->name, // Sekarang berisi kode unit
-                    'code' => $unit->getUnitCode(),
-                    'unit_organisasi' => $unit->unit_organisasi,
-                    'formatted_name' => $unit->formatted_display_name,
-                    'long_name' => $unit->getUnitLongName(),
-                    'display_label' => $unit->formatted_display_name,
-                ];
-            });
+        // Return KODE SAJA untuk dashboard real-time
+        return $this->getUnitCode();
     }
 
-    /**
-     * UPDATED: Get units untuk unit organisasi tertentu dengan format kode
-     */
-    public static function getUnitsByOrganisasiWithCode($unitOrganisasi)
-    {
-        return self::active()
-            ->byUnitOrganisasi($unitOrganisasi)
-            ->get()
-            ->map(function($unit) {
-                return [
-                    'id' => $unit->id,
-                    'name' => $unit->name, // Sekarang berisi kode unit
-                    'code' => $unit->getUnitCode(),
-                    'unit_organisasi' => $unit->unit_organisasi,
-                    'formatted_name' => $unit->formatted_display_name,
-                    'long_name' => $unit->getUnitLongName(),
-                    'display_label' => $unit->formatted_display_name,
-                ];
-            });
-    }
+    // =====================================================
+    // CRITICAL FIX: RELATIONSHIPS UNTUK REAL-TIME DASHBOARD
+    // =====================================================
 
     /**
-     * UPDATED: Method untuk dashboard grafik - get unit data dengan format kode
+     * CRITICAL FIX: Get employees yang belongs to this unit - ENHANCED untuk real-time
+     * CRITICAL: Relationship ini digunakan oleh DashboardController untuk real-time updates
      */
-    public static function getUnitDataForChart()
+    public function employees()
     {
-        $units = self::active()->with('employees')->get();
-        
-        return $units->map(function($unit) {
-            $employeeCount = $unit->employees()->count();
-            
-            return [
-                'name' => $unit->formatted_display_name, // Format dengan kode untuk grafik
-                'code' => $unit->getUnitCode(),
-                'long_name' => $unit->getUnitLongName(),
-                'unit_organisasi' => $unit->unit_organisasi,
-                'count' => $employeeCount,
-                'value' => $employeeCount, // Alias untuk grafik
-                'label' => $unit->formatted_display_name,
-            ];
-        })->filter(function($unit) {
-            return $unit['count'] > 0; // Hanya tampilkan unit yang ada karyawannya
-        })->values();
-    }
-
-    /**
-     * UPDATED: Get unit organisasi dengan employee count untuk dashboard
-     * Menggunakan format kode unit
-     */
-    public static function getUnitOrganisasiWithEmployeeCountForChart()
-    {
-        $result = [];
-        
-        foreach (self::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
-            $units = self::active()->byUnitOrganisasi($unitOrganisasi)->with('employees')->get();
-            
-            $unitData = [];
-            $totalEmployees = 0;
-            
-            foreach ($units as $unit) {
-                $employeeCount = $unit->employees()->count();
-                $totalEmployees += $employeeCount;
-                
-                if ($employeeCount > 0) {
-                    $unitData[] = [
-                        'name' => $unit->formatted_display_name, // Format dengan kode
-                        'code' => $unit->getUnitCode(),
-                        'long_name' => $unit->getUnitLongName(),
-                        'count' => $employeeCount,
-                        'value' => $employeeCount,
-                        'label' => $unit->formatted_display_name,
-                    ];
-                }
-            }
-            
-            if ($totalEmployees > 0) {
-                $result[] = [
-                    'unit_organisasi' => $unitOrganisasi,
-                    'total_employees' => $totalEmployees,
-                    'units' => $unitData,
-                    'units_count' => count($unitData),
-                ];
-            }
-        }
-        
-        return $result;
+        return $this->hasMany(Employee::class, 'unit_id', 'id');
     }
 
     /**
@@ -265,13 +174,189 @@ class Unit extends Model
         return $this->hasMany(SubUnit::class);
     }
 
+    // =====================================================
+    // CRITICAL FIX: DASHBOARD CHART METHODS - REAL-TIME COMPATIBLE
+    // =====================================================
+
     /**
-     * Get employees yang belongs to this unit
+     * COMPLETELY FIXED: Method untuk dashboard grafik - KODE SAJA format untuk real-time
+     * CRITICAL: Method ini digunakan oleh DashboardController.getUnitChartData()
      */
-    public function employees()
+    public static function getUnitDataForChart()
     {
-        return $this->hasMany(Employee::class);
+        try {
+            $units = self::active()->with('employees')->get();
+            
+            Log::info('UNIT MODEL: getUnitDataForChart called for real-time dashboard', [
+                'units_found' => $units->count(),
+                'method' => 'getUnitDataForChart',
+                'format' => 'KODE_SAJA_for_dashboard_consistency'
+            ]);
+            
+            return $units->map(function($unit) {
+                $employeeCount = $unit->employees()->count();
+                $unitCode = $unit->getUnitCodeForDashboard(); // KODE SAJA
+                
+                return [
+                    'name' => $unitCode, // CRITICAL: KODE SAJA untuk dashboard consistency
+                    'code' => $unitCode,
+                    'unit_code' => $unitCode,
+                    'long_name' => $unit->getUnitLongName(),
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'count' => $employeeCount,
+                    'value' => $employeeCount, // Alias untuk grafik
+                    'label' => $unitCode, // KODE SAJA
+                    'formatted_for_dashboard' => $unitCode, // KODE SAJA
+                    'unit_id' => $unit->id
+                ];
+            })->filter(function($unit) {
+                return $unit['count'] > 0; // Hanya tampilkan unit yang ada karyawannya
+            })->values();
+            
+        } catch (\Exception $e) {
+            Log::error('UNIT MODEL: getUnitDataForChart error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return collect();
+        }
     }
+
+    /**
+     * CRITICAL FIX: Get unit organisasi dengan employee count untuk dashboard - KODE SAJA format
+     * UPDATED: Menggunakan format KODE SAJA untuk konsistensi dashboard real-time
+     */
+    public static function getUnitOrganisasiWithEmployeeCountForChart()
+    {
+        try {
+            $result = [];
+            
+            foreach (self::UNIT_ORGANISASI_OPTIONS as $unitOrganisasi) {
+                $units = self::active()->byUnitOrganisasi($unitOrganisasi)->with('employees')->get();
+                
+                $unitData = [];
+                $totalEmployees = 0;
+                
+                foreach ($units as $unit) {
+                    $employeeCount = $unit->employees()->count();
+                    $totalEmployees += $employeeCount;
+                    
+                    if ($employeeCount > 0) {
+                        $unitCode = $unit->getUnitCodeForDashboard(); // KODE SAJA
+                        
+                        $unitData[] = [
+                            'name' => $unitCode, // CRITICAL: KODE SAJA untuk dashboard
+                            'code' => $unitCode,
+                            'unit_code' => $unitCode,
+                            'long_name' => $unit->getUnitLongName(),
+                            'count' => $employeeCount,
+                            'value' => $employeeCount,
+                            'label' => $unitCode, // KODE SAJA
+                            'formatted_for_dashboard' => $unitCode, // KODE SAJA
+                            'unit_id' => $unit->id
+                        ];
+                    }
+                }
+                
+                if ($totalEmployees > 0) {
+                    $result[] = [
+                        'unit_organisasi' => $unitOrganisasi,
+                        'total_employees' => $totalEmployees,
+                        'units' => $unitData,
+                        'units_count' => count($unitData),
+                    ];
+                }
+            }
+            
+            Log::info('UNIT MODEL: getUnitOrganisasiWithEmployeeCountForChart completed', [
+                'unit_organisasi_count' => count($result),
+                'format' => 'KODE_SAJA_for_dashboard_real_time'
+            ]);
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            Log::error('UNIT MODEL: getUnitOrganisasiWithEmployeeCountForChart error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
+
+    // =====================================================
+    // UI FORM METHODS - FORMATTED DISPLAY (UNTUK FORM SAJA, BUKAN DASHBOARD)
+    // =====================================================
+
+    /**
+     * UPDATED: Static method untuk format unit dengan kode - UNTUK UI FORM
+     * Dashboard menggunakan getUnitCodeForDashboard() yang return KODE SAJA
+     */
+    public static function formatUnitWithCode($unitCode, $unitOrganisasi = null)
+    {
+        $mapping = self::UNIT_DISPLAY_MAPPING;
+        $longName = $mapping[$unitCode] ?? $unitCode;
+        
+        // Untuk EGM dan GM, tampilkan kode saja
+        if (in_array($unitCode, ['EGM', 'GM'])) {
+            return $unitCode;
+        }
+        
+        // Format: (XX) Nama Panjang - UNTUK UI FORM SAJA
+        return "({$unitCode}) {$longName}";
+    }
+
+    /**
+     * UPDATED: Get semua unit dengan format kode untuk dropdown UI FORM
+     * Dashboard menggunakan method lain yang return KODE SAJA
+     */
+    public static function getUnitsWithCodeFormat()
+    {
+        return self::active()
+            ->get()
+            ->map(function($unit) {
+                $unitCode = $unit->getUnitCode();
+                
+                return [
+                    'id' => $unit->id,
+                    'name' => $unitCode, // Unit code untuk value
+                    'code' => $unitCode,
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'formatted_name' => $unit->formatted_display_name, // Format untuk UI form
+                    'dashboard_name' => $unitCode, // KODE SAJA untuk dashboard
+                    'long_name' => $unit->getUnitLongName(),
+                    'display_label' => $unit->formatted_display_name, // Format untuk dropdown
+                ];
+            });
+    }
+
+    /**
+     * UPDATED: Get units untuk unit organisasi tertentu dengan format kode - UNTUK UI FORM
+     */
+    public static function getUnitsByOrganisasiWithCode($unitOrganisasi)
+    {
+        return self::active()
+            ->byUnitOrganisasi($unitOrganisasi)
+            ->get()
+            ->map(function($unit) {
+                $unitCode = $unit->getUnitCode();
+                
+                return [
+                    'id' => $unit->id,
+                    'name' => $unitCode, // Unit code untuk value
+                    'code' => $unitCode,
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'formatted_name' => $unit->formatted_display_name, // Format untuk UI form
+                    'dashboard_name' => $unitCode, // KODE SAJA untuk dashboard
+                    'long_name' => $unit->getUnitLongName(),
+                    'display_label' => $unit->formatted_display_name, // Format untuk dropdown
+                ];
+            });
+    }
+
+    // =====================================================
+    // SCOPES & QUERIES
+    // =====================================================
 
     /**
      * Scope untuk unit aktif
@@ -347,16 +432,32 @@ class Unit extends Model
     }
 
     /**
-     * Get total employees count in this unit
+     * CRITICAL FIX: Get total employees count in this unit - Enhanced untuk real-time
      */
     public function getEmployeesCountAttribute()
     {
-        return $this->employees()->count();
+        try {
+            $count = $this->employees()->count();
+            
+            Log::debug('UNIT MODEL: getEmployeesCountAttribute called', [
+                'unit_id' => $this->id,
+                'unit_code' => $this->getUnitCode(),
+                'employee_count' => $count,
+                'real_time_tracking' => true
+            ]);
+            
+            return $count;
+        } catch (\Exception $e) {
+            Log::error('UNIT MODEL: getEmployeesCountAttribute error', [
+                'unit_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return 0;
+        }
     }
 
     /**
-     * UPDATED: Get full name dengan prefix unit organisasi
-     * Menggunakan kode unit bukan nama panjang
+     * UPDATED: Get full name dengan prefix unit organisasi - menggunakan kode unit
      */
     public function getFullNameAttribute()
     {
@@ -364,7 +465,7 @@ class Unit extends Model
     }
 
     /**
-     * UPDATED: Get display name for dropdown dengan format kode
+     * UPDATED: Get display name for dropdown dengan format kode - UNTUK UI FORM
      */
     public function getDisplayNameAttribute()
     {
@@ -445,43 +546,9 @@ class Unit extends Model
         return $query->doesntHave('subUnits');
     }
 
-    /**
-     * UPDATED: Boot method dengan auto-generate code yang konsisten
-     * Field name dan code sekarang sama-sama berisi kode unit
-     */
-    protected static function boot()
-    {
-        parent::boot();
-        
-        static::creating(function ($unit) {
-            // Pastikan name dan code konsisten berisi kode unit
-            if (empty($unit->code) && !empty($unit->name)) {
-                $unit->code = $unit->name;
-            }
-            
-            if (empty($unit->name) && !empty($unit->code)) {
-                $unit->name = $unit->code;
-            }
-            
-            // Jika keduanya kosong, auto-generate dari unit_organisasi
-            if (empty($unit->name) && empty($unit->code)) {
-                $generatedCode = strtoupper(substr($unit->unit_organisasi, 0, 2));
-                $unit->name = $generatedCode;
-                $unit->code = $generatedCode;
-            }
-        });
-        
-        static::updating(function ($unit) {
-            // Pastikan name dan code tetap sinkron
-            if ($unit->isDirty('name')) {
-                $unit->code = $unit->name;
-            }
-            
-            if ($unit->isDirty('code')) {
-                $unit->name = $unit->code;
-            }
-        });
-    }
+    // =====================================================
+    // HELPER METHODS
+    // =====================================================
 
     /**
      * NEW: Get unit code from unit name (untuk backward compatibility)
@@ -512,7 +579,7 @@ class Unit extends Model
     }
 
     /**
-     * NEW: Get unit by code
+     * CRITICAL FIX: Get unit by code - Enhanced untuk real-time compatibility
      */
     public static function findByCode($code)
     {
@@ -520,10 +587,122 @@ class Unit extends Model
     }
 
     /**
-     * NEW: Get formatted name untuk consistency dengan sistem lama
+     * NEW: Get formatted name untuk consistency dengan sistem lama - UNTUK UI FORM
      */
     public function getFormattedName()
     {
         return $this->formatted_display_name;
+    }
+
+    /**
+     * CRITICAL NEW: Get formatted name untuk dashboard - KODE SAJA
+     */
+    public function getFormattedNameForDashboard()
+    {
+        return $this->getUnitCodeForDashboard();
+    }
+
+    // =====================================================
+    // CRITICAL FIX: BOOT METHOD - ENHANCED LOGGING UNTUK REAL-TIME TRACKING
+    // =====================================================
+
+    /**
+     * CRITICAL FIX: Boot method dengan auto-generate code dan enhanced logging
+     * Field name dan code sekarang sama-sama berisi kode unit untuk real-time consistency
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($unit) {
+            // Pastikan name dan code konsisten berisi kode unit
+            if (empty($unit->code) && !empty($unit->name)) {
+                $unit->code = $unit->name;
+            }
+            
+            if (empty($unit->name) && !empty($unit->code)) {
+                $unit->name = $unit->code;
+            }
+            
+            // Jika keduanya kosong, auto-generate dari unit_organisasi
+            if (empty($unit->name) && empty($unit->code)) {
+                $generatedCode = strtoupper(substr($unit->unit_organisasi, 0, 2));
+                $unit->name = $generatedCode;
+                $unit->code = $generatedCode;
+            }
+            
+            Log::info('UNIT MODEL: Creating new unit for real-time system', [
+                'unit_name' => $unit->name,
+                'unit_code' => $unit->code,
+                'unit_organisasi' => $unit->unit_organisasi,
+                'consistency_check' => $unit->name === $unit->code,
+                'real_time_ready' => true
+            ]);
+        });
+        
+        // CRITICAL FIX: Enhanced created event untuk real-time tracking
+        static::created(function ($unit) {
+            try {
+                Log::info('UNIT CREATED - REAL-TIME TRACKING: New unit added to system', [
+                    'unit_id' => $unit->id,
+                    'unit_name' => $unit->name,
+                    'unit_code' => $unit->code,
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'dashboard_code' => $unit->getUnitCodeForDashboard(),
+                    'real_time_tracking' => true,
+                    'dashboard_impact' => 'Available for employee assignment and chart updates'
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Unit creation logging failed: ' . $e->getMessage());
+            }
+        });
+        
+        static::updating(function ($unit) {
+            // Track unit changes yang bisa mempengaruhi dashboard
+            $nameChanged = $unit->isDirty('name');
+            $codeChanged = $unit->isDirty('code');
+            $orgChanged = $unit->isDirty('unit_organisasi');
+            
+            // Pastikan name dan code tetap sinkron
+            if ($nameChanged) {
+                $unit->code = $unit->name;
+            }
+            
+            if ($codeChanged) {
+                $unit->name = $unit->code;
+            }
+            
+            if ($nameChanged || $codeChanged || $orgChanged) {
+                Log::info('UNIT UPDATING - REAL-TIME TRACKING: Unit changes detected', [
+                    'unit_id' => $unit->id,
+                    'name_changed' => $nameChanged,
+                    'code_changed' => $codeChanged,
+                    'org_changed' => $orgChanged,
+                    'old_name' => $nameChanged ? $unit->getOriginal('name') : null,
+                    'new_name' => $unit->name,
+                    'old_code' => $codeChanged ? $unit->getOriginal('code') : null,
+                    'new_code' => $unit->code,
+                    'dashboard_impact' => 'May affect employee unit display and chart data'
+                ]);
+            }
+        });
+        
+        // CRITICAL FIX: Enhanced updated event untuk real-time tracking
+        static::updated(function ($unit) {
+            try {
+                Log::info('UNIT UPDATED - REAL-TIME TRACKING: Unit data modified', [
+                    'unit_id' => $unit->id,
+                    'unit_name' => $unit->name,
+                    'unit_code' => $unit->code,
+                    'unit_organisasi' => $unit->unit_organisasi,
+                    'dashboard_code' => $unit->getUnitCodeForDashboard(),
+                    'employee_count' => $unit->employees()->count(),
+                    'real_time_tracking' => true,
+                    'updated_at' => $unit->updated_at
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Unit update logging failed: ' . $e->getMessage());
+            }
+        });
     }
 }

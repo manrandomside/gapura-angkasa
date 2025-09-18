@@ -657,9 +657,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * COMPLETELY FIXED: Get unit chart data (SDM per Unit) - KODE SAJA untuk konsistensi
+     * COMPLETELY FIXED: Get unit chart data (SDM per Unit) - USING UNIT RELATION APPROACH
      * Chart Type: Bar Chart
-     * CRITICAL CHANGE: Menggunakan KODE UNIT SAJA, bukan format "(XX) Nama Unit"
+     * CRITICAL FIX: Menggunakan relasi unit_id -> units table untuk real-time update
      */
     private function getUnitChartData()
     {
@@ -667,57 +667,126 @@ class DashboardController extends Controller
             // Target units sesuai requirement EXACT dari user
             $targetUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             
-            Log::info('UNIT CHART: Starting FIXED STRATEGY using kode_organisasi field - KODE SAJA', [
+            Log::info('UNIT CHART: Starting REAL-TIME FIX using unit_id relation approach', [
                 'target_units' => $targetUnits,
-                'strategy' => 'kode_organisasi_based_kode_only',
+                'strategy' => 'unit_relation_based_for_realtime_update',
                 'unit_display_mapping' => $this->getUnitDisplayMapping()
             ]);
 
-            // FIXED QUERY: Menggunakan field kode_organisasi dari seeder
-            $unitData = Employee::select('kode_organisasi', DB::raw('count(*) as total'))
-                ->whereNotNull('kode_organisasi')
-                ->where('kode_organisasi', '!=', '')
-                ->whereIn('kode_organisasi', $targetUnits)
-                ->when(Schema::hasColumn('employees', 'status'), function ($query) {
-                    return $query->where('status', 'active');
-                })
-                ->groupBy('kode_organisasi')
-                ->get();
-
-            Log::info('UNIT CHART: Query results using kode_organisasi', [
-                'units_found' => $unitData->count(),
-                'raw_data' => $unitData->toArray()
-            ]);
-
-            // Create result dengan semua target units - KODE SAJA
             $result = [];
-            $foundUnits = [];
-            
-            // Process data yang ditemukan
-            foreach ($unitData as $item) {
-                $unitCode = $item->kode_organisasi;
-                $count = $item->total;
-                $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
-                
-                $result[] = [
-                    'name' => $displayName, // Kode saja
-                    'unit_code' => $unitCode,
-                    'value' => $count
-                ];
-                
-                $foundUnits[] = $unitCode;
+
+            // APPROACH 1: Try using Unit model and relation (PRIORITY)
+            if (class_exists('App\Models\Unit')) {
+                try {
+                    Log::info('UNIT CHART: Using Unit model approach (RECOMMENDED)');
+                    
+                    // Get all units that match target codes
+                    $unitsData = Unit::whereIn('code', $targetUnits)
+                        ->orWhereIn('name', $targetUnits)
+                        ->with(['employees' => function($query) {
+                            $query->when(Schema::hasColumn('employees', 'status'), function ($q) {
+                                return $q->where('status', 'active');
+                            });
+                        }])
+                        ->get();
+
+                    Log::info('UNIT CHART: Units found via model', [
+                        'units_found' => $unitsData->count(),
+                        'units_detail' => $unitsData->map(function($unit) {
+                            return [
+                                'id' => $unit->id,
+                                'name' => $unit->name,
+                                'code' => $unit->code,
+                                'employee_count' => $unit->employees->count()
+                            ];
+                        })->toArray()
+                    ]);
+
+                    $foundUnits = [];
+                    
+                    foreach ($unitsData as $unit) {
+                        $unitCode = $unit->code ?? $unit->name;
+                        
+                        // Skip jika bukan target unit
+                        if (!in_array($unitCode, $targetUnits)) {
+                            continue;
+                        }
+                        
+                        $employeeCount = $unit->employees->count();
+                        $displayName = $this->formatUnitForChart($unitCode);
+                        
+                        $result[] = [
+                            'name' => $displayName,
+                            'unit_code' => $unitCode,
+                            'value' => $employeeCount
+                        ];
+                        
+                        $foundUnits[] = $unitCode;
+                    }
+                    
+                    // Add missing units dengan value 0
+                    foreach ($targetUnits as $unitCode) {
+                        if (!in_array($unitCode, $foundUnits)) {
+                            $displayName = $this->formatUnitForChart($unitCode);
+                            
+                            $result[] = [
+                                'name' => $displayName,
+                                'unit_code' => $unitCode,
+                                'value' => 0
+                            ];
+                        }
+                    }
+                    
+                } catch (\Exception $unitModelError) {
+                    Log::warning('UNIT CHART: Unit model approach failed', [
+                        'error' => $unitModelError->getMessage(),
+                        'fallback_to_approach_2' => true
+                    ]);
+                    $result = []; // Reset untuk fallback
+                }
             }
 
-            // Tambahkan unit yang tidak ditemukan dengan value 0
-            foreach ($targetUnits as $unitCode) {
-                if (!in_array($unitCode, $foundUnits)) {
-                    $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
+            // APPROACH 2: Fallback using kode_organisasi field (if Unit model failed)
+            if (empty($result)) {
+                Log::info('UNIT CHART: Using fallback kode_organisasi approach');
+                
+                $unitData = Employee::select('kode_organisasi', DB::raw('count(*) as total'))
+                    ->whereNotNull('kode_organisasi')
+                    ->where('kode_organisasi', '!=', '')
+                    ->whereIn('kode_organisasi', $targetUnits)
+                    ->when(Schema::hasColumn('employees', 'status'), function ($query) {
+                        return $query->where('status', 'active');
+                    })
+                    ->groupBy('kode_organisasi')
+                    ->get();
+
+                $foundUnits = [];
+                
+                foreach ($unitData as $item) {
+                    $unitCode = $item->kode_organisasi;
+                    $count = $item->total;
+                    $displayName = $this->formatUnitForChart($unitCode);
                     
                     $result[] = [
-                        'name' => $displayName, // Kode saja
+                        'name' => $displayName,
                         'unit_code' => $unitCode,
-                        'value' => 0
+                        'value' => $count
                     ];
+                    
+                    $foundUnits[] = $unitCode;
+                }
+
+                // Add missing units dengan value 0
+                foreach ($targetUnits as $unitCode) {
+                    if (!in_array($unitCode, $foundUnits)) {
+                        $displayName = $this->formatUnitForChart($unitCode);
+                        
+                        $result[] = [
+                            'name' => $displayName,
+                            'unit_code' => $unitCode,
+                            'value' => 0
+                        ];
+                    }
                 }
             }
 
@@ -728,14 +797,14 @@ class DashboardController extends Controller
 
             $totalEmployeesInUnits = array_sum(array_column($result, 'value'));
 
-            Log::info('UNIT CHART: FIXED STRATEGY completed - KODE SAJA format', [
+            Log::info('UNIT CHART: REAL-TIME FIX completed successfully', [
+                'approach_used' => class_exists('App\Models\Unit') ? 'unit_model_relation' : 'kode_organisasi_fallback',
                 'target_units' => $targetUnits,
-                'found_units' => $foundUnits,
-                'missing_units' => array_diff($targetUnits, $foundUnits),
                 'final_result_data' => $result,
                 'total_employees_in_units' => $totalEmployeesInUnits,
-                'strategy' => 'kode_organisasi_field_based_kode_only',
-                'display_format' => 'kode_unit_only'
+                'strategy' => 'unit_relation_based_for_realtime_update',
+                'display_format' => 'kode_unit_only',
+                'real_time_capability' => 'FIXED'
             ]);
 
             return $result;
@@ -746,7 +815,7 @@ class DashboardController extends Controller
             $defaultUnits = ['EGM', 'GM', 'MO', 'MF', 'MS', 'MU', 'MK', 'MQ', 'ME', 'MB'];
             return array_map(function($unitCode) {
                 return [
-                    'name' => $this->formatUnitForChart($unitCode), // Kode saja
+                    'name' => $this->formatUnitForChart($unitCode),
                     'unit_code' => $unitCode,
                     'value' => 0
                 ];
@@ -1101,14 +1170,29 @@ class DashboardController extends Controller
     private function formatEmployeeUnitDisplay($employee)
     {
         try {
-            if (!empty($employee->kode_organisasi)) {
-                $unitCode = $employee->kode_organisasi;
-                $displayName = $this->formatUnitForChart($unitCode); // Return kode saja
-                
-                return $displayName; // Kode saja tanpa nama organisasi
+            // Priority 1: Use unit relation if available
+            if (!empty($employee->unit_id) && class_exists('App\Models\Unit')) {
+                try {
+                    $unit = Unit::find($employee->unit_id);
+                    if ($unit && !empty($unit->code)) {
+                        return $this->formatUnitForChart($unit->code);
+                    } elseif ($unit && !empty($unit->name)) {
+                        return $this->formatUnitForChart($unit->name);
+                    }
+                } catch (\Exception $unitError) {
+                    Log::debug('Unit relation failed: ' . $unitError->getMessage());
+                }
             }
             
-            // Fallback: mapping dari unit_organisasi ke kode default
+            // Priority 2: Use kode_organisasi field
+            if (!empty($employee->kode_organisasi)) {
+                $unitCode = $employee->kode_organisasi;
+                $displayName = $this->formatUnitForChart($unitCode);
+                
+                return $displayName;
+            }
+            
+            // Priority 3: Mapping dari unit_organisasi ke kode default
             if (!empty($employee->unit_organisasi)) {
                 return $this->getUnitCodeFromUnitOrganisasi($employee->unit_organisasi);
             }
@@ -1308,7 +1392,7 @@ class DashboardController extends Controller
                     'kelompok_jabatan_extended' => true,
                     'six_charts_dashboard_realtime' => true,
                     'unit_code_format_display' => true,
-                    'kode_organisasi_strategy' => true
+                    'unit_chart_realtime_fix' => true
                 ],
                 'charts_available' => [
                     'gender_chart' => true,
@@ -1333,13 +1417,14 @@ class DashboardController extends Controller
                         'MS' => 'MS'
                     ],
                     'mapping_available' => true,
-                    'strategy' => 'Menggunakan field kode_organisasi dari seeder - KODE SAJA',
-                    'consistency_status' => 'FIXED - Consistent with dashboard chart'
+                    'strategy' => 'Menggunakan unit relation (unit_id) dengan fallback ke kode_organisasi - REALTIME FIXED',
+                    'consistency_status' => 'FIXED - Real-time update capability restored',
+                    'fix_applied' => 'Unit relation approach for real-time updates'
                 ],
                 'timestamp' => Carbon::now('Asia/Makassar')->toISOString(),
-                'version' => '1.17.0',
+                'version' => '1.18.0',
                 'timezone' => 'Asia/Makassar (WITA)',
-                'dashboard_type' => '6_charts_realtime_with_kode_unit_only_strategy'
+                'dashboard_type' => '6_charts_realtime_with_unit_relation_fix'
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Health Check Error: ' . $e->getMessage());
@@ -1579,7 +1664,7 @@ class DashboardController extends Controller
     {
         try {
             // Get recently added employees (last 30 days)
-            $recentEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'created_at')
+            $recentEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'unit_id', 'created_at')
                 ->where('created_at', '>=', Carbon::now('Asia/Makassar')->subDays(30))
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
@@ -1597,7 +1682,7 @@ class DashboardController extends Controller
                 });
 
             // Get recently updated employees (last 7 days)
-            $updatedEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'updated_at')
+            $updatedEmployees = Employee::select('nama_lengkap', 'jabatan', 'nama_jabatan', 'unit_organisasi', 'kode_organisasi', 'unit_id', 'updated_at')
                 ->where('updated_at', '>=', Carbon::now('Asia/Makassar')->subDays(7))
                 ->where('updated_at', '!=', DB::raw('created_at'))
                 ->orderBy('updated_at', 'desc')
